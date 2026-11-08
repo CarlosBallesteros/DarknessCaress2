@@ -29,13 +29,14 @@ DarknessCaress2/
 │   │   │   ├── Landing.tsx
 │   │   │   ├── Login.tsx
 │   │   │   ├── Register.tsx
-│   │   │   ├── PlayList.tsx     # "Game" tab home: list of games + New game
-│   │   │   ├── GameBoard.tsx    # the board UI
+│   │   │   ├── GameStrip.tsx     # "Game" tab home: scroll-snap strip (creation order) + New battle tile
+│   │   │   ├── GameBoard.tsx     # the board UI
 │   │   │   ├── Statistics.tsx
 │   │   │   ├── Champions.tsx
 │   │   │   └── Profile.tsx
 │   │   ├── components/          # Board, Unit, TopMenu, ProtectedRoute, ...
 │   │   ├── styles/              # tokens.css + one file per route
+│   │   ├── scripts/             # gen-placeholders.mjs (07) — placeholder asset generator
 │   │   └── types/               # API DTO types (mirrors 06)
 │   ├── public/assets/           # asset convention (see 07) — placeholder art ships here
 │   ├── index.html
@@ -106,12 +107,12 @@ No move-history table in MVP (stats are computed from `games`). Replay/audit is 
   "boardSize": 15,
   "maxActiveGames": 5,
   "classes": {
-    "sword":  { "count": 2, "hp": 20, "atk": 7,  "def": 5, "mov": 3, "range": [1],    "label": "Swordsman" },
-    "axe":    { "count": 2, "hp": 25, "atk": 10, "def": 3, "mov": 2, "range": [1],    "label": "Axeman" },
-    "spear":  { "count": 2, "hp": 18, "atk": 6,  "def": 3, "mov": 5, "range": [1],    "label": "Spearman" },
-    "archer": { "count": 2, "hp": 16, "atk": 6,  "def": 2, "mov": 4, "range": [2],    "label": "Archer" },
-    "mage":   { "count": 1, "hp": 15, "atk": 8,  "def": 1, "mov": 3, "range": [1,2,3],"label": "Mage" },
-    "healer": { "count": 1, "hp": 18, "atk": 0,  "def": 2, "mov": 2, "range": [],     "healAmount": 8, "label": "Healer" }
+    "sword":  { "count": 2, "hp": 20, "atk": 7,  "def": 5, "mov": 3, "range": [1],    "role": "attacker",  "label": "Swordsman" },
+    "axe":    { "count": 2, "hp": 25, "atk": 10, "def": 3, "mov": 2, "range": [1],    "role": "attacker",  "label": "Axeman" },
+    "spear":  { "count": 2, "hp": 18, "atk": 6,  "def": 3, "mov": 5, "range": [1],    "role": "attacker",  "label": "Spearman" },
+    "archer": { "count": 2, "hp": 16, "atk": 6,  "def": 2, "mov": 4, "range": [2],    "role": "supporter", "label": "Archer" },
+    "mage":   { "count": 1, "hp": 15, "atk": 8,  "def": 1, "mov": 3, "range": [1,2,3],"role": "supporter", "label": "Mage" },
+    "healer": { "count": 1, "hp": 18, "atk": 0,  "def": 2, "mov": 2, "range": [],     "healAmount": 8, "role": "supporter", "label": "Healer" }
   },
   "personalities": {
     "aggressive": { "label": "Aggressive", "temperature": 0.7 },
@@ -126,7 +127,7 @@ No move-history table in MVP (stats are computed from `games`). Replay/audit is 
 }
 ```
 
-The server loads it once and serves the public subset (`classes`-labels/stats, `personalities`-labels, `themes`, `lore`) via `GET /api/meta` — the frontend never reads the file directly.
+The server loads it once and serves the public subset (`classes` labels/stats/role, `personalities` labels, `themes`, `lore`) via `GET /api/meta` — the frontend never reads the file directly.
 
 ## Runtime model
 
@@ -142,6 +143,9 @@ DATABASE_URL=postgres://dc:dc@db:5432/darknesscaress
 JWT_SECRET=change-me-64-characters
 OLLAMA_URL=http://ollama:11434
 OLLAMA_MODEL=qwen2.5:7b-instruct-q4_K_M
+# LLM_MOCK=1                      # OPTIONAL, local dev only: selects the fixture AI client
+                                  # instead of Ollama (04). Tests set it automatically.
+                                  # NEVER set it on the deployed VM. In prod it's real.
 PORT=3000
 NODE_ENV=production
 ```

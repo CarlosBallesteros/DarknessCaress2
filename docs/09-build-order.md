@@ -1,6 +1,6 @@
 # Build Order — Phases, Acceptance, Prompts
 
-> The execution roadmap. For each phase: what to build, which docs the agent reads, and the acceptance checklist THE AGENT must satisfy before claiming done. Prompts to paste live in `10-prompts.md`. Phases are sequential by default (each builds on green predecessors); parallel-safe notes where true.
+> The execution roadmap. For each phase: what to build, which docs the agent reads, and the acceptance checklist THE AGENT must satisfy before claiming done. Prompts to paste live in `10-prompts.md`. **Strictly sequential** — every phase builds on its green predecessor; no phase runs parallel to another.
 
 ## Phase 0 — Prerequisites (owner, human)
 
@@ -11,22 +11,22 @@
 ## Phase 1 — Scaffold & quality gates
 
 **Read:** `00`, `08`, `01`, `07`.
-**Build:** exact monorepo skeleton of `01` (client, server, e2e, docker-compose, .env.example), TS strict, ESLint9+Prettier, Vitest scaffolding (both packages), Playwright config in `/e2e`, `server` boots with `GET /api/health` → `{"ok":true}` (no auth), placeholder-asset generator script runs, config.json loads honoring the `01` shape with the `00` stat values and lore as simple placeholders (lore will be drafted in phase 6).
+**Build:** exact monorepo skeleton of `01` (client, server, e2e, docker-compose, .env.example), TS strict, ESLint9+Prettier, Vitest scaffolding (both packages), Playwright config in `/e2e`, `server` boots with `GET /api/health` → `{"ok":true}` (no auth), placeholder-asset generator script runs, config.json loads honoring the `01` shape with the `00` stat values and lore as simple placeholders (lore will be drafted in phase 6), plus the tiny `wrapAsync` helper for Express routes (made real here so every later phase inherits it).
 **Acceptance:**
 
 ```
 [ ] npm -w server run lint && npm -w client run lint            → 0 errors
 [ ] npx prettier --check .                                       → clean
 [ ] npm -w server test && npm -w client test                     → pass (≥ placeholder health test)
-[ ] npm -w client run gen:placeholders                           → all 25 asset files exist
+[ ] npm -w client run gen:placeholders                           → all asset files per 07 exist (4 per class + hero; baseline config ⇒ 25)
 [ ] docker compose up db → psql \dt shows empty schema; server boots, /api/health 200
 [ ] commits formatted "chore(phase-1): ..." (multiple allowed), pushed
 ```
 
 ## Phase 2 — Auth & users
 
-**Read:** `00`, `08`, `01`, `06` (endpoints 1–7, minus games).
-**Build:** users table + migrations runner (`schema.sql` idempotent), register/login/logout/me/patch-me/password, bcrypt cost 10, JWT cookie, `express-rate-limit` on login, zod input schemas, `requireAuth` middleware. NOTE (design decision locked): Express async handlers get a tiny `wrapAsync` helper in phase 1 — no unhandled rejections.
+**Read:** `00`, `08`, `01`, `06` (endpoints 1–7: auth, users, meta; stats comes in phase 5).
+**Build:** users table + migrations runner (`schema.sql` idempotent), register/login/logout/me/patch-me/password, bcrypt cost 10, JWT cookie, `express-rate-limit` on login, zod input schemas, `requireAuth` middleware — all routes wrapped in phase 1's `wrapAsync` helper (no unhandled rejections, ever).
 **Acceptance:**
 
 ```
@@ -44,13 +44,11 @@
 **Acceptance:**
 
 ```
-[ ] the full 02 test list passes (movement matrix, counters interface per class, damage floor, heal clamp, death, healer cannot attack, atomic bundle, victory, preview consistency)
+[ ] the full 02 test list passes (movement matrix, counter behavior per class distance, damage floor, heal clamp, death, healer cannot attack, atomic bundle, victory, preview consistency)
 [ ] engine module imports NOTHING from features/ (eslint boundary or import check)
 [ ] rerun with mutated config numbers in a temp file still passes (proves no hardcoded stats)
 [ ] commit "feat(phase-3): ...", pushed
 ```
-
-**Parallel-safe note:** phases 3 and 2 are independent; both need only phase 1. The prompt file assumes sequential by default.
 
 ## Phase 4 — Board generation
 
@@ -59,10 +57,10 @@
 **Acceptance:**
 
 ```
-[ ] invariants property tests pass for ≥ 40 seeds (river simple path top→bottom, bridges on river, crossability)
+[ ] invariants property tests pass for ≥ 40 seeds (river simple path left edge → right edge, bridges on river, crossability)
 [ ] determinism test: same brief+seed = byte-identical board
 [ ] fallback template validates
-[ ] mock-LLM full flow: POST /api/games → 201 GameState with armies placed per 03 spawn table
+[ ] mock-LLM full flow: POST /api/games → 201 GameState with armies placed per 03's spawn scatter layout
 [ ] 409 on 6th active game (cap from config)
 [ ] commit "feat(phase-4): ...", pushed
 ```

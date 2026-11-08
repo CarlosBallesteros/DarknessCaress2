@@ -32,8 +32,10 @@ export interface Move {   // one unit's turn bundle, exactly the API contract's 
 }
 
 export interface GameEngineConfig {   // projected from server/config.json — the engine never reads the file
-  classes: Record<ClassKey, { hp: number; atk: number; def: number; mov: number; range: number[]; healAmount?: number }>;
+  classes: Record<ClassKey, { hp: number; atk: number; def: number; mov: number; range: number[]; healAmount?: number; role?: "attacker" | "supporter" }>;
 }
+// Note: `role` rides along as metadata (consumed by the AI prompt layer + spawn layout);
+// engine MATH must never branch on it — a class's role tag can never alter damage, movement, or range.
 ```
 
 ## Movement (`src/game/reach.ts`)
@@ -84,7 +86,7 @@ Execution order and rules, exactly:
 4. **Counter** — the exact rule: if the target survived and the target's class can attack (`atk > 0`, archers/mages have their own range; healer never) and the ATTACKER'S FINAL TILE lies within the TARGET'S range measured from the target's tile ⇒ the target deals `max(0, targetAtk − attackerDef)` back. One counter per attack; the counter can kill.
 5. **Heal**: healer only, target = same side, alive, Manhattan distance 1 (adjacent), `hp < maxHp`; healed = `min(healAmount, maxHp − hp)`. Healers have no attack action at all.
 6. **Wait**: legal anywhere. A unit given no move stays `acted: false` (skipping your units is allowed and costs nothing).
-7. Set `acted: true` for every unit that received a move. Reset of `acted` happens at turn flips, in feature code — the engine doesn't track turns.
+7. Set `acted: true` for every unit that received a move. Reset of `acted` happens at turn flips, in feature code — the engine doesn't track turns. (The reset is DEFINED in `06`: `POST /end-turn` resets all units' flags before scheduling the AI turn.)
 
 ## Turn semantics
 

@@ -6,10 +6,10 @@
 
 - Base path: `/api`. Production serves this from the same origin as the SPA (see `01-architecture.md`).
 - **Success** response: `200`/`201`/`204` with a JSON body per endpoint below (no envelope — the body IS the resource).
-- **Error** response: proper HTTP status with body `{"error": "<human-readable message>"}`. Statuses used: `400` validation, `401` not authenticated (`{"error":"Not authenticated"}`), `401` bad login, `403` not your game, `404`, `409` state conflict (e.g. game cap, already ended), `429` rate limited.
+- **Error** response: proper HTTP status with body `{"error": "<human-readable message>"}`. Statuses used: `400` validation, `401` not authenticated (`{"error":"Not authenticated"}`) and bad login, `404` unknown/not-yours (deliberate: existence is never leaked — see next rule), `409` state conflict (game cap, wrong phase, already finished), `429` rate limited, `503` board generation failed.
 - Auth: every endpoint below except `register`, `login` requires the `dc_session` cookie (missing/invalid ⇒ `401 {"error":"Not authenticated"}`).
 - All request bodies are validated with zod against the schemas below; failures = `400 {"error":"<first zod issue>"}`.
-- Every resource type URL refers to is owned by the authenticated user; mismatch ⇒ `403 {"error":"Not found"}` (never leak existence).
+- Every game reference is owned by the authenticated user; a game id or unit id not belonging to the caller ⇒ `404 {"error":"Not found"}` — never `403`, which would betray that the resource exists.
 - Timestamps are ISO 8601 strings.
 
 ## Shared DTOs (exact TypeScript/public shapes)
@@ -23,7 +23,7 @@ interface Board { tiles: string[][] }        // 15x15, tile codes: "plain" | "fo
 
 // unit
 interface Unit {
-  id: string;            // stable uuid
+  id: string;            // "<P|E>-<class>-<n>" (per 03's spawn): stable for the game's life — NOT a uuid
   side: "player" | "enemy";
   class: ClassKey;       // "sword"|"axe"|"spear"|"archer"|"mage"|"healer"
   x: number; y: number;  // current position
@@ -98,8 +98,8 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
   "boardSize": 15,
   "maxActiveGames": 5,
   "classes": {
-    "sword": { "label": "Swordsman", "hp": 20, "atk": 7, "def": 5, "mov": 3, "range": [1], "count": 2 },
-    "healer": { "label": "Healer", "hp": 18, "atk": 0, "def": 2, "mov": 2, "range": [], "count": 1, "healAmount": 8 }
+    "sword": { "label": "Swordsman", "hp": 20, "atk": 7, "def": 5, "mov": 3, "range": [1], "role": "attacker", "count": 2 },
+    "healer": { "label": "Healer", "hp": 18, "atk": 0, "def": 2, "mov": 2, "range": [], "role": "supporter", "count": 1, "healAmount": 8 }
   },
   "personalities": { "aggressive": { "label": "Aggressive" }, "defensive": { "label": "Defensive" }, "erratic": { "label": "Erratic" } },
   "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],
@@ -122,13 +122,13 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
 
 Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count.
 
-### 9. `GET /api/games` → `200 {"games":[GameSummary, …]}` ordered by `updatedAt` desc. **Side effect (mandated):** before reading, re-trigger stale AI jobs for this user (`01-architecture.md` → stale recovery).
+### 9. `GET /api/games` → `200 {"games":[GameSummary, …]}` ordered by **creation order** (`created_at` ascending) — position is the player's mental map, never reshuffled by activity; finished games stay in place (the client dims them). **Side effect (mandated):** before reading, re-trigger stale AI jobs for this user (`01-architecture.md` → stale recovery).
 
 ### 10. `POST /api/games` — `{"difficulty":"aggressive"}` (must be a personality id from config). Runs board generation (LLM brief + materialization, `03`) **synchronously**; then assembles both armies and inserts the row with `status: "player_turn"`, `turnNumber: 1`.
 
-`201` → `{"game": GameState}`. Errors: `400 {"error":"Unknown difficulty"}`, `409 {"error":"Active game limit reached (5)"}` (player game count in `player_turn`+`ai_turn`). If board generation fails after its bounded retries (`03`): `503 {"error":"Battlefield generation failed, try again"}`.
+`201` → `{"game": GameState}`. Errors: `400 {"error":"Unknown difficulty"}`, `409 {"error":"Active game limit reached (5)"}` (the `(5)` is interpolated from `config.maxActiveGames`, not a literal; counting `player_turn`+`ai_turn` only). If board generation fails after its bounded retries (`03`): `503 {"error":"Battlefield generation failed, try again"}`.
 
-### 11. `GET /api/games/:id` → `200 {"game": GameState}` (stale-recovery side effect as in 9, for this game). `404` if not the user's game. While `ai_turn`, the response reflects the state at query time — no blocking, no long-polling.
+### 11. `GET /api/games/:id` → `200 {"game": GameState}` (stale-recovery side effect as in 9, for this game). A game id that doesn't belong to the caller ⇒ `404 {"error":"Not found"}` per the conventions rule. While `ai_turn`, the response reflects the state at query time — no blocking, no long-polling.
 
 ### 12. `GET /api/games/:id/preview/:unitId` — only for the caller's units, only while `player_turn`, unit not yet `acted`.
 
@@ -139,7 +139,7 @@ Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count.
 - `moveTiles`: tiles reachable within Mov via legal pathing (water impassable outside bridges; enemies block; allies pass-through; Boolean per tile, no path enumeration).
 - for classes with atk > 0: `attackTiles` = enemy-occupied tiles with distance ≤ class attack range **from any tile the unit can finish on** — i.e. tiles attackable THIS turn.
 - for healer: `healTiles` = own-side (player) units adjacent-to-reach, hp < maxHp.
-- Response is computed by `src/game/` shared code: identical logic serves moves validation; the client renders it as overlay. Errors: `404` unknown/not-owner/not-current-side ⇒ `{"error":"Unit not playable"}`; `409` wrong status.
+- Response is computed by `src/game/` shared code: identical logic serves moves validation; the client renders it as overlay. Errors: `404 {"error":"Unit not playable"}` (unknown, not owner's, or already acted this turn); `409 {"error":"Game is not waiting for your turn"}`.
 
 ### 13. `POST /api/games/:id/moves` — validates & applies the whole player turn atomically (single transaction).
 
@@ -147,19 +147,19 @@ Request:
 
 ```json
 { "moves": [
-  { "unitId": "u-player-1", "path": [[4,4],[5,4]], "action": { "type": "attack", "targetId": "u-enemy-3" } },
-  { "unitId": "u-player-7", "path": [[9,9]], "action": { "type": "wait" } }
+  { "unitId": "P-sword-1", "path": [[4,4],[5,4]], "action": { "type": "attack", "targetId": "E-axe-1" } },
+  { "unitId": "P-archer-1", "path": [[9,9]], "action": { "type": "wait" } }
 ]}
 ```
 
-- Server re-derives `path` legality with the same engine used by preview; `path[0]` must be the unit's current tile; the path may pass through ally-occupied tiles (allies do not block passage) but the final tile must be empty; enemy-occupied tiles may NOT be entered; attack requires block distance `manhattan(path.at(-1), target)` ∈ class range and target on the opposite side; heal requires healer adjacency, same side, and target hp < max hp; every `unitId` must belong to the side with `acted=false`; each unit appears at most once.
+- Server re-derives `path` legality with the same engine used by preview; `path[0]` must be the unit's current tile; the path may pass through ally-occupied tiles (allies do not block passage) but the final tile must be empty; enemy-occupied tiles may NOT be entered; attack requires Manhattan distance `|dx|+|dy|` between `path.at(-1)` and the target within the attacker's class range, target on the opposite side; heal requires healer adjacency, same side, and target hp < max hp; every `unitId` must belong to the acting side with `acted=false`; each unit appears at most once.
 - Applies in request order: teleport along validated path (positions update), computes attack & counter server-side exactly `02 defines`, heal by `healAmount`, sets `acted: true`.
 - `200 {"game": GameState}` — same status still `player_turn`; acting is separate.
 - Errors: `400 {"error":"<which move failed and why>"}` (e.g. `"move 1: archer cannot attack a unit at 3 tiles"`). Apply nothing on any failure — validation is holistic before the first mutation.
 
 ### 14. `POST /api/games/:id/end-turn` — only from `player_turn`; no request body. No concept of "partly acted units" — moves were already applied atomically by endpoint 13, so ending the turn is pure state transition (any un-acted units simply do nothing this turn).
 
-Effects: `status = "ai_turn"`, `updated_at = now()`, fire background `runAiTurn` (non-blocking per `01`). Response: `200 {"game": GameState}` with `status:"ai_turn"`. Errors: `409 {"error":"Game is not waiting for your turn"}`.
+Effects: `status = "ai_turn"`, `updated_at = now()`, **all units' `acted` flags reset to `false`** (the player's just-expired units stop acting; the enemy army is armed for ITS turn — the reset covers both sides in one stroke), fire background `runAiTurn` (non-blocking per `01`). Response: `200 {"game": GameState}` with `status:"ai_turn"`. Errors: `409 {"error":"Game is not waiting for your turn"}`.
 
 Victory check also runs here and on 13: if all enemy units are dead, no AI turn happens — `status = "won"` directly. Symmetrically, AI-side engine sets `status = "lost"` after its actions if the player is wiped.
 

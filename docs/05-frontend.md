@@ -6,10 +6,10 @@
 
 | Path | Page | Auth | Contents |
 |---|---|---|---|
-| `/` | Landing | public | Title `{ "Darkness Caress II" }` (h1), tagline `The long awaited sequel to the legendary game`, one button `Play` (→ `/play` or `/login`). Full-viewport dark background, art from `/assets/warriors-europe/hero/landscape.png` (placeholder ships with it — see `07`). |
+| `/` | Landing | public | Title `"Darkness Caress II"` (h1), tagline `The long awaited sequel to the legendary game`, one button `Play` (→ `/play` or `/login`). Full-viewport hero: art from `/assets/warriors-europe/hero/landscape.png`, dark overlay regardless of UI mode (placeholder ships with it — see `07`). |
 | `/login` | Login | public | Email + password form, error banner on 401/429. Link to `/register`. |
 | `/register` | Register | public | Email, username, password, password-again. Client checks length/format per `01`. Link to `/login`. |
-| `/play` | Games list | yes | "Game" tab home. See below. |
+| `/play` | Game strip | yes | "Game" tab home: scroll-snap strip in creation order. See below. |
 | `/play/:id` | Board | yes | The battle screen. See below. |
 | `/stats` | Statistics | yes | Table from `GET /api/stats`: totals row + per-difficulty table. |
 | `/champions` | Champions | yes | 6 class cards from `GET /api/meta`. See below. |
@@ -17,15 +17,20 @@
 
 `ProtectedRoute` component: on mount calls `GET /api/me`; on 401 redirects to `/login` (state back-link included). While loading: minimal spinner, nothing else. After any `401` caught by the api wrapper app-wide: same redirect.
 
-**Top menu** (all authed pages): left — wordmark "Darkness Caress II"; center — tabs `Game · Statistics · Champions · Profile` (active tab underlined gold); right — username (link to `/profile`) + `Log out` button (`POST /api/auth/logout` → `/`). Wraps to two rows under 480 px.
+**Top menu** (all authed pages): left — wordmark "Darkness Caress II"; center — tabs `Game · Statistics · Champions · Profile` (active tab underlined gold); right — `ui-mode-toggle` (sun/moon icon), username (link to `/profile`) + `Log out` button (`POST /api/auth/logout` → `/`). Wraps to two rows under 480 px.
 
-## Games list (`/play`)
+**Light/dark UI mode:** pure client feature — a tiny `useUiMode` hook sets `data-ui-mode="dark"|"light"` on `<html>`, persisted under `localStorage` key `dc.uiMode`, **default dark** (no API, no profile write; a later hook may persist it per-account). Tokens are split so semantic tokens (backgrounds, text, borders) have light-mode overrides in `:root[data-ui-mode="light"]`; game/side colors (gold, blood, board tiles, overlays) are identical in both modes.
+
+## Games strip (`/play`)
 
 - Fetches `GET /api/games` + `GET /api/meta` (for persona labels + cap).
+- **Presentation — the strip, not a list:** games render in a horizontal, snap-scrolling strip (CSS `scroll-snap`; arrows on desktop, native swipe on touch; dots + keyboard arrows as input). No carousel library — plain CSS per doctrine.
+- **Order = creation order** (`06` endpoint 9): game 1 stays leftmost forever; there is no reshuffling, ever. **Finished games stay in their slot, dimmed** (Victory/Defeat badge visible, board preview greyed). Only ≤ 5 cards are ever vivid (the active cap).
 - **Poll every 3 s while any game's status is `ai_turn`** (custom hook `usePolling(fn, active)` — `active` switches polling; no cross-tab or visibility-API fanciness).
-- Each game card: persona label badge (color per persona), status badge (`Your turn` gold / `AI is thinking…` red pulse / `Victory` gold-solid / `Defeat` red-solid), `Turn 7`, relative `updated_at`. Card click → `/play/:id`. On finished games: `Open` + nothing else; on active: `Open`; menu (⋮): `Forfeit` (confirm dialog, `POST /api/games/:id/forfeit`).
-- **New game button** (disabled with tooltip `Limit of 5 active games reached` when count ≥ cap — server is still the authority on 409): opens modal with the 3 persona cards + `Create` → `POST /api/games` (loading state: "The battlefield is being designed…" — this POST legitimately runs 10–60 s) → redirect into the created game.
-- Empty state: "No battles yet" + the New game button.
+- Each card: persona label badge (`--persona-<id>` accent, same tokens as the board banner), status badge (`Your turn` gold / `AI is thinking…` red pulse / `Victory` gold-solid / `Defeat` red-solid), `Turn 7`, relative `updated_at`. Click the focused card → `/play/:id`; **active** cards also carry a ⋮ menu with `Forfeit` (confirm dialog → `POST /api/games/:id/forfeit`); finished cards have no ⋮ (the server would 409). A small board thumbnail on the card is a later hook — cards keep status decor only for MVP.
+- **Last tile always = "New battle" card** (persona pick modal opens from there; coherent metaphor, zero extra chrome) — disabled with tooltip `Limit of 5 active games reached` when count ≥ cap ("the server is still the authority on 409"). `Create` → `POST /api/games` (loading state: "The battlefield is being designed…" — this POST legitimately runs 10–60 s) → redirect into the created game.
+- Route table label: `/play` is the **"Game strip"** (Game tab home).
+- Empty state: single "New battle" tile with the caption "No battles yet" beneath it.
 
 ## Board screen (`/play/:id`)
 
@@ -36,15 +41,19 @@ The richest screen; decomposed into the components below. Board = CSS grid, `15�
 ```
 BoardScreen
 ├── TopMenu
-├── PhaseBanner       # turn number, status, "The darkness is thinking…" pulse when ai_turn
+├── PhaseBanner       # persona label badge (--persona-<id> accent), turn number, status,
+│                     # "The darkness is thinking…" pulse when ai_turn
 ├── Board             # tiles grid + <UnitSprite/> layer + overlay layer
-│   └── UnitSprite    # img sprite + hp pip + side tint ring; dimmed when acted
+│   └── UnitSprite    # img sprite + side tint ring + 3px health bar under it (width = hp/maxHp;
+│                     # >2/3 green, 1/3–2/3 amber, <1/3 red; full-HP bar hidden); dimmed when acted
 ├── UnitTray          # horizontal list of player units (display order per 00): class icon, hp bar,
 │                     # acted state; click = select (equivalent to clicking sprite)
-├── ActionPanel       # contextual: selected unit's staged move summary + buttons (Cancel staged /
-│                     # Attack <target> / Heal <target> / Wait) OR prompts to click the board
+├── ActionPanel       # contextual: header = selected unit's portrait (assetPath portrait-player
+│                     # + class label + hp/atk/def mini-stats from config) then the staged move
+│                     # summary + buttons (Cancel staged / Attack <target> / Heal <target> /
+│                     # Wait) OR prompts to click the board
 ├── StagedMovesBar    # chips: "Archer #1 → (7,9) attack Mage"; click chip = unstage it
-└── TurnFooter        # [End turn] (primary, disabled until ≥1 staged move… see semantics), [Forfeit]
+└── TurnFooter        # [End turn] (primary; ALWAYS enabled — semantics in Notes) , [Forfeit]
 ```
 
 ### Interaction state machine (exact)
@@ -53,8 +62,10 @@ BoardScreen
 idle → unitSelected            (click own, non-acted unit → GET preview; unit gets selected ring; overlay draws)
 unitSelected → unitSelected    (click another own non-acted unit → re-select)
 unitSelected → idle            (click empty/dim area or Esc)
-unitSelected → movePicked      (click a moveTile → path = client-side computed shortest path for display;
-                                overlay now shows the actions FROM THAT destination: attackable/red, healable/green)
+unitSelected → movePicked      (click a moveTile → client computes + displays the shortest legal path
+                                (display helper only; the SAME path goes into the staged move);
+                                overlay now shows the actions FROM THAT destination: attackTiles/red,
+                                healTiles/green)
 movePicked → staged            (click enemy unit in red overlay → stage {unitId, path, attack:target};
                                 click own wounded unit in green overlay (healer) → stage heal;
                                 click [Wait in place] → stage wait for same tile)
@@ -67,7 +78,7 @@ playerTurnSubmitted → polling  (3 s GET /play/:id while ai_turn)
 Notes:
 
 - **End turn semantics**: if staged ≤ 0 moves but some unit(s) have `acted=false`, End turn still works (they do nothing) — button always enabled, confirm dialog only when un-acted units remain.
-- Victory bearers: if `POST /moves` response has status `won` (all enemies died by the player's actions) → skip end-turn (server enforces), show victory overlay.
+- Victory short-circuit: if `POST /moves`'s response has status `won` (all enemies died by the player's actions) → do NOT call `/end-turn` (the server forbids it; status matrix in `06`), show the victory overlay directly.
 - `ai_turn` state: board interactions disabled; PhaseBanner pulses; on the response that flips to `player_turn`, animate `lastAiActions` client-side: step through actions 400 ms apart moving sprites along their `path` and flashing attacks (damage popups), then settle to final state (which is already authoritative).
 - Sprite asset path: `/assets/${theme}/${class}/sprite-${side}.png` where `theme` = user's theme from `GET /api/me`. Portraits (Champions tab) per `07`.
 
@@ -82,7 +93,7 @@ Notes:
 
 ## Champions tab (`/champions`)
 
-`GET /api/meta` → 6 cards (2×3 grid, 1 col under 700 px). Card: both portraits side-by-side (`portrait-player.png` under a gold label, `portrait-enemy.png` under a red label), class label overlaid on the stat block, and the lore text. Portrait click → simple lightbox (larger view, `Esc`/click closes). No other interactivity.
+`GET /api/meta` → 6 cards (2×3 grid, 1 col under 700 px). Card: role badge first (small pill: `Attacker` gold-tinted, `Supporter` green-tinted — values straight from the config), both portraits side-by-side (`portrait-player.png` under a gold label, `portrait-enemy.png` under a red label), class label overlaid on the stat block, and the lore text. Portrait click → simple lightbox (larger view, `Esc`/click closes). No other interactivity.
 
 ## Statistics tab (`/stats`)
 
@@ -100,16 +111,12 @@ Three cards, own submit button, inline success/error text (never browser alerts)
 
 ```css
 :root {
-  /* sides & UI accents */
+  /* sides & UI accents (mode-independent) */
   --gold:        #c9a227;  --gold-soft: #e2c25f;
   --white-soft:  #f2efe9;
   --blood:       #8a1c1c;  --blood-soft: #c0392b;
-  --ink:         #14121a;  /* page background */
-  --ink-raised:  #201d29;  /* cards */
-  --ink-border:  #37324a;
-  --text:        #ded9e8;  --text-dim: #9a94ad;
 
-  /* board tiles */
+  /* board tiles (mode-independent) */
   --tile-plain: #c8b47a;  --tile-forest: #6f8b4f;  --tile-hill: #a08553;
   --tile-lake:  #4b7ec2;  --tile-river:  #4f97c4;  --tile-bridge: #8d6b3f;
   --tile-rock:  #6e6659;
@@ -119,6 +126,28 @@ Three cards, own submit button, inline success/error text (never browser alerts)
   --overlay-attack: 192 57 43;
   --overlay-heal: 96 176 120;
   --overlay-select: 242 239 233;
+
+  /* health bar states */
+  --hp-green: #5cb85c;  --hp-amber: #e0a800;  --hp-red: #d9534f;
+
+  /* persona accents (mode-independent; used by game-strip cards + board PhaseBanner) */
+  --persona-aggressive: #c0392b;   /* red        */
+  --persona-defensive:  #4b7ec2;   /* blue       */
+  --persona-erratic:    #8a6fa8;   /* purple     */
+}
+
+/* semantic tokens — the ONLY things light mode re-skins */
+:root, :root[data-ui-mode="dark"] {
+  --ink:        #14121a;      /* page background      */
+  --ink-raised: #201d29;      /* cards                */
+  --ink-border: #37324a;
+  --text:       #ded9e8;  --text-dim: #9a94ad;
+}
+:root[data-ui-mode="light"] {
+  --ink:        #efe9dc;      /* parchment, not white */
+  --ink-raised: #f7f2e8;
+  --ink-border: #cfc3a9;
+  --text:       #33302a;  --text-dim: #6b6355;
 }
 ```
 
@@ -132,4 +161,4 @@ One module family: `request<T>(path, opts)` wrapper → `fetch` with `credential
 
 - **Vitest**: api wrapper (mock fetch → mapping/errors), `usePolling` (fake timers: starts/stops), board pathfinding display helper (client mirrors nothing — only uses server previews; test just the path-display interpolation), staged-moves reducer (state machine transitions incl. unstage).
 - **Playwright** (phase 7, `09`): full flows via the real app + mock-LLM server.
-- All interactive elements carry `data-testid`: `tab-game`, `new-game`, `persona-{id}`, `game-card-{id}`, `unit-{id}`, `tile-{x}-{y}`, `end-turn`, `staged-chip-{n}`, `forfeit`, `logout`. E2E specs rely on these names — stable contract, do not rename.
+- All interactive elements carry `data-testid`: `tab-game`, `new-game`, `persona-{id}`, `game-card-{id}`, `unit-{id}`, `tile-{x}-{y}`, `end-turn`, `staged-chip-{n}`, `forfeit`, `logout`, `ui-mode-toggle`. E2E specs rely on these names — stable contract, do not rename.

@@ -7,10 +7,10 @@
 ## Ground rules for every run
 
 - One agent, one phase, green checklist, commit+push, THEN the next phase. Never run two agents on the same repo simultaneously.
-- Phases 2 and 3 are the only parallelizable pair (see `09`); if you parallelize, run them in separate clones and merge yourself — default advice: don't.
+- Build strictly sequentially: 1 → 2 → 3 → 4 → 5 → 6 → 7. Every step's precondition is its predecessor's green checklist (see the WHEN/WAIT list under T1); nothing is parallel.
 - If the agent stops with a "STOP / WHAT IS BLOCKING" report (gap protocol), answer it with template **T3** below.
 - If something breaks AFTER a phase went green, use template **T2** (bug-fix), never a new phase.
-- Keep `LLM_MOCK=1` during development; set every real-Ollama check manually at phase 7 (the model is slow — the suite should not wait on it).
+- Automated test runs (Vitest/Playwright) are ALWAYS mocked — the test configs inject `LLM_MOCK=1` themselves; you never manage the switch for tests. For local dev, keep `LLM_MOCK=1` in your own `.env` (set once at phase 4); real-Ollama checks happen manually at phase 7 on the VM (the model is slow — the suite should not wait on it).
 
 ## Template T1 — standard phase prompt
 
@@ -58,7 +58,7 @@ QUALITY GATES (all mandatory before you claim done):
 
 - Phase 1 → owner prerequisite only (Phase 0 done).
 - Phase 2 → WAIT until Phase 1 green (`/api/health` boots, lint runs).
-- Phase 3 → WAIT only for Phase 1 (engine has no API deps). Parallel-safe with Phase 2.
+- Phase 3 → after Phase 2 (sequential rule; engine itself has no API deps, but the sequence is the rule).
 - Phase 4 → WAIT for Phases 2 + 3 (needs auth middleware and the engine).
 - Phase 5 → WAIT for Phase 4 (a game must exist before turns can run).
 - Phase 6 → WAIT for Phase 2 (auth) minimum; touching game screen code assumes Phase 4/5 endpoints exist — sequential default keeps it simple: run after 5.
@@ -97,27 +97,9 @@ Proceed with this answer; all other spec parts remain unchanged.
 
 (Owner habit worth keeping: after the phase is green, paste the decision into the right doc — one line — so the next agent never trips on the same gap.)
 
-## Template T4 — asset generation (owner-only, image tool of your choice)
+## Template T4 — asset work (owner-only)
 
-Not for coding agents. Phase 7 check may proceed with placeholders; art drops in any time after.
-
-```
-Portrait run (one side at a time, keep the SAME chat for all 6 so style stays consistent):
-"dark fantasy oil painting portrait, [SUBJECT], [SIDE PALETTE], dramatic rim light,
-simple dark background, centered bust, 512x512"
-SUBJECT per class:
-  sword — a disciplined warrior holding a longsword and kite shield, balanced stance
-  axe   — a broad-shouldered brute with a two-handed great axe
-  spear — a lithe skirmisher with a longspear, lighter armor
-  archer — a mobile bowman, bow strung, quiver visible
-  mage  — a fragile scholar, gnarled staff with a faint glow, no helmet
-  healer — a gentle field-medic silhouette, small staff, vial harness
-SIDE PALETTE: player = "white and gold ornate armor"; enemy = "black lacquered armor with deep red accents, menacing"
-Then per accepted portrait: "full body game sprite of the SAME character, same armor and palette,
-neutral pose, front view, flat simple background, centered, 1:1"
-Save as: client/public/assets/warriors-europe/<class>/portrait-player.png / portrait-enemy.png /
-sprite-player.png / sprite-enemy.png (exact names from docs/07-assets.md).
-```
+Not for coding agents — this is your art production task, run with placeholders shipped. The full copy-paste kit (consistency method, per-class subjects, prompt seeds, save filenames, post-checks) is **Template T6 at the end of this file**. Division of law: `docs/07-assets.md` owns the *technical* contract (directory layout, pipeline rules, placeholder generator); **T6 owns art production and is the canonical home for it** — when art guidance changes, T6 changes; the technical contract changes only if file/naming/plumbing rules change.
 
 ## Template T5 — misc ops snippets you'll want
 
@@ -140,3 +122,58 @@ Erase the 5GB model volume (do rarely; re-pulls on next start):
 2. Run the phase checklist block (09) yourself or read the agent's pass/fail report.
 3. Spot-check ONE thing the checklist lists (never trust, verify).
 4. Only then paste the next phase prompt.
+
+## Template T6 — Art production kit (owner-only; THE canonical home for art guidance)
+
+`07-assets.md` is the technical contract — directory layout, pipeline rules, placeholder generator. This template is where art production knowledge lives. When art requirements change, change T6 here (and `07` only if file/naming/plumbing is affected).
+
+### A. Contract rules (satisfy ALL — the pipeline and placeholders depend on them)
+
+- **Output format:** PNG with alpha (RGBA) always; transparent background for sprites; convert from your tool's format if needed.
+- **Filenames:** lower-case, exact, never renamed. One file per side where sides exist.
+- **File set per theme** (`<themeId>` — baseline: `warriors-europe`), under `client/public/assets/`:
+  - `hero/landscape.png` — 1920×1080 max, landing backdrop (may be opaque).
+  - Per class key in `config.classes` (baseline: `sword`, `axe`, `spear`, `archer`, `mage`, `healer`):
+    - `portrait-player.png` — 512×512 — white/gold artwork.
+    - `portrait-enemy.png` — 512×512 — black/red artwork, **DIFFERENT art** from the player's (two artworks per class, same archetype).
+    - `sprite-player.png` — 128×128 — board sprite (color as-is).
+    - `sprite-enemy.png` — 128×128 — SAME design as sprite-player, recolored black/red.
+- **Save location rule:** `client/public/assets/warriors-europe/<class>/<file>.png`. Nothing else changes — no code edits, no config edits; the loader picks files up as they appear and the placeholder fallback covers what's missing.
+- Incremental is fine: ship 3 classes today, the rest next weekend — `console.warn`s on a board mean "still using placeholders", nothing worse.
+
+### B. Consistency kit (do this BEFORE writing prompts)
+
+1. Generate **all 6 portraits of ONE side** inside a single chat/run, always referencing the first accepted image ("same painterly style, same armor language, same background value"), so the set reads as one artist's roster.
+2. Then repeat for the other side (new run, but re-anchor on the same archetypes).
+3. Sprites last: either derive from the accepted portrait as a style seed, or generate with the same reference phrase — then recolor one base sprite per class to make the two side files (recolor ships BOTH files; don't rely on the tool's "variation" for the enemy side).
+
+### C. Per-side palettes (the rule from `00`)
+
+- **Player:** white and gold ornate armor, light background values, heroic poses.
+- **Enemy:** black lacquered armor + deep red accents, darker background values, menacing poses.
+- **Constant across sides:** same silhouette language per class — the board reader identifies *class by shape*, *side by tint*.
+
+### D. Per-class subjects (silhouette first — the board shows them at ~40 px)
+
+- `sword` — disciplined warrior, longsword + kite shield, balanced stance.
+- `axe` — broad-shouldered brute, two-handed great axe, heavy bulk.
+- `spear` — lithe skirmisher, longspear, lighter armor.
+- `archer` — mobile bowman, strung bow, quiver visible, no sword.
+- `mage` — fragile scholar, gnarled staff with faint glow, bareheaded.
+- `healer` — gentle field-medic silhouette, small staff, vial harness, clearly non-combatant.
+
+### E. Prompt seeds (adapt freely; tools of your choice)
+
+- **Portrait:** `"dark fantasy oil painting portrait, [SUBJECT], [SIDE PALETTE], dramatic rim light, simple dark background, centered bust, 512×512"` — 1:1 aspect.
+- **Sprite:** `"full body game sprite of [SUBJECT], dark fantasy painterly style, neutral pose, front view, flat simple background, centered, 1:1"` — crop tight; big readable shapes beat detail at board size.
+
+### F. Post-check (60 seconds after any art drop)
+
+1. All new files RGBA PNG, exact names, in the right directories (`<themeId>/<class>/…`).
+2. Open `/champions` — 6 role-badged cards render portraits (both sides).
+3. Open any game board — sprites sit inside tiles at ~40 px, player/enemy readable.
+4. Zero broken-image icons; `console.warn`s only for classes you haven't drawn yet.
+
+### G. Sound (later hook — same convention when it lands)
+
+`<themeId>/<class>/sound-<action>.mp3`, short effects (<0.5 s): e.g. `sound-attack.mp3`, `sound-heal.mp3`. The loader convention extends; no code re-architecture.
