@@ -1,0 +1,124 @@
+# Darkness Caress II — Project Overview
+
+> **Read this first.** This document is the constitution of the project. Every AI agent working on any phase reads it and treats everything here as a fixed decision. If a task seems to conflict with this document, stop and ask — do not reinterpret it.
+
+## What this is
+
+A fully deployed website with a turn-based 1-vs-1 strategy game, in the spirit of Fire Emblem but much simpler:
+
+> **Fire Emblem warning:** the reference is about *feel only* — square grid, small armies, turn-based tactics. Any mechanic that exists in Fire Emblem but is absent from these documents (weapon triangle, hit/crit %, terrain bonuses, promotions, fog of war, etc.) **does not exist in this project**. The rules here are complete.
+
+- A human player commands an army of 10 units.
+- The opponent is an **AI driven by a local LLM (Ollama)**, called asynchronously between turns with the full board state; the LLM decides every move the enemy army makes.
+- Games are **not played in real time**: the player takes a turn, the AI thinks in the background, the player sees the result when it is ready. The player can maintain several concurrent games and switch between them freely.
+
+The project's stated purpose: build and showcase a real product where **every opponent decision comes from an LLM** — moves, difficulty personas, even the battlefield layout. Simplicity of implementation is a designed feature, not a limitation.
+
+## Editorial principle (applies to the whole docs set)
+
+The specs are written to be **as specific as possible while staying as simple as possible**. Every doc prefers concrete artifacts over prose: folder trees, code snippets, real JSON payloads, sample prompts. Anything not specified in these docs is either:
+- a gap → the agent stops and asks (see `08-agent-rules.md`), or
+- an explicitly deferred idea → listed under "Later hooks" at the bottom of this file.
+
+**Agents must not fill unspecified gaps with their own inventions and must not over-engineer.** A simple solution that meets the spec beats a clever one that exceeds it.
+
+## The product inventory
+
+| Piece | Decided |
+|---|---|
+| Landing page | Title: **"Darkness Caress II"** (final). Tagline: **"The long awaited sequel to the legendary game"** (final). One "Play" button. |
+| Auth | Email + password registration, unique display username. Login with email. No email verification, no password recovery, no 2FA (see Later hooks). |
+| Tabs (top menu) | **Game**, **Statistics**, **Champions**, **Profile**. |
+| Game tab | Grid of the player's active games + a "New game" flow. Playing a game shows the 15×15 board and the two armies. |
+| Statistics tab | Games played, wins, losses, win rate, and wins/losses per AI difficulty. Read from a simple history table. |
+| Champions tab | A grid of the 6 unit classes: portrait (AI image), in-game sprite (AI sprite), stat block straight from the config file, a short lore paragraph, shown in both side variants. Static content, no interactivity beyond viewing. |
+| Profile tab | Change username, change password. Also: pick the army visual theme (see Champions & themes). The picker lists themes from the config — one theme exists in MVP, so the picker works but shows a single option. |
+| Concurrency cap | Max **5 active games** per player. |
+
+## Core game design (decisions, all final for MVP)
+
+### Armies
+Both sides get the identical fixed army — no army editor in MVP:
+
+- 2 × Swordsman, 2 × Axeman, 2 × Spearman, 2 × Archer, 1 × Mage, 1 × Healer (10 units per side, 20 total).
+
+### Unit stats — single source of truth
+All numbers live in **one JSON config file** (Unit stats, ranges, heal amount, difficulty personas + temperatures, board size, games cap). Game logic must read values from this file — stats are never hardcoded, inlined, or duplicated.
+
+This is also where **balance-tuning happens later**: rebalancing = editing the file.
+
+Starting values (chosen for readability of the config, details in `02-game-rules.md`):
+
+| Class | Count | HP | Atk | Def | Mov | Attack range |
+|---|---|---|---|---|---|---|
+| Sword | 2 | 20 | 7 | 5 | 3 | 1 |
+| Axe | 2 | 25 | 10 | 3 | 2 | 1 |
+| Spear | 2 | 18 | 6 | 3 | 5 | 1 |
+| Archer | 2 | 16 | 6 | 2 | 4 | exactly 2 |
+| Mage | 1 | 15 | 8 | 1 | 3 | 1, 2 or 3 |
+| Healer | 1 | 18 | — | 2 | 2 | heal 8, adjacent only |
+
+### Rules of play
+- **Turn flow:** your whole army acts per turn → the AI's whole army acts (async) → repeat. Per unit per turn: **move (up to Mov), then one action** — attack, heal (healer), or wait. Any unit order; the UI lists units in this default display order: Swords, Axes, Spears, Archers, Mage, Healer.
+- **Counterattack:** after an attack, the defender counters **if and only if** the attacker's final tile lies inside the defender's own attack range, and the defender can attack (the Healer never counters).
+- **Combat is deterministic:** `damage = Atk − Def` (floor at 0). No hit %, no crit %, no random bonuses. The Healer does not attack at all.
+- **Movement & tiles:** units block movement of **enemies** but pass through **allies**; a unit can never end movement on an occupied tile.
+- **Move preview:** selecting one of your units highlights on the board (a) every tile it can reach this turn and (b) from those tiles, the enemy tiles it could attack (or, for the Healer, the allies it could heal). Pure cosmetic helpers — no path drawing needed in MVP.
+- **Terrain has no mechanical effect in MVP** (purely cosmetic). Water is impassable except on bridges.
+- **Victory condition:** kill **all 10** enemy units.
+
+### Board generation
+- 15×15 grid, always.
+- Terrain palette: plain, forest, hill, lake, river, bridge (+ decorative rocks). Terrain types are cosmetic.
+- **Zero or one** river line per board. A river is a connected path across the board with a few **turns** (never a straight canal, never spiraling into a flooded board). Only crossing points are the 1–2 bridges lying on it.
+- The river, its bends, bridges and terrain zones come from a hybrid pipeline detailed in `03-board-generation.md`: the **LLM decides** the layout brief (river start/end and bends, bridge tiles, forest/hill zones, densities), **deterministic code materializes** the grid, then validates. No board is playable that violates the constraints.
+
+### AI gaming (the meat)
+- **Everything player-facing that is "AI" is the LLM.** No deterministic fallback heuristic plays the game: if the LLM produces an illegal transient, the system asks it again (bounded retries). If even that fails after the bound, the AI turn simply pauses for a later retry — it never silently substitutes "the game auto-plays for the opponent" — and the specs define exactly that recovery path (`04-ai-integration.md`).
+- **Difficulty personas** (3, names are placeholders, changeable in config): Aggressive / Defensive / Erratic. Different = different persona prompt; Erratic also uses a higher temperature. Nothing else changes between difficulties.
+- The AI is also the **map designer**: a small structured call generates the layout brief for each new board.
+- **Async orientation:** AI turns run as background jobs in the backend; the frontend polls; a game whose AI turn stalled (e.g. server restarted) is re-triggered on games-list load. No queues, no Redis, no websockets.
+
+### Champions & themes
+- **Side colors:** player = **white/gold**, enemy = **black/red** (both final).
+- **Portraits:** distinct artwork per side (two images per class).
+- **In-game sprites:** the same base design for both sides, tinted by side, for instant board readability.
+- **Themes** (cosmetic army skin — e.g. classic European warriors, anime girls, anthropomorphic animals) are implemented as an **asset naming convention + manifest in the config**, not code. Adding a theme = adding files + config lines.
+- **MVP ships exactly one theme:** classic European warriors.
+- **Lore blurbs:** short, thematic/cultural, class-level text ("what this soldier is within the war"). Crucially: **no hero names, no individual backstories** — there are multiple soldiers of each class on the board. Drafted via LLM during the build (editable in the config).
+
+### Assets pipeline
+Art (portraits, sprites, future sounds) is **generated by the owner outside the build**, not by coding agents. Agents ship the asset pipeline with **placeholder images** in the agreed layout so the product runs complete from day one; the owner drops real art into the convention later. `07-assets.md` is therefore a contract, not a build task.
+
+## Deferrals to "Later hooks" (do NOT build now, do not design around)
+
+1. Weapon triangle (sword > axe > spear > sword), possibly shipped silently as an undocumented "secret" advantage.
+2. More army themes; player-selectable themes (MVP: fixed warrior theme).
+3. Variable/chooseable board sizes and army sizes — tuning will depend on how the AI handles the calls.
+4. Email verification, password recovery email, 2FA.
+5. Per-champion sound effects.
+6. Richer win conditions (unique heroes, objective tiles), player-chosen army compositions.
+7. Rating/ELO, leaderboards, global stats.
+8. Higher concurrency cap / parallel LLM requests if players pile up.
+
+## Non-goals (never build in MVP)
+
+No PvP multiplayer, no mobile app, no SSR/SEO machinery, no websockets, no message queues/Redis, no admin panel, no email infrastructure, no matchmaking/ELO, no internationalization (English only), no analytics/cookies tooling, no CI/CD (docker-compose is the deployment).
+
+## Engineering non-negotiables (day 1, every phase)
+
+- **Lint + format:** ESLint + Prettier configured in the scaffold phase, kept clean forever. A phase that fails lint or formatting is not done.
+- **Tests:** unit tests (Vitest) + E2E (Playwright) exist from day 1. Depth where it matters, listed per phase in `09-build-order.md` — thorough on game rules/validation, light on UI plumbing. "Everything possible" means public behavior is covered, not 100%-coverage theater.
+- **Responsive UI:** every screen is usable from phone width up. No separate build target, no heavy UI framework — standard CSS and a scaling board.
+- **Git per phase:** each phase ends with one or more conventional-style commits scoped to that phase (no AI attribution) and a **push to the remote**. The owner creates the remote before phase 1.
+
+## Glossary
+
+- **Game** — one board, two armies, a persisted row whose state evolves.
+- **Unit** — one soldier instance on the board; belongs to a class.
+- **Class** — one of the 6 unit types (Sword, Axe, Spear, Archer, Mage, Healer).
+- **Champion** — a class as seen in the Champions tab (portrait + lore + stats).
+- **Persona** — one of the 3 AI difficulty presets (prompt + temperature).
+- **AI turn** — one background job that asks the LLM to produce one enemy army turn and validates it.
+- **Config** — the single JSON file with all tunables (unit stats, personas, cap, board size).
+- **Brief** — the small structured JSON the LLM returns to describe a board layout before materialization.
