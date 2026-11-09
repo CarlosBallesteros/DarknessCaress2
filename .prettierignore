@@ -1,0 +1,7 @@
+# Docs are the project law — owned by the owner, never reformatted by agents.
+docs/
+README.md
+package-lock.json
+node_modules/
+dist/
+client/dist/

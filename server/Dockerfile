@@ -1,0 +1,16 @@
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json* ./
+COPY client/package.json ./client/package.json
+COPY server/package.json ./server/package.json
+RUN npm ci
+COPY . .
+RUN npm -w client run build
+RUN npm -w server run build
+
+FROM node:22-alpine
+WORKDIR /app/server
+COPY --from=build /app/server /app/server
+COPY --from=build /app/client/dist /app/client/dist
+EXPOSE 3000
+CMD ["node", "dist/app.js"]
