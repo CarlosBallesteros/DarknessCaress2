@@ -6,6 +6,7 @@ import { wrapAsync } from "./wrap-async.js";
 import { authRouter } from "./features/auth/auth.routes.js";
 import { usersRouter } from "./features/users/users.routes.js";
 import { metaRouter } from "./features/meta/meta.routes.js";
+import { gamesRouter } from "./features/games/games.routes.js";
 
 export function createApp(): express.Express {
   const app = express();
@@ -20,6 +21,7 @@ export function createApp(): express.Express {
   app.use("/api", metaRouter);
   app.use("/api/auth", authRouter);
   app.use("/api", usersRouter);
+  app.use("/api", gamesRouter);
   // Keeps every error response in 06's {"error": ...} shape — notably
   // malformed-JSON bodies, which body-parser reports as a 400 with status.
   app.use(
