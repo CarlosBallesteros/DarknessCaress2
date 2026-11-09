@@ -63,6 +63,8 @@ export function applyMoves(
   cfg: GameEngineConfig,
 ): Outcome {
   // ---- whole-bundle validation (pre-move state) ----
+  // Message rows for non-capable classes, unknown action types and unknown
+  // target ids are part of the amended catalogue in 02 (docs commit 9c04ffd).
   const seen = new Set<string>();
   for (const move of moves) {
     const unit = unitById(state.units, move.unitId);

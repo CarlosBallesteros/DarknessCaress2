@@ -98,6 +98,8 @@ export function reachableTiles(
  * Validates one move's path against the pre-move state.
  * Returns null when legal, otherwise a precise user-facing rejection message.
  * A path's "length" is the number of EDGES stepped = path.length − 1.
+ * The outside-the-board and non-adjacent-step rows are part of the amended
+ * message catalogue in 02 (docs commit 9c04ffd).
  */
 export function isPathLegal(
   board: Board,

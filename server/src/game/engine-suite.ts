@@ -446,7 +446,8 @@ export function registerReachSuite(tag: string, cfg: GameEngineConfig): void {
 
 /**
  * Every application/victory scenario of 02's test list — same config-driven
- * contract as registerReachSuite.
+ * contract as registerReachSuite. Message strings are pinned to 02's amended
+ * catalogue (docs commit 9c04ffd).
  */
 export function registerApplySuite(tag: string, cfg: GameEngineConfig): void {
   describe(tag, () => {
