@@ -1,0 +1,40 @@
+## FINDINGS
+
+(Note: `docs/README.md` was not found at the instructed path, so the read set resolved to `docs/00-project-overview.md` + `docs/08-agent-rules.md`.)
+
+1. **docs/00-project-overview.md:46** — "All numbers live in **one JSON config file** (Unit stats, ranges, heal amount, difficulty personas + temperatures, board size, games cap). Game logic must read values from this file — stats are never hardcoded, inlined, or duplicated."
+Gap: the config file's own JSON schema (field names, nesting, key names) is never specified. Every phase-agent implementing config load or tuning must invent the shape → high risk of divergent config shapes across agents breaking the "single source of truth" rule from inside.
+
+2. **docs/00-project-overview.md:77** — "...the system asks it again (bounded retries). If even that fails after the bound, the AI turn simply pauses for a later retry..."
+Gap: the retry bound and the retry/retry-pause mechanics are left undefined. Combined with `08-agent-rules.md:17` ("Never fill the gap silently… Do not proceed on assumptions"), the phase agents face an instruction that is unimplementable as written.
+
+3. **docs/08-agent-rules.md:33** — "Do not write long-lived infrastructure helpers, global registries, or cross-cutting 'frameworks inside the project'."
+Risk: the mandated async AI-turn substrate (`00:80`: background jobs, polling, no queues/Redis/websockets) has no concrete implementation shape; agents may draw the helper-vs-feature boundary differently → divergent implementations.
+
+4. **docs/00-project-overview.md:124 vs. owner decision recorded in session memory** — doc: "**Role** — per-class tag in config (`attacker` = melee frontliner; `supporter` = fragile high-value backline: archers, mage, healer). Consumed by the AI prompt layer (STATS kernel, personas) — never by engine math." vs. owner decision: supporter is a "**TARGETING** tag (fragile high-value backline, first kill priority), NOT a combat-function label — archers/mages still attack."
+Risk: phase agents reading only the docs (`08:11`: "Do not go hunting for meaning beyond them") may implement the AI prompt layer with the older combat-function framing, contradicting the owner's final intent.
+
+## AMBIGUITIES
+
+1. **docs/00-project-overview.md:62** — "Per unit per turn: **move (up to Mov)**, then one action — attack, heal (healer), or wait."
+A vs B: (A) the move is one discretionary relocation of distance ≤ Mov; (B) the move is computed in tile-steps totaling ≤ Mov, or a single step-based movement budget. Move preview (`00:66`) and legality validation could diverge between agents.
+
+2. **docs/00-project-overview.md:57 vs. :58** — Archer range: "exactly 2"; Mage range: "1, 2 or 3".
+Ambiguity: whether ranges are single scalars chosen from a set (Mage = one value from {1,2,3}) or arrays/lists in the config.
+
+3. **docs/08-agent-rules.md:58** — "Prompts sent to the LLM live in the files `04-ai-integration.md` dictates, as constants next to the client, versioned like code."
+Ambiguity: "next to the client" vs. the server-side execution context of AI turns (`00:12`, `00:80`) → prompts colocated with frontend client vs. backend AI module.
+
+## CONTRADICTIONS
+
+1. **docs/00-project-overview.md:9 vs. :95** — `00:9`: "...**does not exist in this project**. The rules here are complete." vs. `00:95`: "1. Weapon triangle (sword > axe > spear > sword), possibly shipped silently as an undocumented 'secret' advantage."
+
+2. **docs/08-agent-rules.md:12 vs. docs/00-project-overview.md:78** — `08:12`: "Stats, endpoints, difficulty names, stack choices, schemas, file trees — all of these are already decided in the docs. Your job is transcription into code, not design." vs. `00:78`: difficulty names are "(3, names are placeholders, changeable in config)".
+
+## VERDICT
+
+Top 3 findings, ranked, one sentence each:
+
+1. **Highest:** the single-source-of-truth config file (`00:46`) has no specified schema, forcing agents to invent the very artifact the design depends on.
+2. **Second:** the "rules are complete" claim (`00:9`) collides with the deferred weapon triangle ("undocumented secret", `00:95`).
+3. **Third:** the AI retry bound is unspecified (`00:77`) while agents are forbidden from filling gaps (`08:17`).

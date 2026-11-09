@@ -20,6 +20,7 @@ Why plain SQL and no ORM: the schema is 2 tables. Every query lives in one small
 
 ```
 DarknessCaress2/
+├── package.json                  # npm workspaces: ["client", "server"] (+ shared scripts)
 ├── docs/                        # this doc set
 ├── client/                      # React SPA ("the website")
 │   ├── src/
@@ -123,7 +124,7 @@ No move-history table in MVP (stats are computed from `games`). Replay/audit is 
     { "id": "warriors-europe", "label": "Champions of Europe" }
   ],
   "lore": { "sword": "…", "axe": "…", "spear": "…", "archer": "…", "mage": "…", "healer": "…" },
-  "ai": { "moveRetries": 3, "staleAfterSeconds": 60 }
+  "ai": { "moveRetries": 3, "staleAfterSeconds": 60, "briefTemperature": 0.8 }
 }
 ```
 
@@ -132,9 +133,10 @@ The server loads it once and serves the public subset (`classes` labels/stats/ro
 ## Runtime model
 
 - **One Express process does everything**: API + AI job runner + serving the built SPA via `express.static` in production. Same origin in production ⇒ **no CORS code at all**; in dev, Vite proxies `/api` to the server (no CORS either).
-- **AI turn job:** when `POST /api/games/:id/end-turn` flips a game to `ai_turn`, the route kicks off `runAiTurn(gameId)` **without awaiting** it (fire-and-forget with an appended `"unhandled"` safe catch that logs). The job: load state → call LLM per `04-ai-integration.md` → validate + apply moves with the pure engine → update row (`player_turn` | `won` | `lost`, clears `ai_last_error`). On failure: writes `ai_last_error`, leaves `ai_turn`, increments `turn_number` — the next games-list/board load re-triggers it if stale.
-- **Stale recovery** (the only keeper): any `GET` of a game or the games list first re-triggers jobs for that user's games where `status = 'ai_turn' AND now() - updated_at > config.ai.staleAfterSeconds`. Idempotency guard: in-process `Map<gameId, number /* startedAt */>`; skip if a job started for this game in the last 55s. Gives a cheap "did my game update" + self-heal on server restart.
-- **No queues, no websockets, no cron.** Polling every 3s from the client on list/board views while a game is `ai_turn`.
+- **AI turn job:** when `POST /api/games/:id/end-turn` flips a game to `ai_turn`, the route kicks off `runAiTurn(gameId)` **without awaiting** it (fire-and-forget with an appended `"unhandled"` safe catch that logs). The job: load state → call LLM per `04-ai-integration.md` → validate + apply moves with the pure engine → update row (`player_turn` | `won` | `lost`, clears `ai_last_error`). On failure: writes `ai_last_error`, leaves `ai_turn` — `turn_number` stays UNCHANGED on failure (consistent with `04`; it advances only on a successful AI turn).
+- **Stale recovery** (the only keeper): any `GET` of a game or the games list first re-triggers jobs for that user's games where `status = 'ai_turn' AND now() - updated_at > config.ai.staleAfterSeconds`. Idempotency guard (race-proof): in-process `Map<gameId, startedAt>` acting as an **ACTIVE-JOB set — an entry is added synchronously (check-and-set in the same tick, before any await) and REMOVED only when the job completes (success or failure)**; a sweep skips any game with an active entry. No time window: however long the LLM takes (retries can stretch a job past a minute), a running job is never double-launched. Server restart empties the map — which is precisely when self-heal is wanted.
+- **Row→DTO mapping:** DB columns are snake_case (`turn_number`, `updated_at`, `ai_last_error`); public DTOs are camelCase (`turnNumber`, `updatedAt`). One small mapping function per feature converts rows to `06`'s DTOs — no ORM magic, no ad-hoc renames sprinkled around.
+- **No queues, no websockets, no cron.** Polling every 3 s from the client on list/board views while a game is `ai_turn`.
 
 ## Environment variables (`.env.example` — exact)
 
@@ -188,15 +190,13 @@ volumes: { db_data: {}, ollama_data: {} }
 ```dockerfile
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY server/package.json ./server/package.json
-COPY server/package-lock.json* ./server/
-RUN cd server && npm ci
+COPY package.json package-lock.json* ./
 COPY client/package.json ./client/package.json
-COPY client/package-lock.json* ./client/
-RUN cd client && npm ci
+COPY server/package.json ./server/package.json
+RUN npm ci
 COPY . .
-RUN cd client && npm run build
-RUN cd server && npm run build
+RUN npm -w client run build
+RUN npm -w server run build
 
 FROM node:22-alpine
 WORKDIR /app/server

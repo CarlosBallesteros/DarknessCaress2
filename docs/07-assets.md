@@ -24,7 +24,7 @@ Side sprites: the two sprite files MUST be the same design/silhouette with diffe
 
 - All access via **one helper** `assetPath(themeId, kind, variant)`: kinds = `portrait` | `sprite` | `hero`; the helper returns `/assets/{themeId}/{…}`. No component ever hardcodes `/assets/…` with a theme or class name pasted in — theme/class always come from config/api state.
 - Format: PNG with alpha (RGBA) always, whatever the tool exports (owner converts if needed). Filenames lower-case, exact, never renamed.
-- If an expected file is missing at runtime, the component renders its **placeholder fallback** (see below) and logs one `console.warn` — never a broken image icon, never a crash.
+- If an expected file is missing at runtime, the component renders its **placeholder fallback**: a flat colored rectangle — gray base `#8d8d8d` with the class's first letter printed in the tile text color, and the side tint ring applied for sprites — plus exactly one `console.warn`. Never a broken image icon, never a crash. (Fallback colors are client-side UI tokens, not config — they exist purely until real art arrives.)
 - Landing hero uses `object-fit: cover`; sprites render at ~40 px inside tiles (`image-rendering: pixelated` NOT used — sprites are painterly, not pixel-art).
 
 ## Placeholder files (agents ship these)

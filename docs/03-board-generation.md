@@ -7,35 +7,35 @@ Why split it: LLMs are bad at spatial reasoning (a raw 15×15 grid from an LLM i
 
 ## Stage 1 — the design brief (the LLM call)
 
-**Prompt template** (`features/board/briefPrompt.ts`, text verbatim, values in `« »` swapped in):
+**Prompt template** (`features/board/briefPrompt.ts`, text verbatim, values in `« »` swapped in — including the grid size, which comes from `config.boardSize`, rendered as "15x15" at baseline):
 
 ```
 You are a battlefield designer for a small fantasy war game on a 15x15 grid.
 Two armies spawn on the BOTTOM rows (13-14) and TOP rows (0-1).
 Rows 0-1 and 13-14 of every column are RESERVED: no water, no obstacles there.
 
-A river runs from the LEFT edge to the RIGHT edge. It must curve: it may not be
-straight. 1 or 2 bridges cross it. Hills, forests and a small lake decorate the
-terrain. Respond ONLY with JSON matching exactly this shape:
+USUALLY a river runs from the LEFT edge to the RIGHT edge — it must curve if present:
+never straight. 1 or 2 bridges cross it when it exists. Hills, forests and a small
+lake decorate the terrain. Respond ONLY with JSON matching exactly this shape
+("river" may be null for a more rare open-field battlefield):
 
 {
-  "startRow":    <integer 2-12, where the river meets the left edge>,
-  "endRow":      <integer 2-12, where the river meets the right edge>,
-  "bends":       <integer 1-3, how many up/down turns the river makes>,
-  "bridgeTiles": <integer 1 or 2>,
+  "river":       <null or {"startRow": int 2-12, "endRow": int 2-12, "bends": int 1-3}>,
+  "bridgeTiles": <integer 1 or 2 — ignored when river is null>,
   "forestZones": <array, 1-3 items: {"centerX": int 2-12, "centerY": int 2-11, "radius": int 1-3}>,
   "hillZones":   <array, 0-2 items: {"centerX": int 2-12, "centerY": int 2-12, "radius": int 1-2}>,
   "lake":        <null or {"centerX": int 2-12, "centerY": int 3-11, "radius": int 1-2}>
 }
 
-Aim for a varied battlefield that gives both armies an interesting crossing problem.
+Aim for a varied battlefield; a river crossing is the classic choice.
 ```
 
-Temperature for this call: `0.8` (variety is the point). The response is validated with zod against exactly this schema (extras rejected, ranges enforced). Example of a valid brief:
+Temperature for this call: `config.ai.briefTemperature` (= 0.8 in baseline). The response is validated with zod against exactly this schema (extras rejected, ranges enforced). Example of a valid brief:
 
 ```json
 {
-  "startRow": 7, "endRow": 6, "bends": 2, "bridgeTiles": 2,
+  "river": {"startRow": 7, "endRow": 6, "bends": 2},
+  "bridgeTiles": 2,
   "forestZones": [{"centerX": 5, "centerY": 4, "radius": 2}, {"centerX": 9, "centerY": 10, "radius": 2}],
   "hillZones": [{"centerX": 10, "centerY": 3, "radius": 1}],
   "lake": {"centerX": 7, "centerY": 7, "radius": 1}
@@ -49,9 +49,9 @@ Inputs: the parsed brief + a **seed** (the game's uuid, hashed once — the SAME
 Algorithm, in order:
 
 1. **Grid init**: every tile `plain`.
-2. **River** (the important part):
-   - Carve the river as a **4-connected simple path** (no loops, no branches) from `(0, startRow)` rightward to `(14, endRow)`: a seeded random walk that prefers **right**, occasionally sidesteps one tile up/down in short bounded vertical runs (a sidestep writes the intermediate vertical tiles so 4-connectivity always holds), and is steered segment-by-segment toward `endRow` — `bends` splits the 14 columns into `bends + 1` segments, each segment carrying a seeded target row. The simple-path property alone structurally prevents spirals, loops and floods; the walk always terminates because a rightward move is always available to water.
-3. **Bridges**: pick `bridgeTiles` positions from the river tiles: if 2, as far apart as possible (first quarter / third quarter of width by column); if 1, middle. Chosen river tiles become `bridge` (walkable).
+2. **River** (only when `brief.river` is non-null — skipped entirely otherwise):
+   - Carve the river as a **4-connected simple path** (no loops, no branches) from `(0, brief.river.startRow)` rightward to `(14, brief.river.endRow)`: a seeded random walk that prefers **right**, occasionally sidesteps one tile up/down in short bounded vertical runs (a sidestep writes the intermediate vertical tiles so 4-connectivity always holds), and is steered segment-by-segment toward `endRow` — `bends` splits the 14 columns into `bends + 1` segments, each segment carrying a seeded target row. The simple-path property prevents loops/branches/spirals, and the neighbor-count invariant (below) additionally rejects self-touching tiles — the validator, not the walk, is the guarantee; the walk always terminates because a rightward move is always available to water.
+3. **Bridges** (river present only): pick `bridgeTiles` positions from the river tiles: if 2, as far apart as possible (first quarter / third quarter of width by column); if 1, middle. Chosen river tiles become `bridge` (walkable).
 4. **Lake**: paint a seeded circular blob (the classic `(dx²+dy²) ≤ r²` mask) at the lake center, skipping any tile that is river or bridge or in reserved rows.
 5. **Forest / hill zones**: same blob mask per zone, skipping river/bridge/lake/rock/reserved.
 6. **A few rocks**: `rock` tiles sprinkled purely cosmetically (seeded, ~8–12 of them, skip water/reserved).
@@ -59,18 +59,18 @@ Algorithm, in order:
 
 ## Invariants validator (`features/board/invariants.ts` — hard gates)
 
-A materialized board is valid iff ALL hold; any failure ⇒ retry (policy below):
+A materialized board is valid iff ALL hold; any failure ⇒ retry (policy below). Invariants 1–3 apply **only when the brief has a river** (a riverless board skips to invariant 4):
 
 1. River exists as **one connected simple path** spanning left edge → right edge (each river tile has exactly 2 river/bridge neighbors except the two edge tiles, which have 1).
 2. River never passes through reserved rows; never overlaps lake/rock.
 3. Bridge count equals the brief's; every bridge lies on the river path.
-4. **Crossability**: BFS from any player spawn tile to any enemy spawn tile using walkable tiles (`bridge` counts) has success — i.e., at least one bridge connects both banks in practice. (Once invariant 1+3 hold with ≥1 bridge this should always be true — the check exists so a future bug can't fake it.)
+4. **Crossability**: BFS from any player spawn tile to any enemy spawn tile using walkable tiles (`bridge` counts) has success — on a riverless board the field must still be open (the lake/rocks may not wall a spawn-side off). The check exists so a future bug can't fake it.
 5. Spawn slots: within each army's 8×2 block (columns 4–11), exactly 5 front-row units (2 swords, 2 axes, 1 spear) and 5 back-row units (remaining spear, 2 archers, mage, healer) are placed — healer NEVER front; 3 empty gaps per row; both sides' arrangements are seeded (same game ⇒ same arrangement).
 6. No water tile (`lake`/`river`) remains in reserved rows; spawn tiles are empty of obstacles.
 
 ## Armies spawn layout (8×2 block with gaps, seeded scatter)
 
-Each army occupies an **8×2 block, columns 4–11**, two rows: front = the row facing the river (player row 13, enemy row 0); back = the row farther from the center (player 14, enemy 1). 16 slots, **10 units, 6 gaps** — the blocks are wider than the armies so openings are already irregular before units move.
+Each army occupies an **8×2 block, columns 4–11**, two rows: for the PLAYER, front = row 13 (facing the river/center) and back = row 14; for the ENEMY, front = row 1 (facing the river/center) and back = row 0 — the enemy side mirrors top-to-bottom, front row nearer the middle. 16 slots, **10 units, 6 gaps** — the blocks are wider than the armies so openings are already irregular before units move.
 
 **Composition per row (fixed):**
 - Front (5 units among 8 slots): the 2 swords, 2 axes and 1 spear.
@@ -96,3 +96,4 @@ Each army occupies an **8×2 block, columns 4–11**, two rows: front = the row 
 4. **Fallback template** validates invariants by construction.
 5. **Mock-Llm brief**: the mock client (see `04-ai-integration.md` → mock) returns a fixed brief; the full creation → board → spawn flow runs without a live model.
 6. **Spawn scatter**: same seed ⇒ identical arrangement twice; across ≥ 40 seeds the column sets/orders vary (gaps included) and the healer is ALWAYS in the back row.
+7. **Riverless brief**: `river: null` ⇒ zero water tiles except the lake; crossability holds without bridges.

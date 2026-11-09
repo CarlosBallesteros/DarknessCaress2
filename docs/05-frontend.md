@@ -6,7 +6,7 @@
 
 | Path | Page | Auth | Contents |
 |---|---|---|---|
-| `/` | Landing | public | Title `"Darkness Caress II"` (h1), tagline `The long awaited sequel to the legendary game`, one button `Play` (→ `/play` or `/login`). Full-viewport hero: art from `/assets/warriors-europe/hero/landscape.png`, dark overlay regardless of UI mode (placeholder ships with it — see `07`). |
+| `/` | Landing | public | Title `"Darkness Caress II"` (h1), tagline `The long awaited sequel to the legendary game`, one button `Play` (→ `/play` or `/login`). Full-viewport hero: art via `assetPath(DEFAULT_THEME, "hero")` — the DEFAULT_THEME constant = `config.themes[0]` (baseline: `warriors-europe`) — dark overlay regardless of UI mode (placeholder ships with it — see `07`). |
 | `/login` | Login | public | Email + password form, error banner on 401/429. Link to `/register`. |
 | `/register` | Register | public | Email, username, password, password-again. Client checks length/format per `01`. Link to `/login`. |
 | `/play` | Game strip | yes | "Game" tab home: scroll-snap strip in creation order. See below. |
@@ -31,10 +31,11 @@
 - **Last tile always = "New battle" card** (persona pick modal opens from there; coherent metaphor, zero extra chrome) — disabled with tooltip `Limit of 5 active games reached` when count ≥ cap ("the server is still the authority on 409"). `Create` → `POST /api/games` (loading state: "The battlefield is being designed…" — this POST legitimately runs 10–60 s) → redirect into the created game.
 - Route table label: `/play` is the **"Game strip"** (Game tab home).
 - Empty state: single "New battle" tile with the caption "No battles yet" beneath it.
+- New-game failure handling: a `503` from `POST /api/games` ("Battlefield generation failed") shows an inline error in the modal ("The battlefield could not be designed — try again"); other errors surface in the modal's error banner. The loading state ("The battlefield is being designed…") has NO timeout — the POST legitimately runs 10–60 s.
 
 ## Board screen (`/play/:id`)
 
-The richest screen; decomposed into the components below. Board = CSS grid, `15×15`, tile size scales via `min(40px, (100vw−32px)/15)`. Units are absolutely-positioned images over the grid (one layer, transform positions — no re-mount on move).
+The richest screen; decomposed into the components below. Board = CSS grid, `boardSize × boardSize` from `GET /api/meta` (15×15 baseline), tile size scales via `min(40px, (100vw−32px)/boardSize)`. Units are absolutely-positioned images over the grid (one layer, transform positions — no re-mount on move).
 
 ### Board components
 
@@ -56,6 +57,8 @@ BoardScreen
 └── TurnFooter        # [End turn] (primary; ALWAYS enabled — semantics in Notes) , [Forfeit]
 ```
 
+Health-bar thresholds (boundary-exact): fraction = hp/maxHp; **green if fraction > 2/3; amber if 1/3 ≤ fraction ≤ 2/3; red if fraction < 1/3; hidden at full HP.**
+
 ### Interaction state machine (exact)
 
 ```
@@ -65,7 +68,10 @@ unitSelected → idle            (click empty/dim area or Esc)
 unitSelected → movePicked      (click a moveTile → client computes + displays the shortest legal path
                                 (display helper only; the SAME path goes into the staged move);
                                 overlay now shows the actions FROM THAT destination: attackTiles/red,
-                                healTiles/green)
+                                healTiles/green — the preview's union is FILTERED client-side by
+                                pure arithmetic: a preview enemy tile survives only if Manhattan
+                                distance(destination, enemy) ∈ that class's range list (the range
+                                lives in /api/meta — no server call, no duplicated pathfinding))
 movePicked → staged            (click enemy unit in red overlay → stage {unitId, path, attack:target};
                                 click own wounded unit in green overlay (healer) → stage heal;
                                 click [Wait in place] → stage wait for same tile)
@@ -78,7 +84,7 @@ playerTurnSubmitted → polling  (3 s GET /play/:id while ai_turn)
 Notes:
 
 - **End turn semantics**: if staged ≤ 0 moves but some unit(s) have `acted=false`, End turn still works (they do nothing) — button always enabled, confirm dialog only when un-acted units remain.
-- Victory short-circuit: if `POST /moves`'s response has status `won` (all enemies died by the player's actions) → do NOT call `/end-turn` (the server forbids it; status matrix in `06`), show the victory overlay directly.
+- Victory short-circuit: the authoritative win check is SERVER-side — if `POST /moves`'s response body carries `game.status = "won"` (all enemies died by these moves), do NOT call `/end-turn` (the server would 409 it; status matrix in `06`) and show the victory overlay directly from that same response.
 - `ai_turn` state: board interactions disabled; PhaseBanner pulses; on the response that flips to `player_turn`, animate `lastAiActions` client-side: step through actions 400 ms apart moving sprites along their `path` and flashing attacks (damage popups), then settle to final state (which is already authoritative).
 - Sprite asset path: `/assets/${theme}/${class}/sprite-${side}.png` where `theme` = user's theme from `GET /api/me`. Portraits (Champions tab) per `07`.
 
@@ -97,7 +103,7 @@ Notes:
 
 ## Statistics tab (`/stats`)
 
-Totals card (games, win rate big numerals) + the per-difficulty table. Empty state for 0 games: "Play your first battle." Loading/`401` handled globally. No filters, no charts.
+Totals card (games, win rate big numerals) + the per-difficulty table — "difficulty" is the game's persona id (`games.difficulty` per `01`'s schema), labeled via `GET /api/meta`. Empty state for 0 games: "Play your first battle." Loading/`401` handled globally. No filters, no charts.
 
 ## Profile tab (`/profile`)
 

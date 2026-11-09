@@ -44,7 +44,7 @@
 **Acceptance:**
 
 ```
-[ ] the full 02 test list passes (movement matrix, counter behavior per class distance, damage floor, heal clamp, death, healer cannot attack, atomic bundle, victory, preview consistency)
+[ ] the full 02 test list passes (movement matrix, counter behavior per class distance, damage floor, heal clamp, death, healer cannot attack, atomic bundle, victory, preview consistency, landing-tile rule, strict-sequential resolution, missing-targetId rejection)
 [ ] engine module imports NOTHING from features/ (eslint boundary or import check)
 [ ] rerun with mutated config numbers in a temp file still passes (proves no hardcoded stats)
 [ ] commit "feat(phase-3): ...", pushed
@@ -58,6 +58,7 @@
 
 ```
 [ ] invariants property tests pass for ≥ 40 seeds (river simple path left edge → right edge, bridges on river, crossability)
+[ ] riverless-brief test passes (river: null ⇒ zero water beyond the lake, crossability holds, invariants 1–3 skipped)
 [ ] determinism test: same brief+seed = byte-identical board
 [ ] fallback template validates
 [ ] mock-LLM full flow: POST /api/games → 201 GameState with armies placed per 03's spawn scatter layout

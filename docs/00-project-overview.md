@@ -6,7 +6,7 @@
 
 A fully deployed website with a turn-based 1-vs-1 strategy game, in the spirit of Fire Emblem but much simpler:
 
-> **Fire Emblem warning:** the reference is about *feel only* — square grid, small armies, turn-based tactics. Any mechanic that exists in Fire Emblem but is absent from these documents (weapon triangle, hit/crit %, terrain bonuses, promotions, fog of war, etc.) **does not exist in this project**. The rules here are complete.
+> **Fire Emblem warning:** the reference is about *feel only* — square grid, small armies, turn-based tactics. Any mechanic that exists in Fire Emblem but is absent from these documents (weapon triangle, hit/crit %, terrain bonuses, promotions, fog of war, etc.) **does not exist in MVP**. The rules here are complete for MVP; future mechanics arrive only through spec text (see Later hooks).
 
 - A human player commands an army of 10 units.
 - The opponent is an **AI driven by a local LLM (Ollama)**, called asynchronously between turns with the full board state; the LLM decides every move the enemy army makes.
@@ -27,7 +27,7 @@ The specs are written to be **as specific as possible while staying as simple as
 | Piece | Decided |
 |---|---|
 | Landing page | Title: **"Darkness Caress II"** (final). Tagline: **"The long awaited sequel to the legendary game"** (final). One "Play" button. |
-| Auth | Email + password registration, unique display username. Login with email. No email verification, no password recovery, no 2FA (see Later hooks). |
+| Auth | Email + password registration, unique display username. Login with email. No email verification, no password recovery, no 2FA (see Later hooks). Full mechanics — bcrypt, JWT cookie, rate limit — in `01-architecture.md`. |
 | Tabs (top menu) | **Game**, **Statistics**, **Champions**, **Profile**. |
 | Game tab | A horizontal **games strip** in creation order (scroll-snap; finished games stay in place, dimmed) + a "New battle" tile. Opening a game shows the 15×15 board and the two armies. |
 | Statistics tab | Games played, wins, losses, win rate, and wins/losses per AI difficulty — computed from **finished game rows** (there is no separate history table). |
@@ -43,7 +43,7 @@ Both sides get the identical fixed army — no army editor in MVP:
 - 2 × Swordsman, 2 × Axeman, 2 × Spearman, 2 × Archer, 1 × Mage, 1 × Healer (10 units per side, 20 total).
 
 ### Unit stats — single source of truth
-All numbers live in **one JSON config file** (Unit stats, ranges, heal amount, difficulty personas + temperatures, board size, games cap). Game logic must read values from this file — stats are never hardcoded, inlined, or duplicated.
+All numbers live in **one JSON config file** (Unit stats, ranges, heal amount, difficulty personas + temperatures, board size, games cap — plus the lore strings and the AI-retry knobs; canonical shape in `01-architecture.md`). Game logic must read values from this file — stats are never hardcoded, inlined, or duplicated.
 
 This is also where **balance-tuning happens later**: rebalancing = editing the file.
 
@@ -64,20 +64,20 @@ Starting values (chosen for readability of the config, details in `02-game-rules
 - **Combat is deterministic:** `damage = Atk − Def` (floor at 0). No hit %, no crit %, no random bonuses. The Healer does not attack at all.
 - **Movement & tiles:** units block movement of **enemies** but pass through **allies**; a unit can never end movement on an occupied tile.
 - **Move preview:** selecting one of your units highlights on the board (a) every tile it can reach this turn and (b) from those tiles, the enemy tiles it could attack (or, for the Healer, the allies it could heal). Cosmetic overlays via the server preview endpoint; the visual is tile highlighting only — no animated route drawing (the staged move nevertheless includes a computed shortest path, see `05`).
-- **Terrain has no mechanical effect in MVP** (purely cosmetic). Water is impassable except on bridges.
-- **Victory condition:** kill **all 10** enemy units.
+- **Terrain is cosmetic in MVP, with one exception:** there are no terrain bonuses or penalties, BUT water is impassable — `lake`/`river` cannot be entered; `bridge` is the only water crossing. (Movement legality treats these two tiles specially; everything else is pure decoration.)
+- **Victory condition:** kill **all 10** enemy units. (The defeat is symmetric: if all YOUR units die, you lose — both outcomes are recorded in stats.)
 
 ### Board generation
 - 15×15 grid, always.
 - Terrain palette: plain, forest, hill, lake, river, bridge (+ decorative rocks). Terrain types are cosmetic.
-- **Zero or one** river line per board. A river is a connected path across the board with a few **turns** (never a straight canal, never spiraling into a flooded board). Only crossing points are the 1–2 bridges lying on it.
-- The river, its bends, bridges and terrain zones come from a hybrid pipeline detailed in `03-board-generation.md`: the **LLM decides** the layout brief (river start/end and bends, bridge tiles, forest/hill zones, densities), **deterministic code materializes** the grid, then validates. No board is playable that violates the constraints.
+- **Zero or one** river line per board. A river is a connected path across the board with a few **turns** (never a straight canal, never spiraling into a flooded board). Only crossing points are the 1–2 bridges lying on it — riverless boards are possible (the designer may omit the river; then there are no bridges either).
+- The river (when present), its bends, bridges and terrain zones come from a hybrid pipeline detailed in `03-board-generation.md`: the **LLM decides** the layout brief (river start/end and bends, bridge tiles, forest/hill zones, densities), **deterministic code materializes** the grid, then validates. No board is playable that violates the constraints.
 
 ### AI gaming (the meat)
-- **Everything player-facing that is "AI" is the LLM.** No deterministic fallback heuristic plays the game: if the LLM produces an illegal transient, the system asks it again (bounded retries). If even that fails after the bound, the AI turn simply pauses for a later retry — it never silently substitutes "the game auto-plays for the opponent" — and the specs define exactly that recovery path (`04-ai-integration.md`).
+- **Everything player-facing that is "AI" is the LLM.** No deterministic fallback heuristic plays the game: if the LLM produces an illegal transient, the system asks it again (bounded retries — the bound is `config.ai.moveRetries` = 3; exact mechanics in `04-ai-integration.md`). If even that fails after the bound, the AI turn simply pauses for a later retry — it never silently substitutes "the game auto-plays for the opponent" — and the specs define exactly that recovery path (`04-ai-integration.md`).
 - **Difficulty personas** (3, names are placeholders, changeable in config): Aggressive / Defensive / Erratic. Different = different persona prompt; Erratic also uses a higher temperature. Nothing else changes between difficulties.
 - The AI is also the **map designer**: a small structured call generates the layout brief for each new board.
-- **Async orientation:** AI turns run as background jobs in the backend; the frontend polls; a game whose AI turn stalled (e.g. server restarted) is re-triggered on games-list or game load. No queues, no Redis, no websockets.
+- **Async orientation:** AI turns run as background jobs in the backend; the frontend polls; a game whose AI turn stalled (e.g. server restarted) is re-triggered on games-list or game load. The implementation shape — fire-and-forget job + stale-recovery sweep — is defined in `01-architecture.md` Runtime model. No queues, no Redis, no websockets.
 
 ### Champions & themes
 - **Side colors:** player = **white/gold**, enemy = **black/red** (both final).
@@ -121,7 +121,7 @@ No PvP multiplayer, no mobile app, no SSR/SEO machinery, no websockets, no messa
 - **Class** — one of the 6 unit types (Sword, Axe, Spear, Archer, Mage, Healer).
 - **Champion** — a class as seen in the Champions tab (role badge + both portraits + lore + stats, all from config).
 - **Persona** — one of the 3 AI difficulty presets (prompt + temperature).
-- **Role** — per-class tag in config (`attacker` = melee frontliner; `supporter` = fragile high-value backline: archers, mage, healer). Consumed by the AI prompt layer (STATS kernel, personas) — never by engine math.
+- **Role** — per-class tag in config (`attacker` = melee frontliner; `supporter` = fragile high-value backline: archers, mage, healer). A TARGETING tag, not a combat-function label (archers/mages still attack); consumed by the AI prompt layer (STATS kernel, personas) — never by engine math.
 - **AI turn** — one background job that asks the LLM to produce one enemy army turn and validates it.
-- **Config** — the single JSON file with all tunables (unit stats, personas, cap, board size).
+- **Config** — the single JSON file with all tunables (unit stats, personas, cap, board size, lore, AI knobs — canonical shape in `01`).
 - **Brief** — the small structured JSON the LLM returns to describe a board layout before materialization.

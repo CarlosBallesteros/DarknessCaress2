@@ -9,7 +9,7 @@ Implement the phase you were handed, exactly as the specs describe it — nothin
 ## Hard rules (MUST)
 
 1. **The docs are law.** `00-project-overview.md` + this file are always in context. Then add only the phase files your prompt tells you to read. Do not go hunting for meaning beyond them.
-2. **Never decide a product question.** Stats, endpoints, difficulty names, stack choices, schemas, file trees — all of these are already decided in the docs. Your job is transcription into code, not design.
+2. **Never decide a product question.** User-visible choices (stats, endpoints, difficulty names, stack, schemas, file trees) are defined in these docs or in the config they reference — changeable only by documented decision. Your job is transcription into code, not design.
 3. **All tunables come from the config file.** If you catch yourself writing a number that describes game balance (HP, damage, movement, temperature, cap, board size…) as a literal in code other than the config file itself, you have broken the project. The config is the ONLY place.
 4. **Respect the repo layout in `01-architecture.md`.** Do not reorganize, rename, or "improve" structure. Follow it even where it feels unusual to you — the layout is deliberate.
 5. **Simplest thing that satisfies the spec.** No speculative abstractions, no "plugin systems", no interfaces with one implementation, no caching layers, no logs beyond obvious debugging value. If the spec doesn't ask for it, it doesn't exist.
@@ -55,7 +55,7 @@ Wait for the owner's answer. Do not proceed on assumptions.
 - Comments explain WHY when non-obvious; never narrate WHAT.
 - No dead code, no commented-out blocks, no TODOs unless the phase spec demands them.
 - Validation errors are precise and user-facing-safe ("Archer cannot attack a unit at 3 tiles", not stack traces) — validation messages live with the validator.
-- Prompts sent to the LLM live in the files `04-ai-integration.md` dictates, as constants next to the client, versioned like code.
+- Prompts sent to the LLM live in the files `04-ai-integration.md` dictates (backend only), as constants next to the **LLM client** — never "the frontend client" — versioned like code.
 
 ## What "done" means
 

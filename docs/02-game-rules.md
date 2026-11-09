@@ -40,7 +40,7 @@ export interface GameEngineConfig {   // projected from server/config.json — t
 
 ## Movement (`src/game/reach.ts`)
 
-- Grid, 4-neighborhood, every step costs 1. **Terrain never affects movement cost** (cosmetic only) — except: `lake` and `river` tiles are impassable; `bridge` is walkable.
+- Grid, 4-neighborhood, every step costs 1. **Terrain never affects movement cost or speed** — water is the ONE mechanical exception: `lake` and `river` tiles are impassable, `bridge` is walkable.
 - A path may pass **through ally-occupied tiles** but may not END on any occupied tile, and may not ENTER enemy-occupied tiles at all.
 - Reachable = every tile with a legal path of length ≤ `unit.mov`. BFS with a visited set — sufficient and exact here (all step costs equal 1, so BFS distance = optimal distance).
 
@@ -80,17 +80,18 @@ Execution order and rules, exactly:
 
 1. **Whole-bundle validation first** (fail without touching anything):
    - unit exists, belongs to `side`, `acted === false`; each unit used at most once;
-   - `isPathLegal` passes for every move.
-2. Apply moves **in request order**: movement = teleport to `path.at(-1)` (validation proved the path exists, no step simulation needed).
+   - `isPathLegal` passes for every move, judged against the **pre-move state**;
+   - **landing-tile rule:** the FINAL tiles of the bundle must be distinct and empty in the pre-move state — no two units may claim the same landing tile, and a unit may NOT end on a tile that only becomes free because an earlier bundle entry vacates it (no chain-following in MVP — simple to validate, simple to explain).
+2. Apply moves **in strict sequential order**: each bundle entry completes fully (movement teleports to `path.at(-1)`, then its attack + optional counter or heal resolve to the death/removal outcome) BEFORE the next entry begins — a unit killed by a counter never executes a later entry, and damage is never simultaneous.
 3. **Attack**: attacker and target must still be alive, opposite sides, and Manhattan distance `|dx| + |dy|` from the ATTACKER'S FINAL TILE must be in `range`. Damage = `max(0, atk − target.def)` (never randomized). Target HP decrements; `hp ≤ 0` ⇒ dead ⇒ removed.
 4. **Counter** — the exact rule: if the target survived and the target's class can attack (`atk > 0`, archers/mages have their own range; healer never) and the ATTACKER'S FINAL TILE lies within the TARGET'S range measured from the target's tile ⇒ the target deals `max(0, targetAtk − attackerDef)` back. One counter per attack; the counter can kill.
 5. **Heal**: healer only, target = same side, alive, Manhattan distance 1 (adjacent), `hp < maxHp`; healed = `min(healAmount, maxHp − hp)`. Healers have no attack action at all.
 6. **Wait**: legal anywhere. A unit given no move stays `acted: false` (skipping your units is allowed and costs nothing).
-7. Set `acted: true` for every unit that received a move. Reset of `acted` happens at turn flips, in feature code — the engine doesn't track turns. (The reset is DEFINED in `06`: `POST /end-turn` resets all units' flags before scheduling the AI turn.)
+7. Set `acted: true` for every unit that received an entry — a `wait` entry COUNTS (only omission leaves `acted: false`). Reset of `acted` happens at turn flips, in feature code — the engine doesn't track turns. (The reset is DEFINED in `06`: `POST /end-turn` resets all units' flags before scheduling the AI turn.)
 
 ## Turn semantics
 
-- There is no "partially acted" turn. The player may submit fewer than 10 moves; un-acted units simply do nothing when the turn ends.
+- There is no "partially acted" turn. The player may submit fewer than 10 moves (10 = the fixed army, i.e. the sum of `config.classes[*].count`: 2+2+2+2+1+1); un-acted units simply do nothing when the turn ends.
 - Enemy and player armies are separate turn phases; the engine's `side` parameter says which army is acting.
 
 ## Previews (`src/game/reach.ts` again — same source as validation)
@@ -126,6 +127,8 @@ The LLM never computes damage, counters, or deaths — it only **decides** moves
 | wrong side | `<id> belongs to the other army` |
 | already acted | `<id> already acted this turn` |
 | path illegal | the precise `isPathLegal` message above |
+| landing clash | `tile (x,y) is claimed by two moves` / `tile (x,y) frees later in this bundle and cannot be landed on` |
+| attack/heal missing targetId | `attack requires a target` / `heal requires a target` |
 | target out of range | `<class> cannot attack a unit at <n> tiles` |
 | target wrong side / dead | `<id> is not a valid attack target` |
 | not adjacent (heal) / full hp | `heal target must be adjacent and wounded` |
@@ -139,7 +142,7 @@ The LLM never computes damage, counters, or deaths — it only **decides** moves
 2. attack + counter both ways (each class distance matrix: mage-3-no-counter-by-range1, archer-2-mutual, spear-1-mutual).
 3. damage floor at 0, heal clamping, death removes unit.
 4. healer cannot attack (no `attack` action type accepted from healer side either).
-5. `acted` semantics; duplicate rejection; whole-bundle atomicity (one bad move ⇒ `{ok:false}`, state untouched).
+5. `acted` semantics; duplicate rejection; landing-tile rule (two entries claiming one empty tile ⇒ reject; landing on a tile vacated earlier in the bundle ⇒ reject); whole-bundle atomicity (one bad move ⇒ `{ok:false}`, state untouched); sequential resolution (a killed-attacker's later entry never executes).
 6. victory check both directions.
 7. preview matches reachable/attack on a hand-built sample board.
 

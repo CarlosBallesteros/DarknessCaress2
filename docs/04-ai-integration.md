@@ -16,7 +16,7 @@ export interface LlmClient {
     schema: object;              // JSON Schema; Ollama `format` field guarantees valid JSON output
   }): Promise<unknown>;          // parsed JSON object (still un-validated — callers zod it)
 
-  brief(opts: { user: string }): Promise<unknown>;              // single-shot board-design call (03): composes [{role:"user"}] internally, temperature 0.8
+  brief(opts: { user: string }): Promise<unknown>;              // single-shot board-design call (03): composes [{role:"user"}] internally, temperature = config.ai.briefTemperature (0.8 baseline)
   turn(opts: { messages: ChatMessage[]; temperature: number }): Promise<unknown>;   // AI-turn call (04)
 }
 ```
@@ -128,7 +128,9 @@ Followed by the ask:
 Produce THIS TURN's orders for ALL your surviving units. Reply ONLY with JSON:
 {"moves":[{"unitId":"E-…","path":[[x,y],…],"action":{"type":"attack","targetId":"P-…"} | {"type":"heal","targetId":"E-…"} | {"type":"wait"}}]}
 - list `path` as the full walked route from the unit's current tile to its final tile;
-  you may list unit orders in any order; omit any unit to make it wait.
+  you may list unit orders in any order; omitting a unit means it does NOTHING this
+  turn (stays un-acted — equivalent in effect to waiting, but the two are distinct
+  paths: an explicit wait marks the unit acted).
 - attack targets must be PLAYER units (P-…); heal targets are your own wounded units.
 ```
 
@@ -137,15 +139,17 @@ Produce THIS TURN's orders for ALL your surviving units. Reply ONLY with JSON:
 ```
 attempt = 1..config.ai.moveRetries (3):
   1. llmClient.turn(messages, temperature = personality.temperature)
-  2. zod: { moves: [{ unitId: string, path: [x,y][], action: {type:"attack"|"heal"|"wait", targetId?: string} }] }
-     fail → message to model: "Your reply was not valid JSON matching the schema.", retry.
+  2. zod (discriminated union): { moves: [{ unitId: string, path: [x,y][],
+       action: {"type":"attack","targetId":string} | {"type":"heal","targetId":"E-…"} | {"type":"wait"} }] }
+      — attack/heal REQUIRE targetId; wait must not expect one. Schema-fail →
+       message to model: "Your reply was not valid JSON matching the schema.", retry.
   3. engine: applyMoves(state, moves, "enemy", engineCfg)   ← from 02-game-rules.md
      ok  → SUCCESS: persist new game row state (units positions/hps, status player_turn|lost,
             turnNumber+1, lastAiActions = the events list mapped to the AiAction DTO in 06),
             clear ai_last_error. Job ends.
-     fail → message to model with the engine's exact rejection (e.g.
-            "E-archer-2 cannot attack P-spear-1 at distance 3 — archer range is exactly 2.
-             Resubmit the FULL corrected move list."), retry.
+     fail → message to model with the engine's exact rejection — the `02` catalogue
+            string (e.g. "archer cannot attack a unit at 3 tiles"), prefixed with the
+            unit ids for context, plus "Resubmit the FULL corrected move list." — retry.
 after 3 failures: write ai_last_error = "<last error>", leave status=ai_turn,
   turn_number unchanged. Recovery: the stale-recovery sweep (01) re-triggers the job
   after config.ai.staleAfterSeconds (60 s), full fresh prompt, retries reset.
@@ -158,7 +162,7 @@ Notes locked this way:
 
 ## Prompt hygiene rules
 
-- **Zero stat literals in prompts.** The only numbers the prompt system ever prints are config-rendered outputs (the STATS block, the movement/range counts). The digest and persona texts are written in *class-agnostic* terms ("low-DEF units", "most favorable range") so rebalancing config can never make a prompt lie. Class KEYS (`sword`, `axe`…) are stable identifiers, not tunables — they may appear in persona texts.
+- **Zero stat literals in prompts.** The only numbers the prompt system ever prints are config-rendered outputs — the STATS block, the movement/range counts, AND the board inside ("15x15" is rendered from `config.boardSize`, like everything else — see `03`'s brief; the same rule applies to this template's grid references). The digest and persona texts are written in *class-agnostic* terms ("low-DEF units", "most favorable range") so rebalancing config can never make a prompt lie. Class KEYS (`sword`, `axe`…) are stable identifiers, not tunables — they may appear in persona texts.
 - Prompt strings live in code as named constants — `features/board/briefPrompt.ts` (03) and `features/ai/turnPrompt.ts` (04) — versioned like source, never generated on the fly from game strings besides the swapped values specified above; the STATS block is the sole config-derived part, emitted by one shared helper (`statsKernel(config)`), reused by both docs' prompt builders.
 - Logs: on success record `{gameId, durationMs, promptChars, responseChars, attempt}` only. Full request/response pairs print only during local/dev runs; production never logs or DB-stores them.
 - The serializer output for a mid-game state (some units dead, low HP) must still fit comfortably in the model's context window: worst case ≈ 15 board rows + 1 STATS line + 20 unit lines + prompt text < 4 KB ⇒ fine for 7–8B models.
