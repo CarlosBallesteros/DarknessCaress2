@@ -71,12 +71,12 @@
   },
   "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],
   "lore": {
-    "sword": "Placeholder lore for the Swordsman — drafted in phase 6.",
-    "axe": "Placeholder lore for the Axeman — drafted in phase 6.",
-    "spear": "Placeholder lore for the Spearman — drafted in phase 6.",
-    "archer": "Placeholder lore for the Archer — drafted in phase 6.",
-    "mage": "Placeholder lore for the Mage — drafted in phase 6.",
-    "healer": "Placeholder lore for the Healer — drafted in phase 6."
+    "sword": "The sword is the promise a battle line makes to itself: hold, strike, and hold again. In the crush of shield and shout these soldiers step forward first, so that the ones behind them may see another dawn. Their discipline is old, and it has outlived better men than any war could name.",
+    "axe": "Every axe in the line carries two duties: to break what the enemy builds and to clear whatever the winter blocks. They fight close, breath to breath, and ask for no ground they cannot keep. When the horn sounds, theirs is the answer that lands heaviest.",
+    "spear": "The spears walk the long edges of a battle, where the roads are cold and the drums arrive late. Their reach is their vow — nothing crosses it unwelcome. They are first at the far fights and last to leave the quiet field.",
+    "archer": "An archer learns the war from a few hundred paces away, where the smoke thins and the orders can still be heard. Each arrow is one sentence in a longer argument. They do not boast; they count.",
+    "mage": "The mages carry their storm the way other soldiers carry a blade — carefully, and only out of need. Their art is older than the banners and hungrier than the winter. When the sky answers them, the field remembers.",
+    "healer": "The healer walks into the mud that others are carried out of. Their hands know the price of every order given, and they pay it quietly, stitch by stitch. No victory is counted until their work is done."
   },
   "ai": {
     "moveRetries": 3,
