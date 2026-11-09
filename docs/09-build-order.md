@@ -19,7 +19,7 @@
 [ ] npx prettier --check .                                       → clean
 [ ] npm -w server test && npm -w client test                     → pass (≥ placeholder health test)
 [ ] npm -w client run gen:placeholders                           → all asset files per 07 exist (4 per class + hero; baseline config ⇒ 25)
-[ ] docker compose up db → psql \dt shows empty schema; server boots, /api/health 200
+[ ] docker compose up db → database reachable via `docker compose exec db psql -U dc -d darknesscaress -c "\dt"` (Windows-safe: psql runs inside the container, never on the host); server boots, /api/health 200
 [ ] commits formatted "chore(phase-1): ..." (multiple allowed), pushed
 ```
 
