@@ -133,13 +133,16 @@ The LLM never computes damage, counters, or deaths — it only **decides** moves
 | unit unknown | `unknown unit <id>` |
 | wrong side | `<id> belongs to the other army` |
 | already acted | `<id> already acted this turn` |
-| path illegal | the precise `isPathLegal` message above |
+| path illegal | the precise `isPathLegal` message above, which includes: `path step (x,y) is outside the board`, `path step (x,y) is not adjacent to the previous step` (both forced by the 4-neighborhood rule), plus the listed movement rejections |
 | landing clash | `tile (x,y) is claimed by two moves` / `tile (x,y) frees EARLIER in this bundle and cannot be landed on` |
 | attack/heal missing targetId | `attack requires a target` / `heal requires a target` |
 | target out of range | `<class> cannot attack a unit at <n> tiles` |
 | target wrong side / dead | `<id> is not a valid attack target` |
 | not adjacent (heal) / full hp | `heal target must be adjacent and wounded` |
 | duplicate unit in bundle | `<id> appears twice` |
+| attack/heal by a non-capable class | `<class> cannot attack` / `<class> cannot heal` (e.g. "healer cannot attack"; uses the class KEY, labels are UI-side) |
+| unknown action type | `unknown action "<type>"` |
+| attack/heal target id unknown | `unknown unit <id>` (same row as the unit-unknown case) |
 
 ## Engine tests (Vitest — the real backbone of the suite)
 
