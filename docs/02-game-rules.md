@@ -50,8 +50,9 @@ export function isPathLegal(board: Board, units: Unit[], unit: Unit, path: [numb
 // isPathLegal returns null when legal, otherwise a precise rejection message like:
 //   "path step (4,6) is water" | "path ends on an occupied tile" | "path enters an enemy unit at (7,8)"
 //   | "path length 4 exceeds movement 3" | "path must start at the unit's tile"
-// "path length" = the number of EDGES STEPPED (array length − 1). A 4-tile path array = 3 steps:
-// legal for a class with Mov ≥ 3, illegal ("path length 4 exceeds movement 3") for Mov 2.
+// "path length" = the number of EDGES stepped = path.length − 1 (entries − 1).
+// Examples: a 4-entry array = 3 edges; a Mov-2 class accepts at most 2 edges and rejects a
+// 4-entry array with "path length 3 exceeds movement 2". The message's N = edges, M = Mov.
 ```
 
 No path reconstruction, no ranged movement points, no diagonal — nothing else exists.
@@ -101,7 +102,9 @@ Execution order and rules, exactly:
 ```ts
 export function previewMove(board: Board, units: Unit[], unit: Unit, cfg: GameEngineConfig, size: number): {
   moveTiles: [number, number][];
-  attackTiles: [number, number][];   // for atk>0: enemy tiles attackable THIS turn from any reachable final tile
+  attackTiles: [number, number][];   // enemy tiles at Manhattan distance ∈ the class's range LIST
+                                     // (set membership, not ≤ max — range [2] marks exactly distance-2)
+                                     // from any reachable final tile
   healTiles: [number, number][];    // for healer: same-side units healable this turn
 };
 ```

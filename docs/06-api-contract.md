@@ -95,7 +95,7 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
 
 ### 4. `GET /api/me` → `200 {"user": User}`.
 
-### 5. `PATCH /api/me` — optional keys: `{"username?":"NewName","theme?":"warriors-europe"}` (at least one). `200 {"user": User}`. Errors: `400` validation, `409` username taken, `400 {"error":"Unknown theme"}`.
+### 5. `PATCH /api/me` — optional keys: `{"username?":"NewName","theme?":"warriors-europe"}` — the `?` marks TS-optional keys (send ANY ZERO OR MORE of `username`/`theme`; at least one key must be present). `200 {"user": User}`. Errors: `400` validation, `409` username taken, `400 {"error":"Unknown theme"}`.
 
 ### 6. `PATCH /api/me/password` — `{"currentPassword":"…","newPassword":"…"}` → `204`. Errors: `400` validation, `401 {"error":"Current password is incorrect"}`. Other sessions stay valid (no revocation machinery in MVP).
 
@@ -147,7 +147,7 @@ Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count.
 ```
 
 - `moveTiles`: tiles reachable within Mov via legal pathing (water impassable outside bridges; enemies block; allies pass-through; Boolean per tile, no path enumeration).
-- for classes with atk > 0: `attackTiles` = enemy-occupied tiles with distance ≤ class attack range **from any tile the unit can finish on** — i.e. tiles attackable THIS turn.
+- for classes with atk > 0: `attackTiles` = enemy-occupied tiles whose Manhattan distance from some reachable final tile **is a member of the class's range list** (set membership — an archer's `[2]` marks exactly distance-2 tiles, never distance 1 or 3).
 - for healer: `healTiles` = same-side (player) units **Manhattan-adjacent to any reachable final tile**, hp < maxHp.
 - Response is computed by `src/game/` shared code: identical logic serves moves validation; the client renders it as overlay. Note: the preview returns TILES ONLY (no paths) — the client computes its own display path for the staged bundle (`05`), and the server re-validates that path on submission. Errors: `404 {"error":"Unit not playable"}` (unknown, not owner's, or already acted this turn); `409 {"error":"Game is not waiting for your turn"}`.
 
@@ -165,11 +165,12 @@ Request:
 - Server re-derives `path` legality with the same engine used by preview; `path[0]` must be the unit's current tile; the path may pass through ally-occupied tiles (allies do not block passage) but the final tile must be empty; enemy-occupied tiles may NOT be entered; **the landing-tile rule applies**: the bundle's final tiles must be pairwise distinct and empty in the pre-move state (no stacking, no chain-following — `02`); attack requires Manhattan distance `|dx|+|dy|` between `path.at(-1)` and the target within the attacker's class range, target on the opposite side; heal requires Manhattan-1 from the healer's final tile, same side, and target hp < max hp; every `unitId` must belong to the acting side with `acted=false`; each unit appears at most once.
 - Applies in **strict sequential entry order** (exactly as `02` defines: each move's teleport, then its attack + counter or heal, fully resolved to the death outcome before the next entry begins), sets `acted: true` on **every unit that received an entry — explicitly including `wait` entries (omitted units stay `acted: false`). The user-facing consequence lives in the END-TURN confirm dialog in `05`.**
 - `200 {"game": GameState}` — status stays `player_turn` **unless the victory short-circuit fires** (all enemies wiped by these moves ⇒ `status = "won"` directly, per the status matrix; no `/end-turn` may follow).
-- Errors: `400 {"error":"<which move failed and why>"}` (e.g. `"move 1: archer cannot attack a unit at 3 tiles"` — the exact engine message from `02`'s catalogue; zod shape-failures on the REQUEST bundle produce the generic first-issue body from the conventions above). Apply nothing on any failure — validation is holistic before the first mutation.
+- Errors: `400 {"error":"<which move failed and why>"}` (e.g. `"move 1: archer cannot attack a unit at 3 tiles"` — the exact engine message from `02`'s catalogue; zod shape-failures on the REQUEST bundle produce the generic first-issue body from the conventions above); `409 {"error":"Game is not waiting for your turn"}` when the game isn't in `player_turn`. Apply nothing on any failure — validation is holistic before the first mutation.
+- **Exactly ONE *successful* `POST /moves` per round**: once a bundle has been APPLIED this round, a further call during the same `player_turn` ⇒ `409 {"error":"Turn moves already submitted"}` (this is what keeps the landing-tile rule honest across requests — chain-following via two submissions is impossible by construction). **Failed (400) attempts do not consume this budget** — fix the staged bundle and re-submit freely; only an applied bundle locks the round.
 
 ### 14. `POST /api/games/:id/end-turn` — only from `player_turn`; no request body. No concept of "partly acted units" — moves were already applied atomically by endpoint 13, so ending the turn is pure state transition (any un-acted units simply do nothing this turn).
 
-Effects: `status = "ai_turn"`, `updated_at = now()`, **all units' `acted` flags reset to `false`** (the player's just-expired units stop acting; the enemy army is armed for ITS turn — the reset covers both sides in one stroke), `turnNumber` unchanged (it advances only when a successful AI turn completes — `04`'s loop — so the counter means "rounds played"), fire background `runAiTurn` (non-blocking per `01`). Response: `200 {"game": GameState}` with `status:"ai_turn"`. Errors: `409 {"error":"Game is not waiting for your turn"}`.
+Effects: `status = "ai_turn"`, `updated_at = now()`, **all units' `acted` flags reset to `false`** (the player's just-expired units stop acting; the enemy army is armed for ITS turn — the reset covers both sides in one stroke), `turnNumber` unchanged (it advances only when a successful AI turn completes — `04`'s loop — so the counter is the **1-based CURRENT round**: 1 = the player's opening turn, 2 = after the first AI turn, …), fire background `runAiTurn` (non-blocking per `01`). Response: `200 {"game": GameState}` with `status:"ai_turn"`. Errors: `409 {"error":"Game is not waiting for your turn"}`.
 
 Victory check also runs here and on 13: if all enemy units are dead, no AI turn happens — `status = "won"` directly. Symmetrically, AI-side engine sets `status = "lost"` after its actions if the player is wiped.
 
@@ -180,10 +181,12 @@ Victory check also runs here and on 13: if all enemy units are dead, no AI turn 
 ```
 player_turn → ai_turn            (explicit: completed)
 ai_turn → player_turn            (AI: worked)
-ai_turn → won | lost             (AI: conditions met: enemy/player army destroyed)
+ai_turn → lost                   (AI: conditions met — the player's army was wiped)
 player_turn → won                (all enemies dead by the player's actions before end-turn)
 any_active → lost                (forfeit)
 ```
+
+`ai_turn → won` does NOT exist — the AI can never destroy its own army, so a player victory is only ever produced by endpoint 13 (or a forfeit's mirror: `ai_turn → lost`).
 
 No transition exists `won`→`anything`, `lost`→`anything`. A `won`/`lost` game's board keeps being readable via endpoint 11 (stats include it; "New game" offers a rematch in style: it becomes a NEW game).
 

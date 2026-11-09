@@ -66,7 +66,9 @@ idle → unitSelected            (click own, non-acted unit → GET preview; uni
 unitSelected → unitSelected    (click another own non-acted unit → re-select)
 unitSelected → idle            (click empty/dim area or Esc)
 unitSelected → movePicked      (click a moveTile → client computes + displays the shortest legal path
-                                (display helper only; the SAME path goes into the staged move);
+                                via a tiny client BFS over the preview's reachable tiles — pure UX
+                                sugar whose output is RE-VALIDATED server-side — and the SAME path
+                                goes into the staged move;
                                 overlay now shows the actions FROM THAT destination: attackTiles/red,
                                 healTiles/green — the preview's union is FILTERED client-side by
                                 pure arithmetic: a preview enemy tile survives only if Manhattan
@@ -80,15 +82,17 @@ movePicked → staged            (click enemy unit in red overlay → stage a wh
 movePicked → unitSelected      ([Back] or Esc → re-select)
 staged → staged                (more units staged; unstage via chip click cancels ONLY that staged move)
 staged → playerTurnSubmitted   ([End turn] → POST /moves (staged list) → POST /end-turn → status ai_turn)
+playerTurnSubmitted → staged   (POST /moves returned 400 → error banner with the exact engine message;
+                                the staged bundle stays intact for fixing — failed attempts do not
+                                consume the once-per-round budget)
 playerTurnSubmitted → polling  (3 s GET /play/:id while ai_turn)
 ```
 
 Notes:
 
-- **End turn semantics**: if staged ≤ 0 moves but some unit(s) have `acted=false`, End turn still works (they do nothing) — button always enabled, confirm dialog only when un-acted units remain.
+- **End turn semantics**: if staged ≤ 0 moves but some unit(s) have `acted=false`, End turn still works (they do nothing) — button always enabled, confirm dialog only when un-acted units remain. Dialog copy, pinned: header "`<n>` unit(s) have not acted", body "End the turn anyway? The un-acted units simply skip this turn.", buttons [End turn] / [Keep acting]. Wait-staged units count as acted (only omitted units trigger the dialog).
 - Victory short-circuit: the authoritative win check is SERVER-side — if `POST /moves`'s response body carries `game.status = "won"` (all enemies died by these moves), do NOT call `/end-turn` (the server would 409 it; status matrix in `06`) and show the victory overlay directly from that same response.
-- `ai_turn` state: board interactions disabled; PhaseBanner pulses; on the response that flips to `player_turn`, animate `lastAiActions` client-side: step through actions 400 ms apart moving sprites along their `path` and flashing attacks (damage popups), then settle to final state (which is already authoritative).
-- Sprite asset path: `/assets/${theme}/${class}/sprite-${side}.png` where `theme` = user's theme from `GET /api/me`. Portraits (Champions tab) per `07`.
+- `ai_turn` state: board interactions disabled; PhaseBanner pulses; on the response that flips to `player_turn`, animate `lastAiActions` client-side: step through actions 400 ms apart moving sprites along their `path` and flashing attacks (damage popups), then settle to final state (which is already authoritative).- Sprite asset path: `/assets/${theme}/${class}/sprite-${side}.png` where `theme` = user's theme from `GET /api/me`. Portraits (Champions tab) per `07`.
 
 ### Overlays (colors are design tokens)
 
@@ -167,6 +171,6 @@ One module family: `request<T>(path, opts)` wrapper → `fetch` with `credential
 
 ## Tests (front)
 
-- **Vitest**: api wrapper (mock fetch → mapping/errors), `usePolling` (fake timers: starts/stops), board pathfinding display helper (client mirrors nothing — only uses server previews; test just the path-display interpolation), staged-moves reducer (state machine transitions incl. unstage).
+- **Vitest**: api wrapper (mock fetch → mapping/errors), `usePolling` (fake timers: starts/stops), board path-SERIALIZING helper (a tiny client BFS over the server's preview tiles, purely to produce/visualize the staged bundle's path — the server re-derives legality on submission), staged-moves reducer (state machine transitions incl. unstage).
 - **Playwright** (phase 7, `09`): full flows via the real app + mock-LLM server.
 - All interactive elements carry `data-testid`: `tab-game`, `new-game`, `persona-{id}`, `game-card-{id}`, `unit-{id}`, `tile-{x}-{y}`, `end-turn`, `staged-chip-{n}`, `forfeit`, `logout`, `ui-mode-toggle`. E2E specs rely on these names — stable contract, do not rename.

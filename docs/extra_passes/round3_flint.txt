@@ -1,0 +1,84 @@
+# Spec Audit — Darkness Caress II
+
+Reading scope: `README.md`, `docs/00`–`docs/10` (all read in full this session). No other docs touched.
+
+## FINDINGS
+
+1. **#02-game-rules.md — internal contradiction in the movement-path error catalogue.**
+   Quote: `// "path length" = the number of EDGES STEPPED (array length − 1). A 4-tile path array = 3 steps: legal for a class with Mov ≥ 3, illegal ("path length 4 exceeds movement 3") for Mov 2.`
+   Risk: the quoted rejection string and the definition beside it cannot both be true. "Path length" is defined as edges stepped (array length − 1), so a 4-tile array = path length 3, and a Mov-2 unit should be rejected with a message like "path length 3 exceeds movement 2". The example message ("path length 4 exceeds movement 3") contradicts the doc's own arithmetic. An implementing agent building `isPathLegal` cannot write a consistent validator/error string from this passage.
+
+2. **#05-frontend.md ↔ #06-api-contract.md — the end-turn confirm dialog is specified inconsistently.**
+   Quote #05: `[End turn] (primary; ALWAYS enabled — semantics in Notes)` … Notes: `button always enabled, confirm dialog only when un-acted units remain.`
+   Quote #06: `The user-facing consequence lives in the END-TURN confirm dialog in 05.`
+   Risk: #06 assumes a single identifiable "END-TURN confirm dialog" carries the un-acted-units consequence; #05 scopes that dialog to "only when un-acted units remain" while simultaneously declaring the button always enabled. Trigger, content, and purpose are never pinned — frontend and backend agents will implement two different behaviors.
+
+3. **#05-frontend.md — unresolved tension in the staged-move path source.**
+   Quote #05: `client computes + displays the shortest legal path (display helper only; the SAME path goes into the staged move)` … Vitest note: `board pathfinding display helper (client mirrors nothing — only uses server previews; test just the path-display interpolation)`.
+   Quote #06: moveTiles are `Boolean per tile, no path enumeration`.
+   Risk: client is told to compute a "shortest legal path" while also being told it mirrors nothing, uses only previews, and does no duplicated pathfinding; the server returns tiles only, never paths. An agent must invent the path-derivation mechanism.
+
+## AMBIGUITIES
+
+1. **#04-ai-integration.md vs #02-game-rules.md / #06-api-contract.md — tile-code vocabulary.**
+   Quote #02: `export type Tile = "plain" | "forest" | "hill" | "lake" | "rock" | "river" | "bridge";`
+   Quote #04: `. plain | f forest | h hill | L lake | r rock | ~ river | B bridge`
+   Interpretation A: full lowercase words are canonical (engine/API/DTO); single chars are LLM-prompt shorthand.
+   Interpretation B: single chars are canonical/prompt notation; words are engine-side.
+   Risk: the mapping and its direction are never specified — two agents can implement the LLM board context and the engine tile model inconsistently.
+
+2. **#06-api-contract.md — PATCH /api/me optional keys.**
+   Quote: `### 5. PATCH /api/me — optional keys: {"username?":"NewName","theme?":"warriors-europe"} (at least one).`
+   Interpretation A: the `?` suffix marks the key optional.
+   Interpretation B: the `?` is part of the literal key.
+   Risk: a literal-minded implementer produces invalid keys.
+
+3. **#06-api-contract.md — turnNumber semantics.**
+   Quote: `turn_number INT NOT NULL DEFAULT 1` (creation inserts `turnNumber: 1`; AI success → +1; end-turn/failure → unchanged; `the counter means "rounds played"`).
+   Interpretation A: turnNumber = current round, 1-based.
+   Interpretation B: turnNumber = completed rounds + offset / alternative counting convention.
+   Risk: off-by-one divergence in turn labels, AI-turn triggering, stats.
+
+4. **#03-board-generation.md — retry policy sequencing.**
+   Quote: `All 3 attempts fail with the SAME brief ... regenerate the brief ... then retry its 3 seeds. Up to 3 briefs total.`
+   Risk: "up to 3 briefs" vs. per-brief "3 seeds" leaves fallback timing and budget reset ambiguous.
+
+## CONTRADICTIONS
+
+1. **#02 internal** — movement-path error catalogue vs. its own definition (detailed in FINDINGS #1). One document contradicts itself.
+
+2. **#05-frontend.md vs #06-api-contract.md** — end-turn confirm dialog: #05 conditions it ("confirm dialog only when un-acted units remain") and #06 references it as the home of "the user-facing consequence"; behavior is mutually inconsistent/underspecified. One decision, two incompatible framings.
+
+## VERDICT — Top 3 findings, ranked (one sentence each)
+
+1. **#02** — The movement-path error catalogue contradicts its own definition of "path length", making the engine's validator and messages internally unimplementable as written.
+2. **#05 ↔ #06** — The end-turn confirm dialog is mandated, conditioned, and never actually defined, producing divergent implementations across the frontend/backend boundary.
+3. **#05** — The staged-move path source is left unresolved ("no duplicated pathfinding" vs. computing a shortest legal path) even though the server preview returns tiles only.
+
+---
+
+## FINDINGS (expanded detail)
+
+- **#02-game-rules.md** — quoted above (path-length passage). Severity: high (self-contradiction within one doc).
+- **#05-frontend.md** — quoted above (client pathfinding tension). Severity: medium-high (spec cannot be implemented without inventing a mechanism).
+- **#05-frontend.md ↔ #06-api-contract.md** — quoted above (end-turn confirm dialog). Severity: high (cross-doc contradiction).
+
+## AMBIGUITIES (expanded detail)
+
+- **#04 vs #02/#06** — tile vocabulary words-vs-chars (A vs B above).
+- **#06** — `{"username?":"NewName"}` optional-key syntax (A vs B above).
+- **#06** — turnNumber counting convention (A vs B above).
+- **#03** — retry/fallback sequencing (quoted above).
+
+## CONTRADICTIONS (expanded detail)
+
+1. **#02 internal**: path-length message vs. definition.
+2. **#05 vs #06**: end-turn confirm dialog.
+
+## VERDICT
+
+Top 3, ranked, one sentence each:
+
+1. **#02-game-rules.md**: The movement-path rejection catalogue ("path length 4 exceeds movement 3") contradicts its own definition ("path length" = edges stepped = array length − 1), so the rules engine's validator cannot be implemented as the doc reads.
+2. **#05-frontend.md vs #06-api-contract.md**: The end-turn confirm dialog is required by one doc, conditionalized by another, and never specified — the strongest cross-document contradiction in the set.
+3. **#05-frontend.md**: The client-side staged-move path is simultaneously required ("compute + display the shortest legal path") and forbidden ("no duplicated pathfinding", "client mirrors nothing — only uses server previews") despite the server preview returning tiles only.

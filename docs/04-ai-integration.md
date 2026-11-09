@@ -72,7 +72,7 @@ Persona behavior texts (config personality `label` is the user-facing name; this
 
 ### User message — serialized state (exact format)
 
-Compact over verbose — small models degrade as payload grows. Serializer lives in `features/ai/serialize.ts` and mirrors nothing else in the system (do not "improve" it to match DTO shapes — the compact token is deliberate):
+Compact over verbose — small models degrade as payload grows. Serializer lives in `features/ai/serialize.ts` and mirrors nothing else in the system (do not "improve" it to match DTO shapes — the compact token is deliberate). **Prompt-notation note:** the single-char tile glyphs inside the block are prompt-serialization encoding only — the engine, API, and DTOs always use the full tile words from `02` ("plain", "river", …); the serializer emits the chars, and no validator ever reads them:
 
 ```
 BOARD (15x15): each row is one string of 15 chars.

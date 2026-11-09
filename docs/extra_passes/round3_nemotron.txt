@@ -1,0 +1,21 @@
+## FINDINGS
+
+1. docs/06 line 167 ("status stays `player_turn` unless the victory short-circuit fires") + line 82 ("Submit all moves for the player's turn") vs docs/02 line 86 ("a unit may NOT end on a tile that only becomes free because an earlier bundle entry vacates it (no chain-following in MVP)") — Nothing forbids a second `POST /api/games/:id/moves` within the same `player_turn` phase (the status stays `player_turn`), and each bundle validates against the persisted pre-move state, so unit B can land on a tile unit A just vacated in an earlier request — chain-following, which `02` forbids only inside a single bundle. Two agents implement turn submission differently (single-batch-only vs multi-batch), changing whether chain-following is possible.
+
+2. docs/06 line 168 (endpoint 13 `/moves` lists only `400 {"error":"<which move failed and why>"}`) vs lines 152 & 172 (endpoints 12 preview and 14 end-turn both specify `409 {"error":"Game is not waiting for your turn"}`) — What `/moves` returns on an `ai_turn`/`won`/`lost` game is unspecified; an agent must invent it, so the error contract can diverge from its sibling endpoints.
+
+## AMBIGUITIES
+
+1. docs/06 line 150 ("`attackTiles` = enemy-occupied tiles with distance ≤ class attack range ... i.e. tiles attackable THIS turn") vs docs/04 lines 53-54 ("a unit attacks ONLY at the listed values ... `[2]` means exactly 2 — distance 1 is illegal") and docs/02 line 88 ("Manhattan distance ... must be in `range`") — Interpretation A: the server preview returns tiles at distance ≤ max(range) (e.g., archer range `[2]` marks distance-1 tiles attackable). Interpretation B: the server preview returns exactly range-list tiles (archer only distance 2), matching the engine and the client's exact-membership re-filter (docs/05 line 73).
+
+## CONTRADICTIONS
+
+1. docs/04 lines 53-54 ("a unit attacks ONLY at the listed values ... `[2]` = exactly 2 — distance 1 is illegal") vs docs/06 line 150 ("`attackTiles` = enemy-occupied tiles with distance ≤ class attack range ... tiles attackable THIS turn") — For the archer (range `[2]`), `06`'s server preview marks distance-1 tiles as "attackable this turn", while `04`/`02` make distance 1 an illegal attack.
+
+2. docs/06 line 183 ("ai_turn → won | lost") vs docs/04 line 149 ("status `player_turn`|`lost`" after an AI turn) and docs/06 line 174 ("AI-side engine sets status = `lost` ... if the player is wiped") — `ai_turn → won` is listed as a legal transition but is unreachable: the AI never kills its own units, and the player only wins via endpoint 13.
+
+## VERDICT
+
+1. The preview contract (docs/06 line 150, "distance ≤ class attack range") contradicts the engine's exact-range rule (docs/04 lines 53-54), so the server can advertise tiles as attackable that the engine will reject — most damaging for the archer (range `[2]`).
+2. Chain-following across multiple `/moves` requests (docs/06 line 167 keeps status `player_turn`; docs/02 line 86 forbids chain-following only within a bundle) lets a unit land on a tile vacated earlier in the same turn, breaking the no-chain-following rule if a second `/moves` is permitted.
+3. The status matrix lists `ai_turn → won` (docs/06 line 183) as a legal transition, but an AI turn can never produce a win, so the matrix documents an impossible transition.
