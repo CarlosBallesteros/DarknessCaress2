@@ -21,7 +21,11 @@ CREATE TABLE IF NOT EXISTS games (
   ai_last_error TEXT,                    -- set when an AI turn job fails, cleared on success
   used_fallback BOOLEAN NOT NULL DEFAULT false,  -- true when board generation used the fallback template (debug; not exposed via DTO)
   last_ai_actions JSONB,                 -- the AiAction[] of the last applied AI turn (null until the first AI turn)
+  moves_applied BOOLEAN NOT NULL DEFAULT false,  -- true once a /moves bundle was applied THIS round (incl. empty); reset to false at /end-turn with the acted stroke — the once-per-round lock (`06` ep. 13); not exposed via DTO
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_games_user ON games(user_id);
+
+-- Idempotent bring-up for tables created before the lock existed (the dev db).
+ALTER TABLE games ADD COLUMN IF NOT EXISTS moves_applied BOOLEAN NOT NULL DEFAULT false;

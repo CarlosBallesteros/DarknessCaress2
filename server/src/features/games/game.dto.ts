@@ -12,6 +12,7 @@ export interface GameRow {
   ai_last_error: string | null;
   used_fallback: boolean;
   last_ai_actions: unknown;
+  moves_applied: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -38,6 +39,25 @@ export function toGameDTO(row: GameRow): GameDTO {
     board: row.board,
     units: row.units,
     lastAiActions: row.last_ai_actions,
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+/** Games-list item from 06 (creation order; the client dims finished games). */
+export interface GameSummaryDTO {
+  id: string;
+  difficulty: string;
+  status: GameRow["status"];
+  turnNumber: number;
+  updatedAt: string;
+}
+
+export function toGameSummary(row: GameRow): GameSummaryDTO {
+  return {
+    id: row.id,
+    difficulty: row.difficulty,
+    status: row.status,
+    turnNumber: row.turn_number,
     updatedAt: row.updated_at.toISOString(),
   };
 }
