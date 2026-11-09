@@ -90,9 +90,10 @@ playerTurnSubmitted → polling  (3 s GET /play/:id while ai_turn)
 
 Notes:
 
-- **End turn semantics**: if staged ≤ 0 moves but some unit(s) have `acted=false`, End turn still works (they do nothing) — button always enabled, confirm dialog only when un-acted units remain. Dialog copy, pinned: header "`<n>` unit(s) have not acted", body "End the turn anyway? The un-acted units simply skip this turn.", buttons [End turn] / [Keep acting]. Wait-staged units count as acted (only omitted units trigger the dialog).
+- **End turn semantics**: choreography is UNIFORM — always `POST /moves` (even an empty staged list sends `{"moves": []}` — a valid, applying-nothing submission) → then `POST /end-turn`. Button always enabled; confirm dialog only when un-acted units remain. Dialog copy, pinned: header "`<n>` unit(s) have not acted", body "End the turn anyway? The un-acted units simply skip this turn.", buttons [End turn] / [Keep acting]. Wait-staged units count as acted (only omitted units trigger the dialog).
 - Victory short-circuit: the authoritative win check is SERVER-side — if `POST /moves`'s response body carries `game.status = "won"` (all enemies died by these moves), do NOT call `/end-turn` (the server would 409 it; status matrix in `06`) and show the victory overlay directly from that same response.
-- `ai_turn` state: board interactions disabled; PhaseBanner pulses; on the response that flips to `player_turn`, animate `lastAiActions` client-side: step through actions 400 ms apart moving sprites along their `path` and flashing attacks (damage popups), then settle to final state (which is already authoritative).- Sprite asset path: `/assets/${theme}/${class}/sprite-${side}.png` where `theme` = user's theme from `GET /api/me`. Portraits (Champions tab) per `07`.
+- `ai_turn` state: board interactions disabled; PhaseBanner pulses; on the response that flips to `player_turn`, animate `lastAiActions` client-side: step through actions 400 ms apart moving sprites along their `path` and flashing attacks (damage popups), then settle to final state (which is already authoritative).
+- Sprite asset path: `/assets/${theme}/${class}/sprite-${side}.png` where `theme` = user's theme from `GET /api/me`. Portraits (Champions tab) per `07`.
 
 ### Overlays (colors are design tokens)
 

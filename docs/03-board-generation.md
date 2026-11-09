@@ -83,8 +83,8 @@ Each army occupies an **8×2 block, columns 4–11**, two rows: for the PLAYER, 
 
 ## Retry policy (bounded, exact)
 
-1. Materialize with (seed + attempt counter, attempt 1…3) — validate invariants each time; first valid board wins. Budget: **≤ 3 materializations per brief, ≤ 3 briefs total (≤ 9 attempts per `POST /api/games`)**.
-2. All 3 materializations fail with the SAME brief (a bad brief, e.g. bridges requested outside the river): **regenerate the brief** via the LLM prompt above (temperature unchanged), then retry its 3 seeds — that's brief #2 (or #3) of the budget above.
+1. Materialize with (seed + attempt counter) — validate invariants each time; first valid board wins. Budget from config (`config.ai.boardRetries`): **≤ `materializations` per brief, ≤ `briefs` total** (baseline: 3/3 → ≤ 9 attempts per `POST /api/games`).
+2. All materializations of one brief fail (a bad brief, e.g. bridges requested outside the river): **regenerate the brief** via the LLM prompt above (temperature unchanged), then retry its seeds — that's the next brief of the budget above.
 3. All briefs fail (LLM degraded/offline): **fallback board** — a committed hardcoded template (gentle S-curve river with 2 bridges near rows 4 and 10, two forests, one line of hills), materialized by the same code as constants. Not a *gameplay* heuristic — a deterministic backup layout. Record in the game row that the fallback fired (for stats/debug).
 4. Returns `503` to `POST /api/games` only if even the fallback fails to validate (means a code bug, not an AI hiccup).
 

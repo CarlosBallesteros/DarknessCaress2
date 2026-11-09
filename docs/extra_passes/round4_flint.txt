@@ -1,0 +1,61 @@
+## FINDINGS
+
+1. **docs/02-game-rules.md (lines 34–38, 97) vs docs/00-project-overview.md (line 46) / docs/01-architecture.md (config shape) — the engine's config projection cannot express the fixed army.**
+   - Quote (02): `export interface GameEngineConfig { // projected from server/config.json — the engine never reads the file
+     classes: Record<ClassKey, { hp: number; atk: number; def: number; mov: number; range: number[]; healAmount?: number; role?: ... }>; }` — the per-class `count` is absent from the type.
+   - Quote (02, line 97): "…the sum of `config.classes[*].count`: 2+2+2+2+1+1".
+   - Quote (00, line 46): "Game logic must read values from this file — stats are never hardcoded, inlined, or duplicated."
+   - What could go wrong when implemented: an agent cannot build the 10-unit army from the projected `GameEngineConfig` as specced; the constitution and the turn semantics both assume `count` exists somewhere it isn't declared. Two agents could resolve this by hardcoding the army, adding `count` to the projection, or having the engine read the file — a direct violation of the single-source-of-truth rule either way.
+
+2. **docs/05-frontend.md (line 84) vs docs/06-api-contract.md (line 171) — end-turn choreography is internally inconsistent/underspecified.**
+   - Quote (05): "staged → playerTurnSubmitted   ([End turn] → POST /moves (staged list) → POST /end-turn → status ai_turn)".
+   - Quote (06, line 171): "No concept of 'partly acted units' — moves were already applied atomically by endpoint 13, so ending the turn is pure state transition (any un-acted units simply do nothing this turn)."
+   - Quote (05, line 93): "if staged ≤ 0 moves but some unit(s) have `acted=false`, End turn still works (they do nothing) — button always enabled, confirm dialog only when un-acted units remain."
+   - What could go wrong when implemented: when the staged list is empty, the docs never say whether the client sends `POST /moves` with an empty bundle or skips straight to end-turn — and the contract for empty bundles is never addressed.
+
+3. **docs/00-project-overview.md (line 74) vs docs/03-board-generation.md (line 74 / brief schema, lines 22–28) — "densities" named in the design decision, absent from the brief schema.**
+   - Quote (00): "…the **LLM decides** the layout brief (river start/end and bends, bridge tiles, forest/hill zones, densities)…".
+   - Quote (03, lines 22–28): the brief JSON keys are only `river`, `bridgeTiles`, `forestZones`, `hillZones`, `lake` — no density field.
+   - What could go wrong when implemented: an agent must invent what "densities" means when prompting/materializing; divergent agents could add different density knobs.
+
+4. **docs/05-frontend.md (line 95) — formatting defect that merges two distinct bullets into one line.**
+   - Quote: "…then settle to final state (which is already authoritative).- Sprite asset path: `/assets/${theme}/${class}/sprite-${side}.png` where `theme` = user's theme from `GET /api/me`…".
+   - What could go wrong when implemented: a literal-minded implementer may misparse or misattribute the sprite-path rule.
+
+5. **docs/09-build-order.md (Phase 3 reads: docs/00, docs/08, docs/02) vs docs/01-architecture.md (canonical config shape) — phase doc lists omit the doc that defines the config being projected.**
+   - Quote (09, Phase 3): "**Read:** `00`, `08`, `02`."
+   - Quote (09, Phase 3): "Build: … config projection `GameEngineConfig` from config.json."
+   - What could go wrong when implemented: the agent building the engine is never pointed at the canonical config shape in `01-architecture.md`, so the gap it hits may be resolved differently per agent.
+
+## AMBIGUITIES
+
+1. **docs/04-ai-integration.md (lines 82–94) — the STATS prompt line grammar is under-specified.**
+   - Quote: "Format, exactly: `<class>=hp<hp>/atk<atk>/def<def>/mov<mov>/rng<range>/role<role>`" … "- `/heal<n>` is appended only for classes with a config healAmount (baseline: /heal8)." … "Shape example … `a-goon=hp40/atk3/def2/mov1/rng2,4/role-supporter | z-mini=hp9/atk6/def1/mov5/rng1/role-attacker".
+   - Interpretation A: class token = bare config key (`sword`, `axe`, …); Interpretation B: class token = label-ish/fictional token (`a-goon`). Also unresolved: exact placement of `/heal<n>` in the line grammar.
+
+2. **docs/04-ai-integration.md (lines 36, 65–71) vs docs/01-architecture.md (config `personalities` shape) — where persona behavior texts live.**
+   - Quote (04, line 36): "the one placeholder `«PERSONA BEHAVIOR TEXT»` is the personality's behavior text from below".
+   - Quote (01, config): `"personalities": { "aggressive": { "label": "Aggressive", "temperature": 0.7 }, "defensive": { "label": "Defensive", "temperature": 0.4 }, "erratic": { "label": "Erratic", "temperature": 1.2 } }` — no behavior-text field.
+   - Interpretation A: behavior texts live in config.json; Interpretation B: they live in code as persona constants.
+
+3. **docs/00-project-overview.md (line 66) vs docs/05-frontend.md (lines 68–70) — what "computed shortest path" means visually.**
+   - Quote (00): "the visual is tile highlighting only — no animated route drawing (the staged move nevertheless includes a computed shortest path, see `05`)."
+   - Quote (05): "client computes + displays the shortest legal path via a tiny client BFS over the preview's reachable tiles — pure UX sugar whose output is RE-VALIDATED server-side — and the SAME path goes into the staged move".
+   - Interpretation A: displaying the path is pure staging UX; Interpretation B: displaying it is route drawing.
+
+## CONTRADICTIONS
+
+1. **docs/00-project-overview.md (line 46) vs docs/02-game-rules.md (lines 8, 34–38) — single-source-of-truth config vs hardcoded engine constants.**
+   - A (00): "Game logic must read values from this file — stats are never hardcoded, inlined, or duplicated."
+   - B (02): `export const SIZE = 15; // boardSize also lives in config; engine takes size as an argument — tests parametrize it` and the `GameEngineConfig` projection missing `count`.
+   - These pull in different directions for the same "numbers must come from config" rule.
+
+2. **docs/05-frontend.md (line 84) vs docs/06-api-contract.md (line 171) — end-turn must follow a moves submission, yet end-turn is described as a pure state transition.**
+
+## VERDICT
+
+Top 3 findings, ranked, one sentence each:
+
+1. **docs/02's `GameEngineConfig` omits the per-class `count` while docs/00 (line 46), docs/02 (line 97) and docs/01 (config) all require config as the single source of truth — the engine cannot be built without an agent-invented army-size source.**
+2. **The end-turn flow is underspecified at the zero-staged-moves boundary (docs/05 line 84 vs docs/06 line 171), so client and server behavior can diverge.**
+3. **The AI persona behavior-text storage location is unspecified (docs/04 vs docs/01), so LLM prompt construction can diverge.**

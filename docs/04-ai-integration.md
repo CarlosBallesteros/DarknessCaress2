@@ -88,7 +88,7 @@ STATS: one line per class, GENERATED from config at prompt-build time.
     the aggressive commander's priority target. Tag semantics are a game decision:
     "supporter" means kill-priority backline, not literal non-combatant (archers and
     mages still attack). Values come from config at build time.
-  - one line, classes in config-key order, separated by " | ".
+  - one line, classes in config-key order, separated by " | ". The `<class>` token is always the bare config KEY (`sword`, `axe`, …) — the fictional keys in the example below exist only so no value can be mistaken for shipped truth:
   Shape example, with FICTIONAL values on purpose (nothing here is config truth —
   the shipped prompt carries only the real numbers read from config.json at that moment):
   a-goon=hp40/atk3/def2/mov1/rng2,4/role-supporter | z-mini=hp9/atk6/def1/mov5/rng1/role-attacker
@@ -165,7 +165,7 @@ Notes locked this way:
 ## Prompt hygiene rules
 
 - **Zero stat literals in prompts.** The only numbers the prompt system ever prints are config-rendered outputs — the STATS block, the movement/range counts, AND the board inside ("15x15" is rendered from `config.boardSize`, like everything else — see `03`'s brief; the same rule applies to this template's grid references). The digest and persona texts are written in *class-agnostic* terms ("low-DEF units", "most favorable range") so rebalancing config can never make a prompt lie. Class KEYS (`sword`, `axe`…) are stable identifiers, not tunables — they may appear in persona texts.
-- Prompt strings live in code as named constants — `features/board/briefPrompt.ts` (03) and `features/ai/turnPrompt.ts` (04) — versioned like source, never generated on the fly from game strings besides the swapped values specified above; the STATS block is the sole config-derived part, emitted by one shared helper (`statsKernel(config)`), reused by both docs' prompt builders.
+- Prompt strings live in code as named constants — `features/board/briefPrompt.ts` (03) and `features/ai/turnPrompt.ts` (04) — versioned like source, never generated on the fly from game strings besides the swapped values specified above; the STATS block is the sole config-derived part, emitted by one shared helper (`statsKernel(config)`), reused by both docs' prompt builders. Persona BEHAVIOR TEXTS are also code constants in `features/ai/` — config carries only `label` + `temperature` per personality (the config stays pure data; prose never enters it).
 - Logs: on success record `{gameId, durationMs, promptChars, responseChars, attempt}` only. Full request/response pairs print only during local/dev runs; production never logs or DB-stores them.
 - The serializer output for a mid-game state (some units dead, low HP) must still fit comfortably in the model's context window: worst case ≈ 15 board rows + 1 STATS line + 20 unit lines + prompt text < 4 KB ⇒ fine for 7–8B models.
 

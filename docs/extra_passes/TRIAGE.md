@@ -92,6 +92,24 @@ REJECTED: none factual — one wording tighten (weapon triangle phrasing, folded
 
 REJECTED: none — both reports carried only verified-real items (0 hallucinations for the second consecutive round).
 
+## ROUND 4 (whole-set, post-round-3) — ACCEPTED (all verified-real)
+
+1. **Wait-entry vs landing-tile contradiction** (Nemotron) — a `wait` entry's final tile is the unit's own pre-move tile: literally rejected by path-legality AND the landing rule, while three other passages permit it → self-ownership exception in `02` movement + Wait exemption from the landing rule.
+2. **`GameEngineConfig` lacked `count`** (Flint) — "the sum of config counts" was underivable from the engine projection → `count` added as assembly metadata (`02`); combat math still never branches on it.
+3. **Retry budget hardcoded in `03` prose** (Nemotron) — 3/3/9 violated the SSOT fence → `config.ai.boardRetries: { materializations, briefs }`; `03` references keys, not numbers (`01`/`03`).
+4. **`01` claimed the AI job could write `won`** (Nemotron) — impossible since round 3's dead-transition fix → `(player_turn | lost)` only.
+5. **`winRate` undefined at 0 games** (Nemotron) → `wins/gamesPlayed`, floored to 0 (`06`).
+6. **Round-2's byDifficulty zero-rows decision had never reached `06`'s text** (Nemotron) → written: every persona always, zeros included.
+7. **Empty-bundle + end-turn choreography underdefined** (both models) → empty `{"moves": []}` is a valid submission (applies nothing, consumes the round); choreography uniform: always `/moves` (may be empty) → `/end-turn` (`06`/`05`).
+8. **`00` promised the LLM decides "densities"** — no such brief field → wording corrected: zone radii ARE the density knob (`00`).
+9. Lost-newline merged bullet repaired in `05` (`- Sprite asset path…` merged into the ai_turn bullet).
+10. `09` phase 3's Read list gained `01` (canonical config shape for the projection).
+11. Persona behavior texts declared CODE constants (config stays label+temperature only) (`04`).
+12. STATS `<class>` token = bare config key; fictional keys exist only as staleness-proofing (`04`).
+13. `SIZE = 15` demoted to "hardcoded test/legacy default — canonical value is the config argument" (`02`).
+
+REJECTED: none — every finding verified-real on quote inspection (second consecutive fully-clean round for both models).
+
 ## Process notes
 
 - Chunked passes (round 1) miss cross-subset facts; whole-set passes catch cross-file rot but risk attention dilution — both found different bug classes; alternating them worked.

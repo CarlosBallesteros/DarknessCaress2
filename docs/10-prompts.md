@@ -46,7 +46,7 @@ QUALITY GATES (all mandatory before you claim done):
 |---|---|---|
 | 1 | `Phase 1 — Scaffold & quality gates` | `docs/01-architecture.md`, `docs/07-assets.md`, `docs/09-build-order.md` |
 | 2 | `Phase 2 — Auth & users` | `docs/01-architecture.md`, `docs/06-api-contract.md` |
-| 3 | `Phase 3 — Rules engine (pure src/game/)` | `docs/02-game-rules.md` |
+| 3 | `Phase 3 — Rules engine (pure src/game/)` | `docs/01-architecture.md` (canonical config shape), `docs/02-game-rules.md` |
 | 4 | `Phase 4 — Board generation` | `docs/03-board-generation.md`, `docs/04-ai-integration.md` |
 | 5 | `Phase 5 — AI turns & remaining API` | `docs/02-game-rules.md`, `docs/04-ai-integration.md`, `docs/06-api-contract.md` |
 | 6 | `Phase 6 — Frontend (whole website)` | `docs/05-frontend.md`, `docs/07-assets.md`, `docs/06-api-contract.md` |

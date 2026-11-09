@@ -5,7 +5,8 @@
 ## Types (canonical — `src/game/types.ts`)
 
 ```ts
-export const SIZE = 15; // boardSize also lives in config; engine takes size as an argument — tests parametrize it
+export const SIZE = 15; // hardcoded ONLY as a fixture default for tests — production code derives
+                        // the grid size from GameEngineConfig.boardSize. Never read SIZE in engine math.
 
 export type Tile = "plain" | "forest" | "hill" | "lake" | "rock" | "river" | "bridge";
 export type ClassKey = "sword" | "axe" | "spear" | "archer" | "mage" | "healer";
@@ -32,21 +33,22 @@ export interface Move {   // one unit's turn bundle, exactly the API contract's 
 }
 
 export interface GameEngineConfig {   // projected from server/config.json — the engine never reads the file
-  classes: Record<ClassKey, { hp: number; atk: number; def: number; mov: number; range: number[]; healAmount?: number; role?: "attacker" | "supporter" }>;
+  boardSize: number;                   // the ONE source of grid size — reach/parsing derive it from here
+  classes: Record<ClassKey, { count: number; hp: number; atk: number; def: number; mov: number; range: number[]; healAmount?: number; role?: "attacker" | "supporter" }>;
 }
-// Note: `role` rides along as metadata (consumed by the AI prompt layer + spawn layout);
-// engine MATH must never branch on it — a class's role tag can never alter damage, movement, or range.
+// `count` and `role` ride along as METADATA (army assembly + AI prompt layer);
+// engine MATH must never branch on either — damage, movement, range come only from the stat fields.
 ```
 
 ## Movement (`src/game/reach.ts`)
 
 - Grid, 4-neighborhood, every step costs 1. **Terrain never affects movement cost or speed** — water is the ONE mechanical exception: `lake` and `river` tiles are impassable, `bridge` is walkable.
-- A path may pass **through ally-occupied tiles** but may not END on any occupied tile, and may not ENTER enemy-occupied tiles at all.
+- A path may pass **through ally-occupied tiles** but may not END on any occupied tile, and may not ENTER enemy-occupied tiles at all — with ONE ownership exception: the tile occupied by THE MOVING UNIT ITSELF counts as free while it moves (this is what makes a Wait entry — a 1-entry path at the unit's own tile — legal).
 - Reachable = every tile with a legal path of length ≤ `unit.mov`. BFS with a visited set — sufficient and exact here (all step costs equal 1, so BFS distance = optimal distance).
 
 ```ts
-export function reachableTiles(board: Board, units: Unit[], unit: Unit, size: number): Set<string>; // keys "x,y"
-export function isPathLegal(board: Board, units: Unit[], unit: Unit, path: [number, number][], size: number): string | null;
+export function reachableTiles(board: Board, units: Unit[], unit: Unit, cfg: GameEngineConfig): Set<string>; // keys "x,y"; size from cfg.boardSize
+export function isPathLegal(board: Board, units: Unit[], unit: Unit, path: [number, number][], cfg: GameEngineConfig): string | null;
 // isPathLegal returns null when legal, otherwise a precise rejection message like:
 //   "path step (4,6) is water" | "path ends on an occupied tile" | "path enters an enemy unit at (7,8)"
 //   | "path length 4 exceeds movement 3" | "path must start at the unit's tile"
@@ -84,7 +86,7 @@ Execution order and rules, exactly:
 1. **Whole-bundle validation first** (fail without touching anything):
    - unit exists, belongs to `side`, `acted === false`; each unit used at most once;
    - `isPathLegal` passes for every move, judged against the **pre-move state**;
-   - **landing-tile rule:** the FINAL tiles of the bundle must be distinct and empty in the pre-move state — no two units may claim the same landing tile, and a unit may NOT end on a tile that only becomes free because an earlier bundle entry vacates it (no chain-following in MVP — simple to validate, simple to explain).
+   - **landing-tile rule:** the FINAL tiles of the bundle must be distinct and empty in the pre-move state — no two units may claim the same landing tile, and a unit may NOT end on a tile that only becomes free because an earlier bundle entry vacates it (no chain-following in MVP — simple to validate, simple to explain). **Wait entries are exempt** (their final tile is their own pre-move tile — nothing is claimed); "distinct" applies only to entries that actually relocate.
 2. Apply moves **in strict sequential order**: each bundle entry completes fully (movement teleports to `path.at(-1)`, then its attack + optional counter or heal resolve to the death/removal outcome) BEFORE the next entry begins — a unit killed by a counter never executes a later entry, and damage is never simultaneous.
 3. **Attack**: attacker and target must still be alive, opposite sides, and Manhattan distance `|dx| + |dy|` from the ATTACKER'S FINAL TILE must be in `range`. Damage = `max(0, atk − target.def)` (never randomized). Target HP decrements; `hp ≤ 0` ⇒ dead ⇒ removed.
 4. **Counter** — the exact rule: if the target survived and the target's class can attack (`atk > 0`, archers/mages have their own range; healer never) and the ATTACKER'S FINAL TILE lies within the TARGET'S range measured from the target's tile ⇒ the target deals `max(0, targetAtk − attackerDef)` back. One counter per attack; the counter can kill.
@@ -94,13 +96,13 @@ Execution order and rules, exactly:
 
 ## Turn semantics
 
-- There is no "partially acted" turn. The player may submit fewer than 10 moves (10 = the fixed army, i.e. the sum of `config.classes[*].count`: 2+2+2+2+1+1); un-acted units simply do nothing when the turn ends.
+- There is no "partially acted" turn. The player may submit fewer than 10 moves (10 = the fixed army, i.e. the sum of `config.classes[*].count`: 2+2+2+2+1+1 — assembled by the board feature from those counts, never hardcoded); un-acted units simply do nothing when the turn ends.
 - Enemy and player armies are separate turn phases; the engine's `side` parameter says which army is acting.
 
 ## Previews (`src/game/reach.ts` again — same source as validation)
 
 ```ts
-export function previewMove(board: Board, units: Unit[], unit: Unit, cfg: GameEngineConfig, size: number): {
+export function previewMove(board: Board, units: Unit[], unit: Unit, cfg: GameEngineConfig): {
   moveTiles: [number, number][];
   attackTiles: [number, number][];   // enemy tiles at Manhattan distance ∈ the class's range LIST
                                      // (set membership, not ≤ max — range [2] marks exactly distance-2)

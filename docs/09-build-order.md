@@ -39,7 +39,7 @@
 
 ## Phase 3 — Rules engine (pure `src/game/`)
 
-**Read:** `00`, `08`, `02`.
+**Read:** `00`, `08`, `01` (canonical config shape — the `GameEngineConfig` projection mirrors it), `02`.
 **Build:** types, reach (BFS + isPathLegal + previewMove), applyMoves (turn bundle atomicity), checkVictory, config projection `GameEngineConfig` from config.json. Zero I/O.
 **Acceptance:**
 
@@ -59,6 +59,7 @@
 ```
 [ ] invariants property tests pass for ≥ 40 seeds (river simple path left edge → right edge, bridges on river, crossability)
 [ ] riverless-brief test passes (river: null ⇒ zero water beyond the lake, crossability holds, invariants 1–3 skipped)
+[ ] retry budget comes from config: `config.ai.boardRetries` honored (a temp config with `materializations: 1` stops after one attempt → regenerates → fallback; proves no hardcoded budget)
 [ ] determinism test: same brief+seed = byte-identical board
 [ ] fallback template validates
 [ ] mock-LLM full flow: POST /api/games → 201 GameState with armies placed per 03's spawn scatter layout

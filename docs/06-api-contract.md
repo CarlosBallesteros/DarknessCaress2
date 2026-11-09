@@ -130,7 +130,7 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
 }
 ```
 
-Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count.
+Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count. `byDifficulty` ALWAYS contains one row per persona in config (zeros included — stable table); `winRate = wins / gamesPlayed`, floored to `0` when `gamesPlayed = 0` (never NaN/null/omitted).
 
 ### 9. `GET /api/games` → `200 {"games":[GameSummary, …]}` ordered by **creation order** (`created_at` ascending) — position is the player's mental map, never reshuffled by activity; finished games stay in place (the client dims them). **Side effect (mandated):** before reading, re-trigger stale AI jobs for this user (`01-architecture.md` → stale recovery).
 
@@ -166,7 +166,7 @@ Request:
 - Applies in **strict sequential entry order** (exactly as `02` defines: each move's teleport, then its attack + counter or heal, fully resolved to the death outcome before the next entry begins), sets `acted: true` on **every unit that received an entry — explicitly including `wait` entries (omitted units stay `acted: false`). The user-facing consequence lives in the END-TURN confirm dialog in `05`.**
 - `200 {"game": GameState}` — status stays `player_turn` **unless the victory short-circuit fires** (all enemies wiped by these moves ⇒ `status = "won"` directly, per the status matrix; no `/end-turn` may follow).
 - Errors: `400 {"error":"<which move failed and why>"}` (e.g. `"move 1: archer cannot attack a unit at 3 tiles"` — the exact engine message from `02`'s catalogue; zod shape-failures on the REQUEST bundle produce the generic first-issue body from the conventions above); `409 {"error":"Game is not waiting for your turn"}` when the game isn't in `player_turn`. Apply nothing on any failure — validation is holistic before the first mutation.
-- **Exactly ONE *successful* `POST /moves` per round**: once a bundle has been APPLIED this round, a further call during the same `player_turn` ⇒ `409 {"error":"Turn moves already submitted"}` (this is what keeps the landing-tile rule honest across requests — chain-following via two submissions is impossible by construction). **Failed (400) attempts do not consume this budget** — fix the staged bundle and re-submit freely; only an applied bundle locks the round.
+- **Exactly ONE *successful* `POST /moves` per round**: once a bundle has been APPLIED this round, a further call during the same `player_turn` ⇒ `409 {"error":"Turn moves already submitted"}` (this is what keeps the landing-tile rule honest across requests — chain-following via two submissions is impossible by construction). An **empty `moves: []` array is a VALID submission** (applies nothing, consumes the round's budget — a deliberate full-skip). **Failed (400) attempts do not consume this budget** — fix the staged bundle and re-submit freely; only an applied bundle (even an empty one) locks the round.
 
 ### 14. `POST /api/games/:id/end-turn` — only from `player_turn`; no request body. No concept of "partly acted units" — moves were already applied atomically by endpoint 13, so ending the turn is pure state transition (any un-acted units simply do nothing this turn).
 
