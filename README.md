@@ -21,6 +21,8 @@ A fully deployed website with a **1-vs-1 turn-based strategy game** in the spiri
 | `docs/09-build-order.md` | Phases with acceptance checklists |
 | `docs/10-prompts.md` | The owner's copy-paste prompt playbook |
 
+> **Audit history** (six rounds of external model audits + triage records, ~65 verified fixes) lives **outside this repository**: `../DarknessCaress2_audits/`. It is owner documentation — deliberately not part of the agent-briefing tree so working agents never read stale findings as spec.
+
 ## Dev quickstart
 
 ```bash
