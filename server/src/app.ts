@@ -1,6 +1,8 @@
 import express from "express";
 import cookieParser from "cookie-parser";
-import { pathToFileURL } from "node:url";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadEnv } from "./env.js";
 import { wrapAsync } from "./wrap-async.js";
 import { authRouter } from "./features/auth/auth.routes.js";
@@ -24,6 +26,24 @@ export function createApp(): express.Express {
   app.use("/api", usersRouter);
   app.use("/api", gamesRouter);
   app.use("/api", statsRouter);
+  // Production serves the built SPA from ../client/dist (01): static files,
+  // then a fallback to index.html for client-side routes. /api keeps its own
+  // 404s — the fallback must not swallow them as HTML.
+  if (process.env.NODE_ENV === "production") {
+    const distDir = fileURLToPath(
+      new URL("../../client/dist", import.meta.url),
+    );
+    if (existsSync(distDir)) {
+      app.use(express.static(distDir));
+      app.get("*", (req, res, next) => {
+        if (req.path.startsWith("/api")) {
+          next();
+          return;
+        }
+        res.sendFile(path.join(distDir, "index.html"));
+      });
+    }
+  }
   // Keeps every error response in 06's {"error": ...} shape — notably
   // malformed-JSON bodies, which body-parser reports as a 400 with status.
   app.use(
