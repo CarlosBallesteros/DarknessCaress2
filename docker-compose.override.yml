@@ -1,0 +1,6 @@
+# Dev-only override (docker compose merges it automatically): exposes the db on
+# host/VM loopback so host-run tests and the README quickstart (`npm -w server
+# run dev`) can reach it. Production behavior is unchanged — loopback binding only.
+services:
+  db:
+    ports: ["127.0.0.1:5432:5432"]
