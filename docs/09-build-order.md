@@ -77,7 +77,7 @@
 [ ] mock-LLM full loop: create → POST moves (valid bundle per fixtures) → end-turn → job applies enemy moves → status flips player_turn, lastAiActions populated
 [ ] retry loop verified against fixtures (malformed JSON, illegal move, feedback message contains engine text)
 [ ] exhaustion path: 3 failures → ai_last_error set, status stays ai_turn, stale recovery re-triggers (simulated stale timestamps) — no heuristic ever moves enemy units
-[ ] illegal player bundle → 400 with exact message, DB row untouched (atomicity via transaction); FAILED attempts leave the round unlocked (re-submission allowed); a SECOND applied submission in one round → 409 "Turn moves already submitted"
+[ ] illegal player bundle → 400 with exact message, DB row untouched (atomicity via transaction); FAILED attempts leave the round unlocked (re-submission allowed); a SECOND applied submission in one round → 409 "Turn moves already submitted"; the lock is `games.moves_applied` — RESTART-PROOF (a server restart mid-round does NOT re-open chain-following: an applied empty bundle stays locked after restart)
 [ ] stats endpoint matches seeded outcomes
 [ ] contract conformance: full table of 06 verified by tests (paths/statuses/bodies)
 [ ] commit "feat(phase-5): ...", pushed
