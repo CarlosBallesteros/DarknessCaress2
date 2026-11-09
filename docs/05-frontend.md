@@ -6,7 +6,7 @@
 
 | Path | Page | Auth | Contents |
 |---|---|---|---|
-| `/` | Landing | public | Title `"Darkness Caress II"` (h1), tagline `The long awaited sequel to the legendary game`, one button `Play` (→ `/play` or `/login`). Full-viewport hero: art via `assetPath(DEFAULT_THEME, "hero")` — the DEFAULT_THEME constant = `config.themes[0]` (baseline: `warriors-europe`) — dark overlay regardless of UI mode (placeholder ships with it — see `07`). |
+| `/` | Landing | public | Title `"Darkness Caress II"` (h1), tagline `The long awaited sequel to the legendary game`, one button `Play` (→ `/play` or `/login`). Full-viewport hero: art via `assetPath(DEFAULT_THEME, "hero")` — `DEFAULT_THEME` = the first `themes[].id` served by the public `GET /api/meta` — dark overlay regardless of UI mode (placeholder ships with it — see `07`). |
 | `/login` | Login | public | Email + password form, error banner on 401/429. Link to `/register`. |
 | `/register` | Register | public | Email, username, password, password-again. Client checks length/format per `01`. Link to `/login`. |
 | `/play` | Game strip | yes | "Game" tab home: scroll-snap strip in creation order. See below. |
@@ -50,7 +50,7 @@ BoardScreen
 ├── UnitTray          # horizontal list of player units (display order per 00): class icon, hp bar,
 │                     # acted state; click = select (equivalent to clicking sprite)
 ├── ActionPanel       # contextual: header = selected unit's portrait (assetPath portrait-player
-│                     # + class label + hp/atk/def mini-stats from config) then the staged move
+│                     # + class label + hp/atk/def mini-stats from GET /api/meta) then the staged move
 │                     # summary + buttons (Cancel staged / Attack <target> / Heal <target> /
 │                     # Wait) OR prompts to click the board
 ├── StagedMovesBar    # chips: "Archer #1 → (7,9) attack Mage"; click chip = unstage it
@@ -72,7 +72,9 @@ unitSelected → movePicked      (click a moveTile → client computes + display
                                 pure arithmetic: a preview enemy tile survives only if Manhattan
                                 distance(destination, enemy) ∈ that class's range list (the range
                                 lives in /api/meta — no server call, no duplicated pathfinding))
-movePicked → staged            (click enemy unit in red overlay → stage {unitId, path, attack:target};
+movePicked → staged            (click enemy unit in red overlay → stage a whole Move bundle exactly as
+                                `02`/`06` define it: {unitId, path, action:{type:"attack",targetId}} —
+                                same shape for heal (targetId = own unit) and for wait ({type:"wait"}));
                                 click own wounded unit in green overlay (healer) → stage heal;
                                 click [Wait in place] → stage wait for same tile)
 movePicked → unitSelected      ([Back] or Esc → re-select)
@@ -99,11 +101,11 @@ Notes:
 
 ## Champions tab (`/champions`)
 
-`GET /api/meta` → 6 cards (2×3 grid, 1 col under 700 px). Card: role badge first (small pill: `Attacker` gold-tinted, `Supporter` green-tinted — values straight from the config), both portraits side-by-side (`portrait-player.png` under a gold label, `portrait-enemy.png` under a red label), class label overlaid on the stat block, and the lore text. Portrait click → simple lightbox (larger view, `Esc`/click closes). No other interactivity.
+`GET /api/meta` → 6 cards (2×3 grid, 1 col under 700 px). Card: role badge first (small pill: `Attacker` gold-tinted, `Supporter` green-tinted — values straight from the served meta), both portraits side-by-side (`portrait-player.png` under a gold label, `portrait-enemy.png` under a red label), class label overlaid on the stat block, and the lore text. Portrait click → simple lightbox (larger view, `Esc`/click closes). No other interactivity.
 
 ## Statistics tab (`/stats`)
 
-Totals card (games, win rate big numerals) + the per-difficulty table — "difficulty" is the game's persona id (`games.difficulty` per `01`'s schema), labeled via `GET /api/meta`. Empty state for 0 games: "Play your first battle." Loading/`401` handled globally. No filters, no charts.
+Totals card (renders the flat top-level numbers of `GET /api/stats`: games, win rate big numerals) + the per-difficulty table — "difficulty" is the game's persona id (`games.difficulty` per `01`'s schema), labeled via `GET /api/meta`. Empty state for 0 games: "Play your first battle." Loading/`401` handled globally. No filters, no charts.
 
 ## Profile tab (`/profile`)
 

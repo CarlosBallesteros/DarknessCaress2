@@ -33,7 +33,7 @@ Specified entirely in `03-board-generation.md` (prompt, schema, retry, fallback)
 
 ### System prompt (the persona)
 
-Template (verbatim; the single placeholder `«PERSONA BEHAVIOR TEXT»` is the personality's behavior text from below):
+Template (shown **rendered at baseline config** — literals like "15x15" or "0-14" are regenerated from `config.boardSize` at prompt-build time, never hand-edited; the one placeholder `«PERSONA BEHAVIOR TEXT»` is the personality's behavior text from below):
 
 ```
 You are the commander of the BLACK army in a turn-based fantasy battle on a 15x15 grid.
@@ -93,8 +93,8 @@ STATS: one line per class, GENERATED from config at prompt-build time.
   the shipped prompt carries only the real numbers read from config.json at that moment):
   a-goon=hp40/atk3/def2/mov1/rng2,4/role-supporter | z-mini=hp9/atk6/def1/mov5/rng1/role-attacker
 
-UNITS: id=class x,y hp/maxHp
-  your side = enemy, ids start with "E-"
+UNITS: BOTH armies, id=class x,y hp/maxHp
+  your side = enemy (ids start with "E-"); the player's units (ids "P-…") are your legal targets
 ```
 
 Followed by the literal serialized snapshot, i.e. for a fresh game:
@@ -151,8 +151,10 @@ attempt = 1..config.ai.moveRetries (3):
             string (e.g. "archer cannot attack a unit at 3 tiles"), prefixed with the
             unit ids for context, plus "Resubmit the FULL corrected move list." — retry.
 after 3 failures: write ai_last_error = "<last error>", leave status=ai_turn,
-  turn_number unchanged. Recovery: the stale-recovery sweep (01) re-triggers the job
-  after config.ai.staleAfterSeconds (60 s), full fresh prompt, retries reset.
+  updated_at = now() (fresh sweep timer — a failed game waits a full minute before
+  sweeping again, never hammers the model), turn_number unchanged. Recovery: the
+  stale-recovery sweep (01) re-triggers the job when updated_at is older than
+  config.ai.staleAfterSeconds (60 s), full fresh prompt, retries reset.
   NO fallback AI ever plays. The board is fully consistent at all times.
 ```
 

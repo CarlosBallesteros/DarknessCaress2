@@ -50,6 +50,8 @@ export function isPathLegal(board: Board, units: Unit[], unit: Unit, path: [numb
 // isPathLegal returns null when legal, otherwise a precise rejection message like:
 //   "path step (4,6) is water" | "path ends on an occupied tile" | "path enters an enemy unit at (7,8)"
 //   | "path length 4 exceeds movement 3" | "path must start at the unit's tile"
+// "path length" = the number of EDGES STEPPED (array length − 1). A 4-tile path array = 3 steps:
+// legal for a class with Mov ≥ 3, illegal ("path length 4 exceeds movement 3") for Mov 2.
 ```
 
 No path reconstruction, no ranged movement points, no diagonal — nothing else exists.

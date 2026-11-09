@@ -53,7 +53,7 @@
 ## Phase 4 — Board generation
 
 **Read:** `00`, `08`, `03`, `04` (client + mock only).
-**Build:** brief prompt + zod brief schema, mock+real client pieces of `LlmClient` (turn() can be a stub until phase 5), materializer with seeded walk, invariants validator, army spawn layout, retry policy incl. fallback template, `POST /api/games` (endpoint 10 of `06`) works fully (auth + cap + insertion).
+**Build:** brief prompt + zod brief schema, mock+real client pieces of `LlmClient` (turn() can be a stub until phase 5), materializer with seeded walk, invariants validator, army spawn layout, retry policy incl. fallback template, `POST /api/games` (endpoint 10 of `06`) works fully (auth + cap + insertion — and `used_fallback` recorded in the row when the fallback template fires).
 **Acceptance:**
 
 ```
@@ -85,7 +85,7 @@
 ## Phase 6 — Frontend (whole website)
 
 **Read:** `00`, `08`, `05`, `07`, `06` (backend already built against the same contract).
-**Build:** all routes/components per `05`, api client + DTO types, polling hook, staged-move reducer, overlays, meta-driven Champions/Profile/Stats, placeholder lore DRAFTED: agent drafts the 6 lore strings (class-level, no names, war-warm poetic, 2–3 sentences each) into config.json — owner will rewrite.
+**Build:** all routes/components per `05`, api client + DTO types, polling hook, staged-move reducer, overlays, meta-driven Champions/Profile/Stats (+ the landing page's default theme, consumed from the public `GET /api/meta`), placeholder lore DRAFTED: agent drafts the 6 lore strings (class-level, no names, war-warm poetic, 2–3 sentences each) into config.json — owner will rewrite.
 Also: Vite dev proxy to server; production static serving works via express.static.
 **Acceptance:**
 

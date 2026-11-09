@@ -5,9 +5,9 @@
 ## Conventions (apply to every endpoint)
 
 - Base path: `/api`. Production serves this from the same origin as the SPA (see `01-architecture.md`).
-- **Success** response: `200`/`201`/`204` with a JSON body per endpoint below (no envelope — the body IS the resource).
+- **Success** response: `200`/`201`/`204` with a JSON body per endpoint below — no generic wrapper (no `{"data":…}` envelope): the body IS the resource, under its natural top-level key (`{"user": …}`, `{"game": …}`, `{"games": […]}`).
 - **Error** response: proper HTTP status with body `{"error": "<human-readable message>"}`. Statuses used: `400` validation, `401` not authenticated (`{"error":"Not authenticated"}`) and bad login, `404` unknown/not-yours (deliberate: existence is never leaked — see next rule), `409` state conflict (game cap, wrong phase, already finished), `429` rate limited, `503` board generation failed.
-- Auth: every endpoint below except `health`, `register`, `login`, `logout` requires the `dc_session` cookie (missing/invalid ⇒ `401 {"error":"Not authenticated"}`; logout is deliberately exempt — it must always succeed, even with no session).
+- Auth: every endpoint below except `health`, `meta`, `register`, `login`, `logout` requires the `dc_session` cookie (missing/invalid ⇒ `401 {"error":"Not authenticated"}`; logout is deliberately exempt — it must always succeed, even with no session; `meta` is deliberately public — the landing page needs the default theme and the data shown is harmless game metadata).
 - All request bodies are validated with zod against the schemas below; failures = `400 {"error":"<first zod issue>"}`.
 - Every game reference is owned by the authenticated user; a game id not belonging to the caller ⇒ `404 {"error":"Not found"}` — never `403`, which would betray that the resource exists. Endpoint-specific 404 bodies (e.g. `{"error":"Unit not playable"}`) are allowed when they likewise leak nothing — "not playable" covers unknown-or-foreign unit ids without revealing which.
 - Timestamps are ISO 8601 strings.
@@ -73,7 +73,7 @@ interface GameSummary { id: string; difficulty: string; status: GameState["statu
 | 4 | `GET /api/me` | Current user | yes |
 | 5 | `PATCH /api/me` | Change username / theme | yes |
 | 6 | `PATCH /api/me/password` | Change password | yes |
-| 7 | `GET /api/meta` | Public config subset (stats, personas, themes, lore) | yes |
+| 7 | `GET /api/meta` | Public config subset (stats, personas, themes, lore) | none |
 | 8 | `GET /api/stats` | Statistics tab data | yes |
 | 9 | `GET /api/games` | Games list (+ stale AI-turn recovery, see `01`) | yes |
 | 10 | `POST /api/games` | Create game (runs board generation — may take ~10–60 s) | yes |
@@ -99,7 +99,7 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
 
 ### 6. `PATCH /api/me/password` — `{"currentPassword":"…","newPassword":"…"}` → `204`. Errors: `400` validation, `401 {"error":"Current password is incorrect"}`. Other sessions stay valid (no revocation machinery in MVP).
 
-### 7. `GET /api/meta` →
+### 7. `GET /api/meta` — deliberately public (the landing page fetches the default theme from here; the body is harmless game metadata).
 
 ```json
 {
@@ -163,7 +163,7 @@ Request:
 ```
 
 - Server re-derives `path` legality with the same engine used by preview; `path[0]` must be the unit's current tile; the path may pass through ally-occupied tiles (allies do not block passage) but the final tile must be empty; enemy-occupied tiles may NOT be entered; **the landing-tile rule applies**: the bundle's final tiles must be pairwise distinct and empty in the pre-move state (no stacking, no chain-following — `02`); attack requires Manhattan distance `|dx|+|dy|` between `path.at(-1)` and the target within the attacker's class range, target on the opposite side; heal requires Manhattan-1 from the healer's final tile, same side, and target hp < max hp; every `unitId` must belong to the acting side with `acted=false`; each unit appears at most once.
-- Applies in **strict sequential entry order** (exactly as `02` defines: each move's teleport, then its attack + counter or heal, fully resolved to the death outcome before the next entry begins), sets `acted: true` on **every unit that received an entry — explicitly including `wait` entries** (omitted units stay `acted: false`; wait-vs-omit is a real distinction the END-TURN confirm dialog keys on).
+- Applies in **strict sequential entry order** (exactly as `02` defines: each move's teleport, then its attack + counter or heal, fully resolved to the death outcome before the next entry begins), sets `acted: true` on **every unit that received an entry — explicitly including `wait` entries (omitted units stay `acted: false`). The user-facing consequence lives in the END-TURN confirm dialog in `05`.**
 - `200 {"game": GameState}` — status stays `player_turn` **unless the victory short-circuit fires** (all enemies wiped by these moves ⇒ `status = "won"` directly, per the status matrix; no `/end-turn` may follow).
 - Errors: `400 {"error":"<which move failed and why>"}` (e.g. `"move 1: archer cannot attack a unit at 3 tiles"` — the exact engine message from `02`'s catalogue; zod shape-failures on the REQUEST bundle produce the generic first-issue body from the conventions above). Apply nothing on any failure — validation is holistic before the first mutation.
 
