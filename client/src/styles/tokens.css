@@ -1,0 +1,50 @@
+:root {
+  /* sides & UI accents (mode-independent) */
+  --gold: #c9a227;
+  --gold-soft: #e2c25f;
+  --white-soft: #f2efe9;
+  --blood: #8a1c1c;
+  --blood-soft: #c0392b;
+
+  /* board tiles (mode-independent) */
+  --tile-plain: #c8b47a;
+  --tile-forest: #6f8b4f;
+  --tile-hill: #a08553;
+  --tile-lake: #4b7ec2;
+  --tile-river: #4f97c4;
+  --tile-bridge: #8d6b3f;
+  --tile-rock: #6e6659;
+
+  /* overlays: rgb triplets used in rgb(var(…) / alpha) */
+  --overlay-move: 201 162 39;
+  --overlay-attack: 192 57 43;
+  --overlay-heal: 96 176 120;
+  --overlay-select: 242 239 233;
+
+  /* health bar states */
+  --hp-green: #5cb85c;
+  --hp-amber: #e0a800;
+  --hp-red: #d9534f;
+
+  /* persona accents (mode-independent; used by game-strip cards + board PhaseBanner) */
+  --persona-aggressive: #c0392b; /* red     */
+  --persona-defensive: #4b7ec2; /* blue    */
+  --persona-erratic: #8a6fa8; /* purple  */
+}
+
+/* semantic tokens — the ONLY things light mode re-skins */
+:root,
+:root[data-ui-mode="dark"] {
+  --ink: #14121a; /* page background */
+  --ink-raised: #201d29; /* cards           */
+  --ink-border: #37324a;
+  --text: #ded9e8;
+  --text-dim: #9a94ad;
+}
+:root[data-ui-mode="light"] {
+  --ink: #efe9dc; /* parchment, not white */
+  --ink-raised: #f7f2e8;
+  --ink-border: #cfc3a9;
+  --text: #33302a;
+  --text-dim: #6b6355;
+}
