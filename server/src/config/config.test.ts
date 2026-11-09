@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { getConfig, toEngineConfig } from "./config.js";
+import type { AppConfig } from "./config.js";
 
 const config = JSON.parse(
   readFileSync(new URL("./config.json", import.meta.url), "utf8") as string,
@@ -127,5 +129,47 @@ describe("config.json", () => {
     for (const classKey of Object.keys(classes)) {
       expect(lore[classKey]).toBeTruthy();
     }
+  });
+});
+
+describe("toEngineConfig — the GameEngineConfig projection (02)", () => {
+  it("projects the stat fields and boardSize, dropping the UI label", () => {
+    const engine = toEngineConfig(getConfig());
+    expect(engine.boardSize).toBe(15);
+    expect(engine.classes.sword).toEqual({
+      count: 2,
+      hp: 20,
+      atk: 7,
+      def: 5,
+      mov: 3,
+      range: [1],
+      healAmount: undefined,
+      role: "attacker",
+    });
+    expect(engine.classes.healer).toEqual({
+      count: 1,
+      hp: 18,
+      atk: 0,
+      def: 2,
+      mov: 2,
+      range: [],
+      healAmount: 8,
+      role: "supporter",
+    });
+    expect(Object.keys(engine.classes).sort()).toEqual(
+      ["archer", "axe", "healer", "mage", "spear", "sword"].sort(),
+    );
+  });
+
+  it("throws loudly when the config misses an engine class", () => {
+    const broken = {
+      ...getConfig(),
+      classes: Object.fromEntries(
+        Object.entries(getConfig().classes).filter(([key]) => key !== "spear"),
+      ),
+    } as unknown as AppConfig;
+    expect(() => toEngineConfig(broken)).toThrow(
+      'config is missing class "spear"',
+    );
   });
 });

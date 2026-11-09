@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import type { ClassKey, GameEngineConfig } from "../game/types.js";
 
 export interface ClassConfig {
   count: number;
@@ -48,4 +49,43 @@ export function getConfig(): AppConfig {
     ),
   ) as AppConfig;
   return config;
+}
+
+const ENGINE_CLASSES: ClassKey[] = [
+  "sword",
+  "axe",
+  "spear",
+  "archer",
+  "mage",
+  "healer",
+];
+
+/**
+ * Projects the app config onto the engine's GameEngineConfig shape (02): the
+ * `label` belongs to the meta/UI layer only; `count` and `role` ride along as
+ * metadata the engine MATH must never branch on.
+ */
+export function toEngineConfig(app: AppConfig): GameEngineConfig {
+  const classes = Object.fromEntries(
+    ENGINE_CLASSES.map((key) => {
+      const entry = app.classes[key];
+      if (!entry) {
+        throw new Error(`config is missing class "${key}"`);
+      }
+      return [
+        key,
+        {
+          count: entry.count,
+          hp: entry.hp,
+          atk: entry.atk,
+          def: entry.def,
+          mov: entry.mov,
+          range: [...entry.range],
+          healAmount: entry.healAmount,
+          role: entry.role,
+        },
+      ];
+    }),
+  ) as GameEngineConfig["classes"];
+  return { boardSize: app.boardSize, classes };
 }
