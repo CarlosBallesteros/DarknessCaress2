@@ -6,7 +6,7 @@
 
 | Path | Page | Auth | Contents |
 |---|---|---|---|
-| `/` | Landing | public | Title `"Darkness Caress II"` (h1), tagline `The long awaited sequel to the legendary game`, one button `Play` (→ `/play` or `/login`). Full-viewport hero: art via `assetPath(DEFAULT_THEME, "hero")` — `DEFAULT_THEME` = the first `themes[].id` served by the public `GET /api/meta` — dark overlay regardless of UI mode (placeholder ships with it — see `07`). |
+| `/` | Landing | public | Title `"Darkness Caress II"` (h1), tagline `The long awaited sequel to the legendary game`, one button `Play` (→ `/play` when authenticated; → `/login` otherwise). Full-viewport hero: art via `assetPath(DEFAULT_THEME, "hero")` — `DEFAULT_THEME` = the first `themes[].id` served by the public `GET /api/meta` — dark overlay regardless of UI mode (placeholder ships with it — see `07`). |
 | `/login` | Login | public | Email + password form, error banner on 401/429. Link to `/register`. |
 | `/register` | Register | public | Email, username, password, password-again. Client checks length/format per `01`. Link to `/login`. |
 | `/play` | Game strip | yes | "Game" tab home: scroll-snap strip in creation order. See below. |
@@ -31,7 +31,7 @@
 - **Last tile always = "New battle" card** (persona pick modal opens from there; coherent metaphor, zero extra chrome) — disabled with tooltip `Limit of 5 active games reached` when count ≥ cap ("the server is still the authority on 409"). `Create` → `POST /api/games` (loading state: "The battlefield is being designed…" — this POST legitimately runs 10–60 s) → redirect into the created game.
 - Route table label: `/play` is the **"Game strip"** (Game tab home).
 - Empty state: single "New battle" tile with the caption "No battles yet" beneath it.
-- New-game failure handling: a `503` from `POST /api/games` ("Battlefield generation failed") shows an inline error in the modal ("The battlefield could not be designed — try again"); other errors surface in the modal's error banner. The loading state ("The battlefield is being designed…") has NO timeout — the POST legitimately runs 10–60 s.
+- New-game failure handling: a `503` from `POST /api/games` renders the server's `error` string verbatim in the modal's error banner ("Battlefield generation failed, try again"); other errors surface in the modal's error banner the same way. The loading state ("The battlefield is being designed…") has NO timeout — the POST legitimately runs 10–60 s.
 
 ## Board screen (`/play/:id`)
 
@@ -91,10 +91,9 @@ playerTurnSubmitted → polling  (3 s GET /play/:id while ai_turn)
 Notes:
 
 - **End turn semantics**: choreography is UNIFORM — always `POST /moves` (even an empty staged list sends `{"moves": []}` — a valid, applying-nothing submission) → then `POST /end-turn`. Button always enabled; confirm dialog only when un-acted units remain. Dialog copy, pinned: header "`<n>` unit(s) have not acted", body "End the turn anyway? The un-acted units simply skip this turn.", buttons [End turn] / [Keep acting]. Wait-staged units count as acted (only omitted units trigger the dialog).
-- Victory short-circuit: the authoritative win check is SERVER-side — if `POST /moves`'s response body carries `game.status = "won"` (all enemies died by these moves), do NOT call `/end-turn` (the server would 409 it; status matrix in `06`) and show the victory overlay directly from that same response.
+- **Victory/defeat resolution from a SINGLE source**: the authoritative check is SERVER-side. When the `POST /moves` response carries `game.status = "won"` (all enemies wiped by these moves) → do NOT call `/end-turn` (the server would 409 it) and show the VICTORY overlay directly from that response. When it carries `game.status = "lost"` — possible when the player's army wiped ITSELF via counters — do NOT call `/end-turn` either and show the DEFEAT overlay (the status matrix's `player_turn → lost` transition, `06`).
 - `ai_turn` state: board interactions disabled; PhaseBanner pulses; on the response that flips to `player_turn`, animate `lastAiActions` client-side: step through actions 400 ms apart moving sprites along their `path` and flashing attacks (damage popups), then settle to final state (which is already authoritative).
 - Sprite asset path: `/assets/${theme}/${class}/sprite-${side}.png` where `theme` = user's theme from `GET /api/me`. Portraits (Champions tab) per `07`.
-
 ### Overlays (colors are design tokens)
 
 | Overlay | Token | Meaning |

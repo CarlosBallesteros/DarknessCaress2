@@ -134,7 +134,7 @@ The LLM never computes damage, counters, or deaths — it only **decides** moves
 | wrong side | `<id> belongs to the other army` |
 | already acted | `<id> already acted this turn` |
 | path illegal | the precise `isPathLegal` message above |
-| landing clash | `tile (x,y) is claimed by two moves` / `tile (x,y) frees later in this bundle and cannot be landed on` |
+| landing clash | `tile (x,y) is claimed by two moves` / `tile (x,y) frees EARLIER in this bundle and cannot be landed on` |
 | attack/heal missing targetId | `attack requires a target` / `heal requires a target` |
 | target out of range | `<class> cannot attack a unit at <n> tiles` |
 | target wrong side / dead | `<id> is not a valid attack target` |

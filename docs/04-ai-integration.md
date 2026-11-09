@@ -23,6 +23,7 @@ export interface LlmClient {
 
 - Real implementation: `POST {OLLAMA_URL}/api/chat` with `{ model: OLLAMA_MODEL, messages, stream: false, format: <schema>, options: { temperature } }` (`messages` passed straight through). Response: `body.message.content` — parse JSON. Non-2xx or unparsable ⇒ throws typed `LlmError`; caller counts it as a failed attempt, never as a crashed process.
 - **Mock implementation** (`mockLlm.ts`, same interface): returns recorded/fixture JSON responses. Selection: the test runners (Vitest/Playwright configs) inject `LLM_MOCK=1` automatically — every automated run is mocked by definition; in day-to-day local dev, `LLM_MOCK=1` set once in the local `.env` selects it; production `.env` NEVER sets it. Two implementations, chosen explicitly; no plugin system.
+- **Fixtures are committed, not invented at test time** — `features/ai/__fixtures__/`, one file per family: `brief.valid.json`, `turn.valid.json`, `turn.malformed.json`, `turn.illegal.json` (an out-of-range attack), `turn.exhausting.json` (always-fails). The mock serves them by name; their CONTENT is authoring-agent choice (any shape-valid payload works), but the five families and names are the contract — the retry/exhaustion tests consume exactly these.
 - Conversations for the retry loop keep a `messages` array — see validation loop below. No streaming, no history, no embeddings, no sessions.
 
 ## Call #1 — board design brief
@@ -83,7 +84,8 @@ STATS: one line per class, GENERATED from config at prompt-build time.
   Format, exactly: <class>=hp<hp>/atk<atk>/def<def>/mov<mov>/rng<range>/role<role>
   - rng = the class's config `range` list rendered comma-joined; an EMPTY list renders
     as rng0 (that class cannot attack — e.g. the healer at baseline).
-  - /heal<n> is appended only for classes with a config healAmount (baseline: /heal8).
+  - /heal<n> is appended only for classes with a config healAmount (baseline: /heal8) —
+    always at the END of the line, after /role.
   - role: attacker = melee frontliner; supporter = fragile high-value backline unit —
     the aggressive commander's priority target. Tag semantics are a game decision:
     "supporter" means kill-priority backline, not literal non-combatant (archers and
@@ -91,7 +93,7 @@ STATS: one line per class, GENERATED from config at prompt-build time.
   - one line, classes in config-key order, separated by " | ". The `<class>` token is always the bare config KEY (`sword`, `axe`, …) — the fictional keys in the example below exist only so no value can be mistaken for shipped truth:
   Shape example, with FICTIONAL values on purpose (nothing here is config truth —
   the shipped prompt carries only the real numbers read from config.json at that moment):
-  a-goon=hp40/atk3/def2/mov1/rng2,4/role-supporter | z-mini=hp9/atk6/def1/mov5/rng1/role-attacker
+  a-goon=hp40/atk3/def2/mov1/rng2,4/role-supporter/heal2 | z-mini=hp9/atk6/def1/mov5/rng1/role-attacker
 
 UNITS: BOTH armies, id=class x,y hp/maxHp
   your side = enemy (ids start with "E-"); the player's units (ids "P-…") are your legal targets

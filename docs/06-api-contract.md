@@ -134,7 +134,7 @@ Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count.
 
 ### 9. `GET /api/games` → `200 {"games":[GameSummary, …]}` ordered by **creation order** (`created_at` ascending) — position is the player's mental map, never reshuffled by activity; finished games stay in place (the client dims them). **Side effect (mandated):** before reading, re-trigger stale AI jobs for this user (`01-architecture.md` → stale recovery).
 
-### 10. `POST /api/games` — `{"difficulty":"aggressive"}` (must be a personality id from config). Runs board generation (LLM brief + materialization, `03`) **synchronously**; then assembles both armies and inserts the row with `status: "player_turn"`, `turnNumber: 1`.
+### 10. `POST /api/games` — `{"difficulty":"aggressive"}` (must be a personality id from config). **Capability checks first** (auth ✓, difficulty valid ✓, cap ✓ — fail fast before any generation), then runs board generation (LLM brief + materialization, `03`) **synchronously**; then assembles both armies and inserts the row with `status: "player_turn"`, `turnNumber: 1`.
 
 `201` → `{"game": GameState}`. Errors: `400 {"error":"Unknown difficulty"}`, `409 {"error":"Active game limit reached (5)"}` (the `(5)` is interpolated from `config.maxActiveGames`, not a literal; counting `player_turn`+`ai_turn` only). If board generation fails after its bounded retries (`03`): `503 {"error":"Battlefield generation failed, try again"}`.
 
@@ -146,9 +146,10 @@ Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count.
 { "moveTiles": [[4,5],[5,5]], "attackTiles": [[6,5]], "healTiles": [] }
 ```
 
-- `moveTiles`: tiles reachable within Mov via legal pathing (water impassable outside bridges; enemies block; allies pass-through; Boolean per tile, no path enumeration).
+- `moveTiles`: the reachable tiles as a **tile array (`[[x,y],…` — conceptually a Boolean per-tile reachable set, serialized as a list; no path enumeration)** — water impassable outside bridges; enemies block; allies pass-through.
 - for classes with atk > 0: `attackTiles` = enemy-occupied tiles whose Manhattan distance from some reachable final tile **is a member of the class's range list** (set membership — an archer's `[2]` marks exactly distance-2 tiles, never distance 1 or 3).
 - for healer: `healTiles` = same-side (player) units **Manhattan-adjacent to any reachable final tile**, hp < maxHp.
+- Move-index convention: error messages inside bundles are **1-based** ("move 1" = the first entry).
 - Response is computed by `src/game/` shared code: identical logic serves moves validation; the client renders it as overlay. Note: the preview returns TILES ONLY (no paths) — the client computes its own display path for the staged bundle (`05`), and the server re-validates that path on submission. Errors: `404 {"error":"Unit not playable"}` (unknown, not owner's, or already acted this turn); `409 {"error":"Game is not waiting for your turn"}`.
 
 ### 13. `POST /api/games/:id/moves` — validates & applies the whole player turn atomically (single transaction).
@@ -168,7 +169,7 @@ Request:
 - Errors: `400 {"error":"<which move failed and why>"}` (e.g. `"move 1: archer cannot attack a unit at 3 tiles"` — the exact engine message from `02`'s catalogue; zod shape-failures on the REQUEST bundle produce the generic first-issue body from the conventions above); `409 {"error":"Game is not waiting for your turn"}` when the game isn't in `player_turn`. Apply nothing on any failure — validation is holistic before the first mutation.
 - **Exactly ONE *successful* `POST /moves` per round**: once a bundle has been APPLIED this round, a further call during the same `player_turn` ⇒ `409 {"error":"Turn moves already submitted"}` (this is what keeps the landing-tile rule honest across requests — chain-following via two submissions is impossible by construction). An **empty `moves: []` array is a VALID submission** (applies nothing, consumes the round's budget — a deliberate full-skip). **Failed (400) attempts do not consume this budget** — fix the staged bundle and re-submit freely; only an applied bundle (even an empty one) locks the round.
 
-### 14. `POST /api/games/:id/end-turn` — only from `player_turn`; no request body. No concept of "partly acted units" — moves were already applied atomically by endpoint 13, so ending the turn is pure state transition (any un-acted units simply do nothing this turn).
+### 14. `POST /api/games/:id/end-turn` — only from `player_turn`; no request body. The backend does NOT require a prior `/moves` call this round (skipping submission is legal; un-acted units simply do nothing) — but the frontend always uses the uniform two-call choreography (`05`). No concept of "partly acted units" — moves were already applied atomically by endpoint 13, so ending the turn is pure state transition (any un-acted units simply do nothing this turn).
 
 Effects: `status = "ai_turn"`, `updated_at = now()`, **all units' `acted` flags reset to `false`** (the player's just-expired units stop acting; the enemy army is armed for ITS turn — the reset covers both sides in one stroke), `turnNumber` unchanged (it advances only when a successful AI turn completes — `04`'s loop — so the counter is the **1-based CURRENT round**: 1 = the player's opening turn, 2 = after the first AI turn, …), fire background `runAiTurn` (non-blocking per `01`). Response: `200 {"game": GameState}` with `status:"ai_turn"`. Errors: `409 {"error":"Game is not waiting for your turn"}`.
 

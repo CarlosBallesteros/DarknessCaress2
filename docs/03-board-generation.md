@@ -85,7 +85,15 @@ Each army occupies an **8×2 block, columns 4–11**, two rows: for the PLAYER, 
 
 1. Materialize with (seed + attempt counter) — validate invariants each time; first valid board wins. Budget from config (`config.ai.boardRetries`): **≤ `materializations` per brief, ≤ `briefs` total** (baseline: 3/3 → ≤ 9 attempts per `POST /api/games`).
 2. All materializations of one brief fail (a bad brief, e.g. bridges requested outside the river): **regenerate the brief** via the LLM prompt above (temperature unchanged), then retry its seeds — that's the next brief of the budget above.
-3. All briefs fail (LLM degraded/offline): **fallback board** — a committed hardcoded template (gentle S-curve river with 2 bridges near rows 4 and 10, two forests, one line of hills), materialized by the same code as constants. Not a *gameplay* heuristic — a deterministic backup layout. Record in the game row that the fallback fired (for stats/debug).
+3. All materializations of all briefs fail (LLM degraded/offline): **fallback board** — a committed constant, `FALLBACK_BRIEF`, materialized by the same seeded pipeline with the **same fixed seed** (fully deterministic):
+
+```json
+{ "river": {"startRow": 7, "endRow": 7, "bends": 2}, "bridgeTiles": 2,
+  "forestZones": [{"centerX": 4, "centerY": 3, "radius": 2}, {"centerX": 10, "centerY": 10, "radius": 2}],
+  "hillZones": [{"centerX": 11, "centerY": 2, "radius": 1}], "lake": null }
+```
+
+(FALLBACK_SEED = the integer 20261108.) Not a *gameplay* heuristic — a deterministic backup brief through the normal pipeline. Record in the game row (`used_fallback = true`) that the fallback fired (for stats/debug).
 4. Returns `503` to `POST /api/games` only if even the fallback fails to validate (means a code bug, not an AI hiccup).
 
 ## Engine tests (`features/board/…test.ts`)

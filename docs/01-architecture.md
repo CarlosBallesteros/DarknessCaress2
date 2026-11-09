@@ -67,7 +67,7 @@ DarknessCaress2/
 └── .gitignore
 ```
 
-Rules of the layout: `src/game/` is pure and imports nothing from features; features import from `src/game/`; nothing imports upward. The AI client lives only in `features/ai/`.
+Rules of the layout: `server/src/game/` (the shorthand `src/game/` in other docs means the same path) is pure and imports nothing from features; features import from `src/game/`; nothing imports upward. The AI client lives only in `features/ai/`.
 
 ## Database schema (`server/src/db/schema.sql` — exact)
 
@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS games (
   turn_number INT NOT NULL DEFAULT 1,
   ai_last_error TEXT,                    -- set when an AI turn job fails, cleared on success
   used_fallback BOOLEAN NOT NULL DEFAULT false,  -- true when board generation used the fallback template (debug; not exposed via DTO)
+  last_ai_actions JSONB,                 -- the AiAction[] of the last applied AI turn (null until the first AI turn)
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -130,7 +131,7 @@ No move-history table in MVP (stats are computed from `games`). Replay/audit is 
 }
 ```
 
-The server loads it once and serves the public subset (`classes` labels/stats/role, `personalities` labels, `themes`, `lore`) via `GET /api/meta` — an **unauthenticated** endpoint (the landing page needs the default theme; the game data revealed there is harmless). The frontend never reads the FILE — it consumes the served subset only.
+The server loads it once and serves the public subset via `GET /api/meta` — an **unauthenticated** endpoint (the landing page needs the default theme; the game data revealed there is harmless). The served subset: `boardSize`, `maxActiveGames`, `classes` (labels/stats/role/count), `personalities` labels, `themes`, `lore`. The frontend never reads the FILE — it consumes the served subset only. (This list matches `06`'s meta example field-for-field.)
 
 ## Runtime model
 
