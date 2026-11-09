@@ -12,7 +12,7 @@
 | AI | Ollama (`ollama/ollama` image), model `qwen2.5:7b-instruct-q4_K_M` via `OLLAMA_MODEL` env |
 | Tests | Vitest (unit, both sides), Playwright (E2E, top-level `/e2e`) |
 | Quality | ESLint 9 (flat config) + Prettier |
-| Deploy | docker-compose, 3 services, single VM (Oracle Always Free ARM) |
+| Deploy | docker-compose, 3 services, single VM (Oracle Always Free ARM, aarch64) — deploys on ANY Docker host; the free-tier A1 shape (1 OCPU / 6 GB) runs the full MVP (4/24 is optional growth, see `00` later hooks) |
 
 Why plain SQL and no ORM: the schema is 2 tables. Every query lives in one small module per feature and is reviewed at a glance. Why `zod`: one schema-definition library for API input validation AND LLM response validation — reused everywhere, nothing else.
 
