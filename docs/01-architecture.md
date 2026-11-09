@@ -188,6 +188,8 @@ services:
 volumes: { db_data: {}, ollama_data: {} }
 ```
 
+> **Dev-only override (committed):** `docker-compose.override.yml` binds the db to `127.0.0.1:5432` so host-run tests/dev reach it (the README quickstart depends on it). In production the override merely allocates the port on VM-localhost — deploy behavior is unchanged. `.env.example` keeps the docker-DNS host (`db:5432`) for container-side use; local `.env` uses the loopback host.
+
 `server/Dockerfile` (multi-stage, exact):
 
 ```dockerfile
