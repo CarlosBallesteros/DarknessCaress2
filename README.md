@@ -19,7 +19,7 @@ A fully deployed website with a **1-vs-1 turn-based strategy game** in the spiri
 | `docs/07-assets.md` | Art pipeline contract (placeholder → owner art) |
 | `docs/08-agent-rules.md` | What agents may and may not decide |
 | `docs/09-build-order.md` | Phases with acceptance checklists |
-| `docs/10-prompts.md` | The owner's copy-paste prompt playbook |
+| `../DarknessCaress2_playbook/10-prompts.md` | **The owner's copy-paste prompt playbook** — lives outside the repo on purpose: it contains future-phase prompts that would distract working agents (`docs/00–09` above are the complete agent-facing set) |
 
 > **Audit history** (six rounds of external model audits + triage records, ~65 verified fixes) lives **outside this repository**: `../DarknessCaress2_audits/`. It is owner documentation — deliberately not part of the agent-briefing tree so working agents never read stale findings as spec.
 
