@@ -1,6 +1,7 @@
 import { getConfig } from "../../config/config.js";
 import { makeBriefJsonSchema } from "../board/briefSchema.js";
 import { MockLlm } from "./mockLlm.js";
+import { TURN_JSON_SCHEMA } from "./turnSchema.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -87,8 +88,16 @@ class OllamaLlm implements LlmClient {
     });
   }
 
-  async turn(): Promise<unknown> {
-    throw new LlmError("LlmClient.turn is a phase 5 deliverable");
+  /** Call #2 — the AI turn (04): the conversation passes straight through. */
+  async turn(opts: {
+    messages: ChatMessage[];
+    temperature: number;
+  }): Promise<unknown> {
+    return this.chat({
+      messages: opts.messages,
+      temperature: opts.temperature,
+      schema: TURN_JSON_SCHEMA,
+    });
   }
 }
 
