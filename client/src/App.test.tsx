@@ -1,12 +1,9 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { App } from "./App";
+import { describe, expect, it } from 'vitest'
+import { renderToString } from 'react-dom/server'
+import App from './App'
 
-describe("App", () => {
-  it("renders the game title", () => {
-    render(<App />);
-    expect(
-      screen.getByRole("heading", { name: "Darkness Caress II" }),
-    ).toBeTruthy();
-  });
-});
+describe('App (phase-1 shell)', () => {
+  it('renders without crashing', () => {
+    expect(renderToString(<App />)).toContain('<main')
+  })
+})

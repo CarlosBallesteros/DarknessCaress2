@@ -1,13 +1,14 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config'
 
+// Test-only env (docs/01): unit tests never touch a real Ollama or the deployed
+// database; DATABASE_URL points at the loopback-postgres from the dev override.
 export default defineConfig({
   test: {
-    setupFiles: ["./src/test-setup.ts"],
-    // 04: the test runners inject LLM_MOCK=1 automatically — every automated
-    // run is mocked by definition; no real Ollama call happens in tests.
-    env: { LLM_MOCK: "1" },
-    // The suite shares one Postgres database; parallel files would race the
-    // idempotent migration on a fresh database (CREATE EXTENSION race).
-    fileParallelism: false,
+    env: {
+      DATABASE_URL: 'postgres://dc:dc@127.0.0.1:5432/darknesscaress',
+      JWT_SECRET: 'test-secret',
+      OLLAMA_URL: 'http://localhost:11434',
+      OLLAMA_MODEL: 'test-model',
+    },
   },
-});
+})

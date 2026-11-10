@@ -1,95 +1,73 @@
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { getConfig, toEngineConfig } from "./config.js";
-import type { AppConfig } from "./config.js";
+import { describe, expect, it } from 'vitest'
+import { config } from './config'
 
-const config = JSON.parse(
-  readFileSync(new URL("./config.json", import.meta.url), "utf8") as string,
-) as Record<string, unknown>;
+// Canonical shape + baseline values per docs/01 (shape) and docs/00 (stats).
+describe('config', () => {
+  it('carries the canonical board size and games cap', () => {
+    expect(config.boardSize).toBe(15)
+    expect(config.maxActiveGames).toBe(5)
+  })
 
-type ClassConfig = {
-  count: number;
-  hp: number;
-  atk: number;
-  def: number;
-  mov: number;
-  range: number[];
-  role: string;
-  label: string;
-  healAmount?: number;
-};
-
-const classes = config.classes as Record<string, ClassConfig>;
-
-describe("config.json", () => {
-  it("honors the canonical 01 shape", () => {
-    expect(Object.keys(config).sort()).toEqual(
-      [
-        "ai",
-        "classes",
-        "lore",
-        "maxActiveGames",
-        "boardSize",
-        "personalities",
-        "themes",
-      ].sort(),
-    );
-  });
-
-  it("carries the 00 stat values", () => {
-    expect(config.boardSize).toBe(15);
-    expect(config.maxActiveGames).toBe(5);
-    expect(classes.sword).toMatchObject({
+  it('carries the docs/00 stat table for exactly the six baseline classes', () => {
+    expect(Object.keys(config.classes).sort()).toEqual([
+      'archer',
+      'axe',
+      'healer',
+      'mage',
+      'spear',
+      'sword',
+    ])
+    expect(config.classes.sword).toEqual({
       count: 2,
       hp: 20,
       atk: 7,
       def: 5,
       mov: 3,
       range: [1],
-      role: "attacker",
-      label: "Swordsman",
-    });
-    expect(classes.axe).toMatchObject({
+      role: 'attacker',
+      label: 'Swordsman',
+    })
+    expect(config.classes.axe).toEqual({
       count: 2,
       hp: 25,
       atk: 10,
       def: 3,
       mov: 2,
       range: [1],
-      role: "attacker",
-      label: "Axeman",
-    });
-    expect(classes.spear).toMatchObject({
+      role: 'attacker',
+      label: 'Axeman',
+    })
+    expect(config.classes.spear).toEqual({
       count: 2,
       hp: 18,
       atk: 6,
       def: 3,
       mov: 5,
       range: [1],
-      role: "attacker",
-      label: "Spearman",
-    });
-    expect(classes.archer).toMatchObject({
+      role: 'attacker',
+      label: 'Spearman',
+    })
+    expect(config.classes.archer).toEqual({
       count: 2,
       hp: 16,
       atk: 6,
       def: 2,
       mov: 4,
       range: [2],
-      role: "supporter",
-      label: "Archer",
-    });
-    expect(classes.mage).toMatchObject({
+      role: 'supporter',
+      label: 'Archer',
+    })
+    expect(config.classes.mage).toEqual({
       count: 1,
       hp: 15,
       atk: 8,
       def: 1,
       mov: 3,
       range: [1, 2, 3],
-      role: "supporter",
-      label: "Mage",
-    });
-    expect(classes.healer).toMatchObject({
+      role: 'supporter',
+      label: 'Mage',
+    })
+    expect(config.classes.healer).toEqual({
       count: 1,
       hp: 18,
       atk: 0,
@@ -97,79 +75,43 @@ describe("config.json", () => {
       mov: 2,
       range: [],
       healAmount: 8,
-      role: "supporter",
-      label: "Healer",
-    });
-  });
+      role: 'supporter',
+      label: 'Healer',
+    })
+  })
 
-  it("defines the three difficulty personas with their temperatures", () => {
-    const personalities = config.personalities as Record<
-      string,
-      { label: string; temperature: number }
-    >;
-    expect(personalities.aggressive.temperature).toBe(0.7);
-    expect(personalities.defensive.temperature).toBe(0.4);
-    expect(personalities.erratic.temperature).toBe(1.2);
-  });
+  it('carries the three difficulty personas with their temperatures', () => {
+    expect(config.personalities).toEqual({
+      aggressive: { label: 'Aggressive', temperature: 0.7 },
+      defensive: { label: 'Defensive', temperature: 0.4 },
+      erratic: { label: 'Erratic', temperature: 1.2 },
+    })
+  })
 
-  it("defines the AI retry knobs", () => {
-    const ai = config.ai as Record<string, unknown>;
-    expect(ai.moveRetries).toBe(3);
-    expect(ai.staleAfterSeconds).toBe(60);
-    expect(ai.briefTemperature).toBe(0.8);
-    expect(ai.boardRetries).toEqual({ materializations: 3, briefs: 3 });
-  });
+  it('ships exactly the one MVP theme', () => {
+    expect(config.themes).toEqual([{ id: 'warriors-europe', label: 'Champions of Europe' }])
+  })
 
-  it("ships the baseline theme and placeholder lore for every class", () => {
-    const themes = config.themes as Array<{ id: string; label: string }>;
-    expect(themes).toEqual([
-      { id: "warriors-europe", label: "Champions of Europe" },
-    ]);
-    const lore = config.lore as Record<string, string>;
-    for (const classKey of Object.keys(classes)) {
-      expect(lore[classKey]).toBeTruthy();
+  it('has placeholder lore for every class (drafted for real in phase 6)', () => {
+    expect(Object.keys(config.lore).sort()).toEqual([
+      'archer',
+      'axe',
+      'healer',
+      'mage',
+      'spear',
+      'sword',
+    ])
+    for (const text of Object.values(config.lore)) {
+      expect(text.length).toBeGreaterThan(0)
     }
-  });
-});
+  })
 
-describe("toEngineConfig — the GameEngineConfig projection (02)", () => {
-  it("projects the stat fields and boardSize, dropping the UI label", () => {
-    const engine = toEngineConfig(getConfig());
-    expect(engine.boardSize).toBe(15);
-    expect(engine.classes.sword).toEqual({
-      count: 2,
-      hp: 20,
-      atk: 7,
-      def: 5,
-      mov: 3,
-      range: [1],
-      healAmount: undefined,
-      role: "attacker",
-    });
-    expect(engine.classes.healer).toEqual({
-      count: 1,
-      hp: 18,
-      atk: 0,
-      def: 2,
-      mov: 2,
-      range: [],
-      healAmount: 8,
-      role: "supporter",
-    });
-    expect(Object.keys(engine.classes).sort()).toEqual(
-      ["archer", "axe", "healer", "mage", "spear", "sword"].sort(),
-    );
-  });
-
-  it("throws loudly when the config misses an engine class", () => {
-    const broken = {
-      ...getConfig(),
-      classes: Object.fromEntries(
-        Object.entries(getConfig().classes).filter(([key]) => key !== "spear"),
-      ),
-    } as unknown as AppConfig;
-    expect(() => toEngineConfig(broken)).toThrow(
-      'config is missing class "spear"',
-    );
-  });
-});
+  it('carries the AI retry knobs', () => {
+    expect(config.ai).toEqual({
+      moveRetries: 3,
+      staleAfterSeconds: 60,
+      briefTemperature: 0.8,
+      boardRetries: { materializations: 3, briefs: 3 },
+    })
+  })
+})

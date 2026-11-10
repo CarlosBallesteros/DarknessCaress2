@@ -5,21 +5,10 @@
     "client",
     "server"
   ],
-  "engines": {
-    "node": ">=22"
-  },
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "format:check": "prettier --check .",
-    "e2e": "playwright test --config=e2e/playwright.config.ts"
+    "e2e": "npm --prefix e2e run test"
   },
   "devDependencies": {
-    "@playwright/test": "^1",
-    "prettier": "^3"
-  },
-  "allowScripts": {
-    "bcrypt@6.0.0": true
+    "prettier": "^3.6.2"
   }
 }

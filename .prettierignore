@@ -1,11 +1,8 @@
-# Docs are the project law — owned by the owner, never reformatted by agents.
+package-lock.json
 docs/
 README.md
-package-lock.json
-node_modules/
+client/public/assets/
 dist/
-client/dist/
-# Deliberately unparsable LLM fixture (04's malformed family) — not valid JSON.
-server/src/features/ai/__fixtures__/turn.malformed.json
-# Generated golden snapshot (byte-compared against JSON.stringify output).
-server/src/features/board/__snapshots__/
+coverage/
+test-results/
+playwright-report/
