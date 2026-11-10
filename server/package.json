@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "npx tsx watch --env-file=../.env src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
     "migrate": "node dist/db/migrate.js",
