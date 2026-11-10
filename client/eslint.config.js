@@ -1,6 +1,6 @@
-import tseslint from 'typescript-eslint'
+import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ['dist', 'coverage'] },
+  { ignores: ["dist", "coverage"] },
   ...tseslint.configs.recommended,
-)
+);
