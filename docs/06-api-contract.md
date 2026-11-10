@@ -58,8 +58,10 @@ interface GameState {
   updatedAt: string;
 }
 
-// games-list item
-interface GameSummary { id: string; difficulty: string; status: GameState["status"]; turnNumber: number; updatedAt: string }
+// games-list item — `previewBoard` exists ONLY for card mini-maps in `05`'s strip
+// (tile grid + side dots rendered client-side, never class-specific); it is a
+// projection of the row's board JSON, not extra storage
+interface GameSummary { id: string; difficulty: string; status: GameState["status"]; turnNumber: number; updatedAt: string; previewBoard: Board }
 ```
 
 ## Endpoints
@@ -132,7 +134,7 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
 
 Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count. `byDifficulty` ALWAYS contains one row per persona in config (zeros included — stable table); `winRate = wins / gamesPlayed`, floored to `0` when `gamesPlayed = 0` (never NaN/null/omitted).
 
-### 9. `GET /api/games` → `200 {"games":[GameSummary, …]}` ordered by **creation order** (`created_at` ascending) — position is the player's mental map, never reshuffled by activity; finished games stay in place (the client dims them). **Side effect (mandated):** before reading, re-trigger stale AI jobs for this user (`01-architecture.md` → stale recovery).
+### 9. `GET /api/games` → `200 {"games":[GameSummary, …]}` ordered by **creation order** (`created_at` ascending) — position is the player's mental map, never reshuffled by activity; finished games stay in place (the client dims them). Each summary includes `previewBoard` (the tile grid, for the strip cards' mini-maps). **Side effect (mandated):** before reading, re-trigger stale AI jobs for this user (`01-architecture.md` → stale recovery).
 
 ### 10. `POST /api/games` — `{"difficulty":"aggressive"}` (must be a personality id from config). **Capability checks first** (auth ✓, difficulty valid ✓, cap ✓ — fail fast before any generation), then runs board generation (LLM brief + materialization, `03`) **synchronously**; then assembles both armies and inserts the row with `status: "player_turn"`, `turnNumber: 1`.
 
@@ -140,17 +142,17 @@ Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count.
 
 ### 11. `GET /api/games/:id` → `200 {"game": GameState}` (stale-recovery side effect as in 9, for this game). A game id that doesn't belong to the caller ⇒ `404 {"error":"Not found"}` per the conventions rule. While `ai_turn`, the response reflects the state at query time — no blocking, no long-polling.
 
-### 12. `GET /api/games/:id/preview/:unitId` — only for the caller's units, only while `player_turn`, unit not yet `acted`.
+### 12. `GET /api/games/:id/preview/:unitId` — any unit id belonging to THIS game, only while `player_turn`. Own units = staging preview (already-acted own units excluded). ENEMY units = read-only inspection preview (`05`'s enemy-inspect overlay; never staged). A unit that already acted this turn gets `404 {"error":"Unit not playable"}`.
 
 ```json
-{ "moveTiles": [[4,5],[5,5]], "attackTiles": [[6,5]], "healTiles": [] }
+{ "moveTiles": [[4,5],[5,5]], "attackTiles": [[6,5]], "healTiles": [], "side": "player" }
 ```
 
 - `moveTiles`: the reachable tiles as a **tile array (`[[x,y],…` — conceptually a Boolean per-tile reachable set, serialized as a list; no path enumeration)** — water impassable outside bridges; enemies block; allies pass-through.
 - for classes with atk > 0: `attackTiles` = enemy-occupied tiles whose Manhattan distance from some reachable final tile **is a member of the class's range list** (set membership — an archer's `[2]` marks exactly distance-2 tiles, never distance 1 or 3).
 - for healer: `healTiles` = same-side (player) units **Manhattan-adjacent to any reachable final tile**, hp < maxHp.
 - Move-index convention: error messages inside bundles are **1-based** ("move 1" = the first entry).
-- Response is computed by `src/game/` shared code: identical logic serves moves validation; the client renders it as overlay. Note: the preview returns TILES ONLY (no paths) — the client computes its own display path for the staged bundle (`05`), and the server re-validates that path on submission. Errors: `404 {"error":"Unit not playable"}` (unknown, not owner's, or already acted this turn); `409 {"error":"Game is not waiting for your turn"}`.
+- Response is computed by `src/game/` shared code: identical logic serves moves validation; the client renders it as overlay. **`unitId` may be ANY unit in the game — own units for staging, ENEMY units for read-only inspection (`05`'s enemy-inspect overlay). The response always includes `"side": "player" | "enemy"` so the client knows which mode to render; enemy previews are never staged.** Note: the preview returns TILES ONLY (no paths) — the client computes its own display path for the staged bundle (`05`, own units only), and the server re-validates that path on submission. Errors: `404 {"error":"Unit not playable"}` (unknown unit id, or an own unit that already acted this turn); `409 {"error":"Game is not waiting for your turn"}`.
 
 ### 13. `POST /api/games/:id/moves` — validates & applies the whole player turn atomically (single transaction).
 
@@ -163,7 +165,7 @@ Request:
 ]}
 ```
 
-- Server re-derives `path` legality with the same engine used by preview; `path[0]` must be the unit's current tile; the path may pass through ally-occupied tiles (allies do not block passage) but the final tile must be empty; enemy-occupied tiles may NOT be entered; **the landing-tile rule applies**: the bundle's final tiles must be pairwise distinct and empty in the pre-move state (no stacking, no chain-following — `02`); attack requires Manhattan distance `|dx|+|dy|` between `path.at(-1)` and the target within the attacker's class range, target on the opposite side; heal requires Manhattan-1 from the healer's final tile, same side, and target hp < max hp; every `unitId` must belong to the acting side with `acted=false`; each unit appears at most once.
+- Server re-derives `path` legality with the same engine used by preview — **validated entry-by-entry against the evolving state (`02`): chain-following is LEGAL in bundle order (a later entry may land on a tile an earlier entry vacated), nothing claims the same evolving tile twice**; `path[0]` must be the unit's current tile; the path may pass through ally-occupied tiles (allies do not block passage) but the final tile must be empty at that entry's point in the chain; enemy-occupied tiles may NOT be entered; a 1-entry path at the unit's own tile is legal for ANY action (stay-in-place attack/heal/Wait, per `02`'s self-tile ownership rule); attack requires Manhattan distance `|dx|+|dy|` between `path.at(-1)` and the target within the attacker's class range, target on the opposite side; heal requires Manhattan-1 from the healer's final tile, same side, and target hp < max hp; every `unitId` must belong to the acting side with `acted=false`; each unit appears at most once.
 - Applies in **strict sequential entry order** (exactly as `02` defines: each move's teleport, then its attack + counter or heal, fully resolved to the death outcome before the next entry begins), sets `acted: true` on **every unit that received an entry — explicitly including `wait` entries (omitted units stay `acted: false`). The user-facing consequence lives in the END-TURN confirm dialog in `05`.**
 - `200 {"game": GameState}` — status stays `player_turn` **unless the victory short-circuit fires** (all enemies wiped by these moves ⇒ `status = "won"` directly, per the status matrix; no `/end-turn` may follow).
 - Errors: `400 {"error":"<which move failed and why>"}` (e.g. `"move 1: archer cannot attack a unit at 3 tiles"` — the exact engine message from `02`'s catalogue; zod shape-failures on the REQUEST bundle produce the generic first-issue body from the conventions above); `409 {"error":"Game is not waiting for your turn"}` when the game isn't in `player_turn`. Apply nothing on any failure — validation is holistic before the first mutation.

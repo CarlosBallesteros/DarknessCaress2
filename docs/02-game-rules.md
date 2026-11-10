@@ -83,10 +83,11 @@ export function applyMoves(
 
 Execution order and rules, exactly:
 
-1. **Whole-bundle validation first** (fail without touching anything):
+1. **Whole-bundle validation, entry by entry, against the EVOLVING state** (fail without touching anything — a failing entry rejects the whole bundle):
    - unit exists, belongs to `side`, `acted === false`; each unit used at most once;
-   - `isPathLegal` passes for every move, judged against the **pre-move state**;
-   - **landing-tile rule:** the FINAL tiles of the bundle must be distinct and empty in the pre-move state — no two units may claim the same landing tile, and a unit may NOT end on a tile that only becomes free because an earlier bundle entry vacates it (no chain-following in MVP — simple to validate, simple to explain). **Wait entries are exempt** (their final tile is their own pre-move tile — nothing is claimed); "distinct" applies only to entries that actually relocate.
+   - `isPathLegal` passes for every move, judged against the state AS EVOLVED by all EARLIER entries (entries apply sequentially; validation and application share the same running copy — "would this entry succeed if submitted alone, right now?" applied along the chain);
+   - **landing rule (evolving):** the FINAL tile must be empty in the evolving state —able to be empty because an EARLIER entry vacated it (chain-following is LEGAL: players may retreat/reorganize through their own opened gaps, in bundle order). A unit may NOT end on a tile currently occupied in the evolving state (by any unmoved unit, or by an earlier entry's landing), may not ENTER enemy-occupied tiles, and other entries may never LAND on this entry's final tile (claiming is exclusive: two entries to one tile still reject);
+   - **Wait entries are exempt** (final tile = own pre-move tile — nothing claimed, nothing needed).
 2. Apply moves **in strict sequential order**: each bundle entry completes fully (movement teleports to `path.at(-1)`, then its attack + optional counter or heal resolve to the death/removal outcome) BEFORE the next entry begins — a unit killed by a counter never executes a later entry, and damage is never simultaneous.
 3. **Attack**: attacker and target must still be alive, opposite sides, and Manhattan distance `|dx| + |dy|` from the ATTACKER'S FINAL TILE must be in `range`. Damage = `max(0, atk − target.def)` (never randomized). Target HP decrements; `hp ≤ 0` ⇒ dead ⇒ removed.
 4. **Counter** — the exact rule: if the target survived and the target's class can attack (`atk > 0`, archers/mages have their own range; healer never) and the ATTACKER'S FINAL TILE lies within the TARGET'S range measured from the target's tile ⇒ the target deals `max(0, targetAtk − attackerDef)` back. One counter per attack; the counter can kill.
@@ -134,7 +135,7 @@ The LLM never computes damage, counters, or deaths — it only **decides** moves
 | wrong side | `<id> belongs to the other army` |
 | already acted | `<id> already acted this turn` |
 | path illegal | the precise `isPathLegal` message above, which includes: `path step (x,y) is outside the board`, `path step (x,y) is not adjacent to the previous step` (both forced by the 4-neighborhood rule), plus the listed movement rejections |
-| landing clash | `tile (x,y) is claimed by two moves` / `tile (x,y) frees EARLIER in this bundle and cannot be landed on` |
+| landing clash | `tile (x,y) is claimed by two moves` / `tile (x,y) is occupied in the current position of the turn chain` |
 | attack/heal missing targetId | `attack requires a target` / `heal requires a target` |
 | target out of range | `<class> cannot attack a unit at <n> tiles` |
 | target wrong side / dead | `<id> is not a valid attack target` |
@@ -149,10 +150,10 @@ The LLM never computes damage, counters, or deaths — it only **decides** moves
 `server/src/game/apply.test.ts` + `reach.test.ts` cover at least:
 
 1. straight movement up to Mov; blocked by enemy; pass-through ally; water blocked except bridge.
-2. attack + counter both ways (each class distance matrix: mage-3-no-counter-by-range1, archer-2-mutual, spear-1-mutual).
+2. attack + counter both ways (each class distance matrix: mage-3-no-counter-by-range1, archer-2-mutual, spear-1-mutual, healer never).
 3. damage floor at 0, heal clamping, death removes unit.
 4. healer cannot attack (no `attack` action type accepted from healer side either).
-5. `acted` semantics; duplicate rejection; landing-tile rule (two entries claiming one empty tile ⇒ reject; landing on a tile vacated earlier in the bundle ⇒ reject); whole-bundle atomicity (one bad move ⇒ `{ok:false}`, state untouched); sequential resolution (a killed-attacker's later entry never executes).
+5. `acted` semantics; duplicate rejection; EVOLVING landing validation (chain-follow success now PASSES: entry 1 vacates a tile, entry 2 lands there — legal; two entries claiming the SAME evolving tile ⇒ reject; entering a still-occupied tile ⇒ reject); whole-bundle atomicity (one bad move ⇒ `{ok:false}`, state untouched); sequential resolution (a killed-attacker's later entry never executes).
 6. victory check both directions.
 7. preview matches reachable/attack on a hand-built sample board.
 

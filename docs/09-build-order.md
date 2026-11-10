@@ -18,7 +18,7 @@
 [ ] npm -w server run lint && npm -w client run lint            → 0 errors
 [ ] npx prettier --check .                                       → clean
 [ ] npm -w server test && npm -w client test                     → pass (≥ placeholder health test)
-[ ] npm -w client run gen:placeholders                           → all asset files per 07 exist (4 per class + hero; baseline config ⇒ 25)
+[ ] npm -w client run gen:placeholders                           → all asset files per 07 exist (24 theme files: 4 per class; the hero + the 7 universal terrain files are global)
 [ ] docker compose up db → database reachable via `docker compose exec db psql -U dc -d darknesscaress -c "\dt"` (Windows-safe: psql runs inside the container, never on the host); server boots, /api/health 200
 [ ] commits formatted "chore(phase-1): ..." (multiple allowed), pushed
 ```
@@ -77,7 +77,8 @@
 [ ] mock-LLM full loop: create → POST moves (valid bundle per fixtures) → end-turn → job applies enemy moves → status flips player_turn, lastAiActions populated
 [ ] retry loop verified against fixtures (malformed JSON, illegal move, feedback message contains engine text)
 [ ] exhaustion path: 3 failures → ai_last_error set, status stays ai_turn, stale recovery re-triggers (simulated stale timestamps) — no heuristic ever moves enemy units
-[ ] illegal player bundle → 400 with exact message, DB row untouched (atomicity via transaction); FAILED attempts leave the round unlocked (re-submission allowed); a SECOND applied submission in one round → 409 "Turn moves already submitted"; the lock is `games.moves_applied` — RESTART-PROOF (a server restart mid-round does NOT re-open chain-following: an applied empty bundle stays locked after restart)
+[ ] illegal player bundle → 400 with exact message, DB row untouched (atomicity via transaction), the errored move's index exposed in "move N:" prefix; FAILED attempts leave the round unlocked (re-submission allowed); a SECOND applied submission in one round → 409 "Turn moves already submitted"; the lock is `games.moves_applied` — RESTART-PROOF (a server restart mid-round does NOT re-open chain-following: an applied empty bundle stays locked after restart)
+[ ] EVOLVING landing validation: chain-follow SUCCESSES (a later bundle entry lands on a tile vacated by an earlier entry — legal), must-fail cases still reject (two entries claiming ONE evolving tile; entering a still-occupied tile), and swap-by-order works (B first, then A, both land in swapped-new-origin — dirty-swap still impossible unless ordered)
 [ ] stats endpoint matches seeded outcomes
 [ ] contract conformance: full table of 06 verified by tests (paths/statuses/bodies)
 [ ] commit "feat(phase-5): ...", pushed
@@ -86,7 +87,7 @@
 ## Phase 6 — Frontend (whole website)
 
 **Read:** `00`, `08`, `05`, `07`, `06` (backend already built against the same contract).
-**Build:** all routes/components per `05`, api client + DTO types, polling hook, staged-move reducer, overlays, meta-driven Champions/Profile/Stats (+ the landing page's default theme, consumed from the public `GET /api/meta`), placeholder lore DRAFTED: agent drafts the 6 lore strings (class-level, no names, war-warm poetic, 2–3 sentences each) into config.json — owner will rewrite.
+**Build:** all routes/components per `05`, api client + DTO types, polling hook, staged-move reducer, overlays, meta-driven Champions/Profile/Stats (the landing page's hero is a UNIVERSAL asset — no meta consumption needed there), placeholder lore DRAFTED: agent drafts the 6 lore strings (class-level, no names, war-warm poetic, 2–3 sentences each) into config.json — owner will rewrite.
 Also: Vite dev proxy to server; production static serving works via express.static.
 **Acceptance:**
 

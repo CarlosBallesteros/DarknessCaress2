@@ -1,6 +1,6 @@
 # Darkness Caress II
 
-*"The long awaited sequel to the legendary game."*
+*"The long-awaited sequel to the legendary game."*
 
 A fully deployed website with a **1-vs-1 turn-based strategy game** in the spirit of Fire Emblem (but simpler), where the computer opponent is a **local LLM** (Ollama, qwen2.5 7B) — every enemy move, every difficulty persona, even each battlefield's layout comes from AI calls, validated by a deterministic rules engine that guarantees legality. Slow is fine: the game is asynchronous by design — the player takes a turn, the AI thinks in the background, the player keeps up to 5 concurrent games.
 
