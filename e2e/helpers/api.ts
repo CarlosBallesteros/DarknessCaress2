@@ -70,7 +70,7 @@ async function unwrap<T>(
 ): Promise<T> {
   if (!response.ok()) {
     throw new Error(
-      `API ${response.status()} on ${response.request().url()}: ${await response.text()}`,
+      `API ${response.status()} on ${response.url()}: ${await response.text()}`,
     );
   }
   return (await response.json()) as T;

@@ -102,8 +102,21 @@ async function buildBundle(
   // bot refuses to land on ANY ally's pre-move tile and on tiles an earlier
   // entry already claimed — the strictest reading, immune to order effects.
   const forbidden = new Set<string>(allies.map((u) => key(u.x, u.y)));
+  // Deterministic combat accounting (02): staged damage resolves exactly and
+  // in bundle order — a target an earlier entry already kills must not be
+  // attacked again, or the later entry's target is gone ("not a valid attack
+  // target") and the WHOLE bundle is rejected.
+  const stagedEnemyDamage = new Map<string, number>();
+  // Where each already-staged ally WILL stand when the healer's entry runs.
+  const stagedAllyFinal = new Map<string, [number, number]>();
+  // The healer must run LAST: heal adjacency is checked against the state
+  // after every earlier entry, so all allies' landing tiles are known.
+  const alliesInOrder = [
+    ...allies.filter((unit) => unit.class !== "healer"),
+    ...allies.filter((unit) => unit.class === "healer"),
+  ];
 
-  for (const unit of allies) {
+  for (const unit of alliesInOrder) {
     const preview = await getPreview(api, game.id, unit.id);
     const classMeta = meta.classes[unit.class];
     const free = (tile: [number, number]): boolean =>
@@ -125,6 +138,11 @@ async function buildBundle(
           0,
           classMeta.atk - meta.classes[target.class].def,
         );
+        const alreadyStaged = stagedEnemyDamage.get(target.id) ?? 0;
+        // Only the FIRST attacker of a target may kill it inside the bundle.
+        if (alreadyStaged > 0 && alreadyStaged + damage >= target.hp) {
+          continue;
+        }
         const targetRange = meta.classes[target.class].range;
         const counterDamage =
           targetRange.includes(distance) && meta.classes[target.class].atk > 0
@@ -134,7 +152,10 @@ async function buildBundle(
           continue; // never commit suicide through a counter
         }
         const score =
-          (counterDamage === 0 ? 1000 : 0) + damage - 4 * counterDamage;
+          (counterDamage === 0 ? 1000 : 0) +
+          2 * damage -
+          4 * counterDamage -
+          (target.hp - (alreadyStaged + damage)) / 10; // nearly-dead first
         if (
           best === null ||
           score > best.score ||
@@ -148,6 +169,11 @@ async function buildBundle(
     }
     if (best !== null) {
       forbidden.add(key(best.dest[0], best.dest[1]));
+      stagedEnemyDamage.set(
+        best.target.id,
+        (stagedEnemyDamage.get(best.target.id) ?? 0) + best.damage,
+      );
+      stagedAllyFinal.set(unit.id, best.dest);
       moves.push({
         unitId: unit.id,
         path: walkPath(game, unit, best.dest),
@@ -156,8 +182,14 @@ async function buildBundle(
       continue;
     }
 
-    // 2) healer: heal the most wounded ally the preview offers.
+    // 2) healer: heal the most wounded ally the preview offers — adjacency
+    //    is judged against the ally's EXECUTED tile (its own staged landing
+    //    tile if it already moved within this bundle, its tile otherwise).
     if (preview.healTiles.length > 0) {
+      const executedTile = (ally: Unit): [number, number] => {
+        const final = stagedAllyFinal.get(ally.id);
+        return final ?? [ally.x, ally.y];
+      };
       const healCandidates = allies
         .filter(
           (ally) =>
@@ -168,13 +200,15 @@ async function buildBundle(
         )
         .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
       for (const wounded of healCandidates) {
+        const targetTile = executedTile(wounded);
         const dest = preview.moveTiles.find(
           (tile) =>
             free(tile) &&
-            manhattan(tile[0], tile[1], wounded.x, wounded.y) === 1,
+            manhattan(tile[0], tile[1], targetTile[0], targetTile[1]) === 1,
         );
         if (dest !== undefined) {
           forbidden.add(key(dest[0], dest[1]));
+          stagedAllyFinal.set(unit.id, dest);
           moves.push({
             unitId: unit.id,
             path: walkPath(game, unit, dest),
@@ -205,6 +239,7 @@ async function buildBundle(
     if (movable.length > 0) {
       const dest = movable[0] as [number, number];
       forbidden.add(key(dest[0], dest[1]));
+      stagedAllyFinal.set(unit.id, dest);
       moves.push({
         unitId: unit.id,
         path: walkPath(game, unit, dest),
