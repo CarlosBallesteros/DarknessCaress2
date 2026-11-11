@@ -1,0 +1,12 @@
+package-lock.json
+coverage
+dist
+playwright-report
+test-results
+client/public/assets
+
+# Owner-frozen artifacts: never reformatted
+docs
+README.md
+.env
+docker-compose.play.yml
