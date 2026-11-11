@@ -75,8 +75,9 @@ During a fresh orchestrator rebuild, final owner art lives **OUTSIDE the repo** 
 | `landing_background/landing.png` (1376×768) | `hero/landscape.png` | universal, NOT theme-branded |
 | `unit_images_cropped/{side}_{class}_cropped.png` (512×512 PNG) | `warriors-europe/{class}/portrait-{side}.png` | the SQUARE, used everywhere in UI |
 | `unit_images_full/{side}_{class}.jpg` (784×1168 JPG) | `warriors-europe/{class}/portrait-{side}-full.png` | RECTANGULAR lightbox art; convert JPG→PNG at copy time (alpha not required — full-bleed) |
+| `font/blackletter_ds/BLACEB__.TTF` + `Blacklettersh.ttf` | `fonts/Blackletter-ExtraBold.woff2` + `fonts/Blackletter-Shadow.woff2` | THE game title fonts (wordmark + landing h1). Source: dafont Gothic>Medieval — "Blackletter" by Dieter Steffmann, license tag **100% Free** (unrestricted, commercial OK; no embedded copyright string in the TTFs — provenance recorded here). Convert TTF→woff2 at copy time. Role of the Shadow cut vs the secondary serif (spec's Cinzel slot) still open. |
 
-Filename transforms during the copy: `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{side}_{class}.jpg` → `portrait-{side}-full.png` (side = `player`/`enemy`, class keys per `config.classes`). Still missing from staging (arrive later): `terrain/` (7 files), `fonts/` (owner-supplied woff2), and the board sprites (`sprite-{side}.png` per class).
+Filename transforms during the copy: `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{side}_{class}.jpg` → `portrait-{side}-full.png` (side = `player`/`enemy`, class keys per `config.classes`); the two blackletter TTFs → `fonts/*.woff2` names as in the table. Still missing from staging (arrive later): `terrain/` (7 files) and the board sprites (`sprite-{side}.png` per class).
 
 ## Owner guidance → `docs/10-prompts.md`, Template T6
 
