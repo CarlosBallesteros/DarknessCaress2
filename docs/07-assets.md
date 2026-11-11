@@ -21,7 +21,12 @@ client/public/assets/
 │   │                            # they never chose. The landing shows THE GAME's face.
 │   └── landscape.png            # 1920x1080 max
 ├── fonts/                       # OWNER-supplied display fonts (UI-wide, universal)
-│   │                            # THE family: "Blackletter" by Dieter Steffmann (dafont, 100% Free)
+│   │                            # LICENSE — SAFE TO SHIP, no agent action needed: the family is
+│   │                            # "Blackletter" by Dieter Steffmann, sourced from dafont (Gothic >
+│   │                            # Medieval) with dafont's "100% Free" license tag = unrestricted use,
+│   │                            # commercial included. Not "free for personal use". Full provenance
+│   │                            # is recorded in the staging table below. Agents: use these files
+│   │                            # as-is; never substitute a CDN font, never regenerate them.
 │   ├── Blackletter-ExtraBold.woff2   # THE game-title font: wordmark (top menu) + landing h1
 │   └── Blackletter-Shadow.woff2      # secondary display font: section headings, panel headers
 ├── warriors-europe/             # theme id = directory name (config.themes) — ARMY cosmetics only
