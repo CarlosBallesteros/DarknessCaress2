@@ -6,3 +6,5 @@ dist/
 coverage/
 test-results/
 playwright-report/
+# Deliberately unparsable JSON — the malformed-fixture family of docs/04
+server/src/features/ai/__fixtures__/turn.malformed.json
