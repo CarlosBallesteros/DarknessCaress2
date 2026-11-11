@@ -1,0 +1,295 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* display fonts (07): Blackletter pair — the wordmark + landing h1 use the
+   ExtraBold face (--font-display); section headings / panel headers use the
+   Shadow face (--font-display-soft). Fallback stacks when files are missing. */
+h1,
+.wordmark {
+  font-family: var(--font-display);
+}
+
+h2,
+h3,
+.display {
+  font-family: var(--font-display-soft);
+}
+
+h1 {
+  color: var(--gold);
+}
+
+a {
+  color: var(--gold-soft);
+}
+
+.card {
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.btn {
+  background: var(--ink);
+  border: 1px solid var(--ink-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.btn:hover {
+  border-color: var(--gold);
+}
+.btn-primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #14121a;
+  font-weight: 600;
+}
+.btn-danger {
+  background: var(--blood);
+  border-color: var(--blood);
+  color: var(--white-soft);
+}
+.btn-heal {
+  border-color: rgb(var(--overlay-heal));
+  color: rgb(var(--overlay-heal));
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--ink-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.icon-btn:hover {
+  border-color: var(--gold);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+input,
+select {
+  background: var(--ink);
+  border: 1px solid var(--ink-border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font: inherit;
+}
+input:focus,
+select:focus {
+  outline: 1px solid var(--gold);
+}
+
+.error-banner {
+  background: rgb(var(--overlay-attack) / 0.15);
+  border: 1px solid var(--blood-soft);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+
+.inline-ok {
+  color: var(--hp-green);
+  font-size: 13px;
+}
+.inline-error {
+  color: var(--blood-soft);
+  font-size: 13px;
+}
+
+.page {
+  padding: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.page-loading {
+  display: grid;
+  place-items: center;
+  padding: 48px 0;
+  min-height: 40vh;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--ink-border);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* top menu (05) — wraps to two rows under 480 px */
+.top-menu {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--ink-border);
+  background: var(--ink-raised);
+  flex-wrap: wrap;
+}
+.wordmark {
+  color: var(--gold);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tabs {
+  display: flex;
+  gap: 18px;
+}
+.tab {
+  color: var(--text-dim);
+  text-decoration: none;
+  padding-bottom: 3px;
+  border-bottom: 2px solid transparent;
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab-active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+.menu-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.menu-username {
+  color: var(--text);
+  text-decoration: none;
+}
+.menu-username:hover {
+  color: var(--gold-soft);
+}
+@media (max-width: 480px) {
+  .top-menu {
+    justify-content: center;
+  }
+  .tabs {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* modal / dialog */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+}
+.modal {
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* persona label badge — accent comes from --persona-<id> (05) */
+.persona-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid var(--persona-accent, var(--gold));
+  border-left: 4px solid var(--persona-accent, var(--gold));
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* asset fallback (07): flat gray + class letter; side ring for sprites */
+.asset-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #8d8d8d;
+  color: var(--text);
+  font-weight: 700;
+  overflow: hidden;
+}
+.asset-fallback-player {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+.asset-fallback-enemy {
+  box-shadow: 0 0 0 2px var(--blood-soft);
+}
+
+/* board tile colors (05 tokens) — shared by the board and the strip mini-map;
+   terrain sprites replace these one type at a time (07) */
+.tile-plain {
+  background: var(--tile-plain);
+}
+.tile-forest {
+  background: var(--tile-forest);
+}
+.tile-hill {
+  background: var(--tile-hill);
+}
+.tile-lake {
+  background: var(--tile-lake);
+}
+.tile-river {
+  background: var(--tile-river);
+}
+.tile-bridge {
+  background: var(--tile-bridge);
+}
+.tile-rock {
+  background: var(--tile-rock);
+}
+
+/* shared pulse (strip badges + board PhaseBanner "thinking/designed" states) */
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

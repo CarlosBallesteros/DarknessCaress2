@@ -1,0 +1,76 @@
+/* Exact palette from docs/05 — the one token sheet every style imports. */
+
+/* Display fonts — self-hosted, OWNER-supplied woff2 (docs/07): the
+   "Blackletter" pair by Dieter Steffmann (dafont, 100% Free license).
+   ExtraBold = THE game-title font (wordmark + landing h1); Shadow = section
+   headings / panel headers. Files arrive at the owner's final copy step —
+   until then the fallback stacks below render (docs/05). */
+@font-face {
+  font-family: "Blackletter";
+  src: url("/assets/fonts/Blackletter-ExtraBold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Blackletter-Shadow";
+  src: url("/assets/fonts/Blackletter-Shadow.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --font-display: "Blackletter", Georgia, "Times New Roman", serif;
+  --font-display-soft: "Blackletter-Shadow", Georgia, "Times New Roman", serif;
+
+  /* sides & UI accents (mode-independent) */
+  --gold: #c9a227;
+  --gold-soft: #e2c25f;
+  --white-soft: #f2efe9;
+  --blood: #8a1c1c;
+  --blood-soft: #c0392b;
+
+  /* board tiles (mode-independent) */
+  --tile-plain: #c8b47a;
+  --tile-forest: #6f8b4f;
+  --tile-hill: #a08553;
+  --tile-lake: #4b7ec2;
+  --tile-river: #4f97c4;
+  --tile-bridge: #8d6b3f;
+  --tile-rock: #6e6659;
+
+  /* overlays: rgb triplets used in rgba() (docs/05) */
+  --overlay-move: 201 162 39;
+  --overlay-attack: 192 57 43;
+  --overlay-heal: 96 176 120;
+  --overlay-select: 242 239 233;
+  --overlay-inspect: 75 126 194; /* enemy-unit inspection overlay (blue, read-only) */
+  --overlay-error: 220 20 60; /* failed-move highlight (crimson) */
+  --hp-error-chip: #d9534f; /* chip border on a failed staged move */
+
+  /* health bar states */
+  --hp-green: #5cb85c;
+  --hp-amber: #e0a800;
+  --hp-red: #d9534f;
+
+  /* persona accents (mode-independent; used by game-strip cards + board PhaseBanner) */
+  --persona-aggressive: #c0392b; /* red     */
+  --persona-defensive: #4b7ec2; /* blue    */
+  --persona-erratic: #8a6fa8; /* purple  */
+}
+
+/* semantic tokens — the ONLY things light mode re-skins (05) */
+:root,
+:root[data-ui-mode="dark"] {
+  --ink: #14121a; /* page background */
+  --ink-raised: #201d29; /* cards           */
+  --ink-border: #37324a;
+  --text: #ded9e8;
+  --text-dim: #9a94ad;
+}
+:root[data-ui-mode="light"] {
+  --ink: #efe9dc; /* parchment, not white */
+  --ink-raised: #f7f2e8;
+  --ink-border: #cfc3a9;
+  --text: #33302a;
+  --text-dim: #6b6355;
+}

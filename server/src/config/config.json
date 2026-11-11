@@ -71,12 +71,12 @@
   },
   "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],
   "lore": {
-    "sword": "Placeholder lore — the final class lore is drafted in phase 6.",
-    "axe": "Placeholder lore — the final class lore is drafted in phase 6.",
-    "spear": "Placeholder lore — the final class lore is drafted in phase 6.",
-    "archer": "Placeholder lore — the final class lore is drafted in phase 6.",
-    "mage": "Placeholder lore — the final class lore is drafted in phase 6.",
-    "healer": "Placeholder lore — the final class lore is drafted in phase 6."
+    "sword": "They stand where the line must hold, shields worn smooth by a hundred mornings like this one. No song is written for the swordsman — the song is the silence after a charge breaks against them.",
+    "axe": "Each axe carries the weight of the lumber camps it left behind, swung now against armor instead of timber. They ask no ground be given and grant none, meeting the enemy's hardest blows head-on.",
+    "spear": "Five strides of reach and the patience to use every one of them. The spearmen are the river of the army — they flow around shields and walls and find the gap no blade can close in time.",
+    "archer": "They fight two heartbeats ahead of the line, loosing into the space where the enemy is about to be. They need neither armor nor glory — only wind, distance, and one clean shot.",
+    "mage": "Rare as dawn in winter, and worth more than any ten blades. One mage's fire decides more battles than a hundred spears, which is why every soldier on the field quietly angles to shield them — or to end them.",
+    "healer": "They do not carry the war; they carry its undoing. Where the healer walks, soldiers stop counting their wounds and start counting on tomorrow."
   },
   "ai": {
     "moveRetries": 3,

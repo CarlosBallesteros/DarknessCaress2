@@ -1,18 +1,16 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { App } from "./App";
+import "./styles/tokens.css";
+import "./styles/global.css";
 
-// Scaffold placeholder: the real routes/screens arrive in phase 6 (docs/05).
-function Placeholder() {
-  return <main />;
+const rootElement = document.getElementById("root");
+if (!rootElement) {
+  throw new Error("missing #root element");
 }
 
-createRoot(document.getElementById("root")!).render(
+createRoot(rootElement).render(
   <StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="*" element={<Placeholder />} />
-      </Routes>
-    </BrowserRouter>
+    <App />
   </StrictMode>,
 );
