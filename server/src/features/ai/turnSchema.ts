@@ -36,6 +36,15 @@ export function turnMovesSchema(maxMoves: number, boardSize: number) {
 export type TurnMoves = z.infer<ReturnType<typeof turnMovesSchema>>["moves"];
 
 // Mirrors turnMovesSchema for Ollama's `format` field (keep in sync).
+// THE UNION MUST BE `oneOf`, NEVER `anyOf` (real-play evidence, ollama 0.40.16):
+// the grammar converter mishandles `anyOf` — with `anyOf` present, required
+// sibling properties inside the same items (e.g. `path`) silently become
+// optional, so both 7B and 3B emitted moves WITHOUT `path`, which fails zod
+// every time ("Your reply was not valid JSON matching the schema." — an
+// unresolvable retry loop). `oneOf` (the correct construct for a CLOSED
+// discriminated union) compiles to a grammar that enforces every required
+// field — verified: identical prompt+model, anyOf → path missing; oneOf →
+// complete legal moves.
 export function turnJsonSchema(maxMoves: number, boardSize: number): object {
   return {
     type: "object",
@@ -57,7 +66,7 @@ export function turnJsonSchema(maxMoves: number, boardSize: number): object {
               items: { type: "array", minItems: 2, maxItems: 2, items: { type: "integer" } },
             },
             action: {
-              anyOf: [
+              oneOf: [
                 {
                   type: "object",
                   additionalProperties: false,

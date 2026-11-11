@@ -156,7 +156,13 @@ attempt = 1..config.ai.moveRetries (3):
         minutes at ~6 tok/s, bundle unparsable, retry, repeat). With `maxItems` the
         grammar physically closes the array at the bound, so the model CANNOT spin;
         the `num_predict` cap is the second belt. The zod schema and the JSON Schema
-        in `format` stay in lockstep (zod remains the authority).
+        in `format` stay in lockstep (zod remains the authority). **The discriminated
+        action union MUST be `oneOf` in the `format` schema, never `anyOf`** (real-play
+        evidence, ollama 0.40.16): the grammar converter mishandles `anyOf` — required
+        sibling properties (e.g. `path`) silently become optional, so models emit moves
+        WITHOUT `path`, failing zod on every attempt (an unresolvable loop);
+        `oneOf` — the correct construct for a closed discriminated union — compiles
+        correctly and enforces every required field.
   3. engine: applyMoves(state, moves, "enemy", engineCfg)   ← from 02-game-rules.md
      ok  → SUCCESS: persist new game row state (units positions/hps, status player_turn|lost,
             turnNumber+1, lastAiActions = the events list mapped to the AiAction DTO in 06),
