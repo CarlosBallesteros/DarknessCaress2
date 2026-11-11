@@ -1,6 +1,7 @@
 {
   "name": "darkness-caress-e2e",
   "private": true,
+  "type": "module",
   "scripts": {
     "test": "playwright test"
   },

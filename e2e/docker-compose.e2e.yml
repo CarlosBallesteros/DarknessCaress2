@@ -1,0 +1,17 @@
+# E2E-only compose merge override — fought nowhere else on purpose:
+#
+# - docs/01's docker-compose.yml and docker-compose.override.yml are frozen
+#   (the deploy file maps the server 80:3000; on a dev Windows host PID 4
+#   owns :80, so the suite remaps the SAME container to loopback :3000 with
+#   the `!override` tag — the image and in-container behavior are identical
+#   to deploy, only the host-side binding differs).
+# - `environment` beats `env_file` in the compose merge: the local dev `.env`
+#   carries a loopback DATABASE_URL (host-run vitest needs it) that a
+#   container cannot reach, so the server service gets the docker-DNS host
+#   and LLM_MOCK=1 pinned here — deterministic per docs/04 standalone mode.
+services:
+  server:
+    ports: !override ["127.0.0.1:3000:3000"]
+    environment:
+      DATABASE_URL: postgres://dc:dc@db:5432/darknesscaress
+      LLM_MOCK: "1"
