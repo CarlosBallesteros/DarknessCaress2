@@ -21,7 +21,7 @@ export interface LlmClient {
 }
 ```
 
-- Real implementation: `POST {OLLAMA_URL}/api/chat` with `{ model: OLLAMA_MODEL, messages, stream: false, format: <schema>, options: { temperature } }` (`messages` passed straight through). Response: `body.message.content` — parse JSON. Non-2xx or unparsable ⇒ throws typed `LlmError`; caller counts it as a failed attempt, never as a crashed process.
+- Real implementation: `POST {OLLAMA_URL}/api/chat` with `{ model: OLLAMA_MODEL, messages, stream: false, format: <schema>, options: { temperature, num_predict: 1024 } }` (`messages` passed straight through). **`num_predict` is mandatory (generation cap):** an unbounded generation on CPU grammar-constrained decoding can spin for tens of minutes; 1024 tokens covers the largest legal response (10 bounded moves × bounded paths) with margin — hitting the cap yields an unparsable/truncated reply, which is simply a failed attempt in the retry loop below (bounded), never a hang. Response: `body.message.content` — parse JSON. Non-2xx or unparsable ⇒ throws typed `LlmError`; caller counts it as a failed attempt, never as a crashed process.
 - **Mock implementation** (`mockLlm.ts`, same interface): returns recorded/fixture JSON responses. Selection: the test runners (Vitest/Playwright configs) inject `LLM_MOCK=1` automatically — every automated run is mocked by definition; in day-to-day local dev, `LLM_MOCK=1` set once in the local `.env` selects it; production `.env` NEVER sets it. Two implementations, chosen explicitly; no plugin system.
 - **Fixtures are committed, not invented at test time** — `features/ai/__fixtures__/`, one file per family: `brief.valid.json`, `turn.valid.json`, `turn.malformed.json`, `turn.illegal.json` (an out-of-range attack), `turn.exhausting.json` (always-fails). The mock serves them by name; their CONTENT is authoring-agent choice (any shape-valid payload works), but the five families and names are the contract — the retry/exhaustion tests consume exactly these. Load them via the project's runtime-asset pattern (`new URL("...", import.meta.url)`, as `src/config/config.ts` does) so they resolve in BOTH `src/` and the shipped `dist/` (`tsc` does not copy JSON).
 - **Standalone mode (the mocked client serving a manually-run server, no test driver):** `turn()` does NOT serve coordinate-bound fixtures — it computes a **deterministic minimal-legal turn from the current game state**: sort own (enemy) units by id, take the first, compute its reachable tiles with `src/game/reach.ts`, move to the first adjacent free tile (path `[own, target]`) or wait if fully surrounded; all other units omit (omission is explicitly legal). Deterministic given the state; shape per the contract; the engine re-validates everything. Static coordinate fixtures remain a TEST-DRIVER privilege (the Vitest/Playwright queue) — they must never be served against live scattered boards.
@@ -146,6 +146,17 @@ attempt = 1..config.ai.moveRetries (3):
        action: {"type":"attack","targetId":string} | {"type":"heal","targetId":"E-…"} | {"type":"wait"} }] }
       — attack/heal REQUIRE targetId; wait must not expect one. Schema-fail →
        message to model: "Your reply was not valid JSON matching the schema.", retry.
+       **BOUNDS ARE PART OF THE SCHEMA (grammar-forced generation — learned from the
+        7B/3B spin incident):** `moves` carries `maxItems = <the acting side's unit
+        count>` (from the game state at call time — config, never a frozen literal)
+        and each `path` carries `maxItems = <boardSize²>` (from config, 225 baseline).
+        Ollama's `format` field turns the schema into a decoding grammar: an
+        unbounded array is legally ENDLESS there — a small model never "decides" to
+        stop emitting move objects and spins to the context ceiling (measured: 20
+        minutes at ~6 tok/s, bundle unparsable, retry, repeat). With `maxItems` the
+        grammar physically closes the array at the bound, so the model CANNOT spin;
+        the `num_predict` cap is the second belt. The zod schema and the JSON Schema
+        in `format` stay in lockstep (zod remains the authority).
   3. engine: applyMoves(state, moves, "enemy", engineCfg)   ← from 02-game-rules.md
      ok  → SUCCESS: persist new game row state (units positions/hps, status player_turn|lost,
             turnNumber+1, lastAiActions = the events list mapped to the AiAction DTO in 06),
