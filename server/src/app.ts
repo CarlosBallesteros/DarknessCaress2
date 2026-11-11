@@ -4,6 +4,7 @@ import type { NextFunction, Request, Response } from "express";
 import { env } from "./env";
 import { HttpError } from "./httpError";
 import { authRouter } from "./features/auth/router";
+import { meta } from "./features/meta/meta";
 import { usersRouter } from "./features/users/router";
 
 export function createServer(): express.Express {
@@ -15,6 +16,8 @@ export function createServer(): express.Express {
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true });
   });
+
+  app.get("/api/meta", meta);
 
   app.use("/api", authRouter);
   app.use("/api", usersRouter);
