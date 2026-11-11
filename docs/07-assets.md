@@ -68,7 +68,15 @@ If more than 3 steps are needed to add a theme, the implementation is WRONG — 
 
 ## Owner art staging (rebuild rounds only)
 
-During a fresh orchestrator rebuild, final owner art lives **OUTSIDE the repo** (e.g. `../DarknessCaress2_art/`, mirroring the tree layout above) for the whole build: phases 1–7 run against placeholders so sub-agents never see (or depend on) the real files. The owner's **final manual step, after phase 7 completes**, is copying the real art into `client/public/assets/` following the exact convention of this file — nothing earlier, nothing automatic. (In the current live build, where no sub-agents are running, art can simply be dropped straight into `client/public/assets/` at any time.)
+During a fresh orchestrator rebuild, final owner art lives **OUTSIDE the repo** at **`C:\CARLOS\TFM\DarknessCaress2_art\`** (sibling of the project, exactly this path) for the whole build: phases 1–7 run against placeholders so sub-agents never see (or depend on) the real files. The owner's **final manual step, after phase 7 completes**, is copying from the staging folders into `client/public/assets/` per the mapping below — nothing earlier, nothing automatic. (In the current live build, where no sub-agents are running, art can simply be dropped straight into `client/public/assets/` at any time.)
+
+| Staging source (DarknessCaress2_art) | Final destination (client/public/assets) | Notes |
+|---|---|---|
+| `landing_background/landing.png` (1376×768) | `hero/landscape.png` | universal, NOT theme-branded |
+| `unit_images_cropped/{side}_{class}_cropped.png` (512×512 PNG) | `warriors-europe/{class}/portrait-{side}.png` | the SQUARE, used everywhere in UI |
+| `unit_images_full/{side}_{class}.jpg` (784×1168 JPG) | `warriors-europe/{class}/portrait-{side}-full.png` | RECTANGULAR lightbox art; convert JPG→PNG at copy time (alpha not required — full-bleed) |
+
+Filename transforms during the copy: `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{side}_{class}.jpg` → `portrait-{side}-full.png` (side = `player`/`enemy`, class keys per `config.classes`). Still missing from staging (arrive later): `terrain/` (7 files), `fonts/` (owner-supplied woff2), and the board sprites (`sprite-{side}.png` per class).
 
 ## Owner guidance → `docs/10-prompts.md`, Template T6
 
