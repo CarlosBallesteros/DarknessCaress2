@@ -372,21 +372,30 @@ describe("endpoints 9/11-15 — contract conformance (docs/06, docs/09 phase 5)"
     });
   });
 
-  it("endpoint 12: enemy units get a read-only inspection preview with side enemy", async () => {
+  it("endpoint 12: enemy units get a read-only inspection preview with side enemy — even after THEY acted", async () => {
     const register = await registerUser();
     const cookie = cookieOf(register);
     const game = await insertCraftedGame(register.body.user.id, [
       p("P-sword-1", "sword", 5, 7),
       e("E-archer-1", "archer", 5, 5),
+      // the AI turn has already run for this one: acted is true, but the
+      // 404 rule is scoped to OWN units (docs/06 ep. 12) — inspection stands
+      e("E-spear-1", "spear", 9, 13, { acted: true }),
     ]);
-    const res = await request(baseUrl)
+    const archer = await request(baseUrl)
       .get(`/api/games/${game.id}/preview/E-archer-1`)
       .set("Cookie", cookie);
-    expect(res.status).toBe(200);
-    expect(res.body.side).toBe("enemy");
+    expect(archer.status).toBe(200);
+    expect(archer.body.side).toBe("enemy");
     // distance 2 from the archer's tile is in range, 1 is not (membership)
-    expect(res.body.attackTiles).toEqual([[5, 7]]);
-    expect(res.body.moveTiles).toContainEqual([5, 6]);
+    expect(archer.body.attackTiles).toEqual([[5, 7]]);
+    expect(archer.body.moveTiles).toContainEqual([5, 6]);
+
+    const actedEnemy = await request(baseUrl)
+      .get(`/api/games/${game.id}/preview/E-spear-1`)
+      .set("Cookie", cookie);
+    expect(actedEnemy.status).toBe(200);
+    expect(actedEnemy.body.side).toBe("enemy");
   });
 
   it("endpoint 12: healer preview lists wounded adjacent allies; acted/unknown own units are Unit not playable", async () => {
