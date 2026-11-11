@@ -13,7 +13,7 @@ client/public/assets/
 │   ├── hill.png
 │   ├── lake.png
 │   ├── river.png
-│   ├── bridge.png
+│   ├── bridge.png                # art: planks/stone crossing NORTH-SOUTH over east-west water
 │   └── rock.png
 ├── hero/                        # UNIVERSAL cinematic landing backdrop — not theme-branded:
 │   │                            # the landing page is pre-login, PRE-theme-choice; an arbitrary
