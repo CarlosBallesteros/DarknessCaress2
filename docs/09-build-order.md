@@ -20,6 +20,7 @@
 [ ] npm -w server test && npm -w client test                     → pass (≥ placeholder health test)
 [ ] npm -w client run gen:placeholders                           → all asset files per 07 exist (36 theme files: 6 per class; the hero + the 7 universal terrain files are global; fonts are owner-supplied, never generated)
 [ ] docker compose up db → database reachable via `docker compose exec db psql -U dc -d darknesscaress -c "\dt"` (Windows-safe: psql runs inside the container, never on the host); server boots, /api/health 200
+[ ] .dockerignore exists at repo root with exactly the entries from 01's Dockerfile section (mandated — the composed build depends on it)
 [ ] commits formatted "chore(phase-1): ..." (multiple allowed), pushed
 ```
 

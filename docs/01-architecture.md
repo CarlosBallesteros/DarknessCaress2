@@ -196,6 +196,18 @@ volumes: { db_data: {}, ollama_data: {} }
 
 `server/Dockerfile` (multi-stage, exact):
 
+A **`.dockerignore` at the repo root is MANDATORY scaffold** (phase 1) with exactly these entries — without it, the build-stage `COPY . .` clobbers the freshly installed alpine `node_modules` with host binaries (Windows x64 modules are useless inside the alpine image) and leaks local secrets into the build context:
+
+```
+node_modules
+client/node_modules
+server/node_modules
+e2e/node_modules
+.env
+dist
+coverage
+```
+
 ```dockerfile
 FROM node:22-alpine AS build
 WORKDIR /app
