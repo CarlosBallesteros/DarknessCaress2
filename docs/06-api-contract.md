@@ -58,10 +58,10 @@ interface GameState {
   updatedAt: string;
 }
 
-// games-list item — `previewBoard` exists ONLY for card mini-maps in `05`'s strip
-// (tile grid + side dots rendered client-side, never class-specific); it is a
-// projection of the row's board JSON, not extra storage
-interface GameSummary { id: string; difficulty: string; status: GameState["status"]; turnNumber: number; updatedAt: string; previewBoard: Board }
+// games-list item — `previewBoard` + `previewUnits` exist ONLY for card mini-maps in `05`'s
+// strip (tile grid + generic side dots rendered client-side, never class-specific); both are
+// projections of the row's stored state, not extra storage
+interface GameSummary { id: string; difficulty: string; status: GameState["status"]; turnNumber: number; updatedAt: string; previewBoard: Board; previewUnits: Array<{ x: number; y: number; side: "player" | "enemy" }> }
 ```
 
 ## Endpoints
@@ -134,7 +134,7 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
 
 Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count. `byDifficulty` ALWAYS contains one row per persona in config (zeros included — stable table); `winRate = wins / gamesPlayed`, floored to `0` when `gamesPlayed = 0` (never NaN/null/omitted).
 
-### 9. `GET /api/games` → `200 {"games":[GameSummary, …]}` ordered by **creation order** (`created_at` ascending) — position is the player's mental map, never reshuffled by activity; finished games stay in place (the client dims them). Each summary includes `previewBoard` (the tile grid, for the strip cards' mini-maps). **Side effect (mandated):** before reading, re-trigger stale AI jobs for this user (`01-architecture.md` → stale recovery).
+### 9. `GET /api/games` → `200 {"games":[GameSummary, …]}` ordered by **creation order** (`created_at` ascending) — position is the player's mental map, never reshuffled by activity; finished games stay in place (the client dims them). Each summary includes `previewBoard` + `previewUnits` (tile grid + generic side dots for the strip cards' mini-maps, per the DTO note). **Side effect (mandated):** before reading, re-trigger stale AI jobs for this user (`01-architecture.md` → stale recovery).
 
 ### 10. `POST /api/games` — `{"difficulty":"aggressive"}` (must be a personality id from config). **Capability checks first** (auth ✓, difficulty valid ✓, cap ✓ — fail fast before any generation), then runs board generation (LLM brief + materialization, `03`) **synchronously**; then assembles both armies and inserts the row with `status: "player_turn"`, `turnNumber: 1`.
 

@@ -87,7 +87,7 @@
 ## Phase 6 — Frontend (whole website)
 
 **Read:** `00`, `08`, `05`, `07`, `06` (backend already built against the same contract).
-**Build:** all routes/components per `05`, api client + DTO types, polling hook, staged-move reducer, overlays, meta-driven Champions/Profile/Stats (the landing page's hero is a UNIVERSAL asset — no meta consumption needed there), placeholder lore DRAFTED: agent drafts the 6 lore strings (class-level, no names, war-warm poetic, 2–3 sentences each) into config.json — owner will rewrite.
+**Build:** all routes/components per `05`, api client + DTO types, polling hook, staged-move reducer, overlays, meta-driven Champions/Profile/Stats (the landing page's hero is a UNIVERSAL asset — no meta consumption needed there), placeholder lore DRAFTED: agent drafts the 6 lore strings (class-level, no names, war-warm poetic, 2–3 sentences each) into config.json — owner will rewrite. **Phase 6's ONLY permitted server/ touches (both are data/config, never server logic): (a) the lore strings in `server/src/config/config.json`, and (b) the production static-serving middleware in `server/src/app.ts` per `01`'s file description — owner-ratified in v1, and REQUIRED for this phase's E2E successor (the composed stack must serve the built SPA).**
 Also: Vite dev proxy to server; production static serving works via express.static.
 **Acceptance:**
 
