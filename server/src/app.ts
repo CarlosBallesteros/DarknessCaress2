@@ -7,6 +7,7 @@ import { HttpError } from "./http-error";
 import { config } from "./config/config";
 import { createAuthRouter } from "./features/auth/auth.routes";
 import { usersRouter } from "./features/users/users.routes";
+import { gamesRouter } from "./features/games/games.routes";
 import { env } from "./env";
 
 export function createApp() {
@@ -21,6 +22,7 @@ export function createApp() {
 
   app.use("/api/auth", createAuthRouter());
   app.use("/api/me", usersRouter);
+  app.use("/api/games", gamesRouter);
 
   // 7. GET /api/meta — deliberately public: the landing page needs the default
   // theme and the data shown is harmless game metadata (docs/06).
