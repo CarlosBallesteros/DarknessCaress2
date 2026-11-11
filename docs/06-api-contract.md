@@ -179,7 +179,7 @@ Effects: `status = "ai_turn"`, `updated_at = now()`, **all units' `acted` flags 
 
 Victory check also runs here and on 13: if all enemy units are dead, no AI turn happens — `status = "won"` directly. Symmetrically, AI-side engine sets `status = "lost"` after its actions if the player is wiped.
 
-### 15. `POST /api/games/:id/forfeit` — from `player_turn` or `ai_turn` → `status = "lost"` → `200 {"game": GameState}`. Forfeiting an already-finished game is rejected: `409 {"error":"Game already finished"}` (there is no idempotent-success on finished games; repeat calls on an ACTIVE game before it finishes are harmless — only the first flip counts).
+### 15. `POST /api/games/:id/forfeit` — from `generating_board`, `player_turn`, or `ai_turn` (any ACTIVE game is forfeitable — a forever-designing game is un-stuck exactly this way) → `status = "lost"` → `200 {"game": GameState}`. An in-flight background job (AI turn or board design) must write its result under the same conditional-persist guard as the AI turn job (`01`: `UPDATE … WHERE status = <the active status>`) — a forfeit's `lost` stands and the job's result is discarded. Forfeiting an already-finished game is rejected: `409 {"error":"Game already finished"}` (there is no idempotent-success on finished games; repeat calls on an ACTIVE game before it finishes are harmless — only the first flip counts).
 
 ## Status matrix (the only legal transitions)
 
@@ -193,7 +193,7 @@ player_turn → won                (all enemies dead by the player's actions bef
 any_active → lost                (forfeit)
 ```
 
-`generating_board` is a holding state, not a transition target: it is entered at creation and left only by its background job (to `player_turn` — or never, if generation keeps failing; the row visibly retries forever and the owner debugs via `ai_last_error` in logs).
+`generating_board` is a holding state: it is entered at creation and left by its background job (to `player_turn` — or never, if generation keeps failing; the row visibly retries forever and the owner debugs via `ai_last_error` in logs) or by a forfeit (`any_active → lost`).
 
 `ai_turn → won` does NOT exist — the AI can never destroy its own army, so a player victory is only ever produced by endpoint 13 (or a forfeit's mirror: `ai_turn → lost`).
 

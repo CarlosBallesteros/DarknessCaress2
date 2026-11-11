@@ -18,7 +18,7 @@
 [ ] npm -w server run lint && npm -w client run lint            → 0 errors
 [ ] npx prettier --check .                                       → clean
 [ ] npm -w server test && npm -w client test                     → pass (≥ placeholder health test)
-[ ] npm -w client run gen:placeholders                           → all asset files per 07 exist (24 theme files: 4 per class; the hero + the 7 universal terrain files are global)
+[ ] npm -w client run gen:placeholders                           → all asset files per 07 exist (36 theme files: 6 per class; the hero + the 7 universal terrain files are global; fonts are owner-supplied, never generated)
 [ ] docker compose up db → database reachable via `docker compose exec db psql -U dc -d darknesscaress -c "\dt"` (Windows-safe: psql runs inside the container, never on the host); server boots, /api/health 200
 [ ] commits formatted "chore(phase-1): ..." (multiple allowed), pushed
 ```
@@ -53,7 +53,7 @@
 ## Phase 4 — Board generation
 
 **Read:** `00`, `08`, `03`, `04` (client + mock only).
-**Build:** brief prompt + zod brief schema, mock+real client pieces of `LlmClient` (turn() can be a stub until phase 5), materializer with seeded walk, invariants validator, army spawn layout, retry policy incl. fallback template, `POST /api/games` (endpoint 10 of `06`) works fully (auth + cap + insertion — and `used_fallback` recorded in the row when the fallback template fires).
+**Build:** brief prompt + zod brief schema, mock+real client pieces of `LlmClient` (turn() can be a stub until phase 5), materializer with seeded walk, invariants validator, army spawn layout, retry policy incl. fallback template, `POST /api/games` (endpoint 10 of `06`) **async per the v2 amendment**: capability checks (auth + cap) → insert `generating_board` row with all-plain placeholder board + empty units → `202 {"game"}` immediately → board generation runs as a BACKGROUND JOB (fire-and-forget, shared ACTIVE-JOB set guard, stale sweep — the same mechanism phase 5's AI turn job uses) that flips the row to `player_turn` with the real board/armies on success, and on failure writes `ai_last_error` + fresh `updated_at` and stays `generating_board` (retried forever by the sweep — no client error state), `used_fallback` recorded in the row when the fallback template fires.
 **Acceptance:**
 
 ```
@@ -62,8 +62,8 @@
 [ ] retry budget comes from config: `config.ai.boardRetries` honored (a temp config with `materializations: 1` stops after one attempt → regenerates → fallback; proves no hardcoded budget)
 [ ] determinism test: same brief+seed = byte-identical board
 [ ] fallback template validates
-[ ] mock-LLM full flow: POST /api/games → 201 GameState with armies placed per 03's spawn scatter layout
-[ ] 409 on 6th active game (cap from config)
+[ ] mock-LLM full flow: POST /api/games → 202 GameState (status generating_board, placeholder board, empty units) → background job designs the board → GET shows status player_turn, armies placed per 03's spawn scatter layout
+[ ] 409 on 6th active game (cap from config; a generating_board game COUNTS as active — non-lost counting per 06)
 [ ] commit "feat(phase-4): ...", pushed
 ```
 
@@ -105,7 +105,7 @@ Also: Vite dev proxy to server; production static serving works via express.stat
 **Acceptance:**
 
 ```
-[ ] e2e/playwright: register flow, login (bad + good), create game, select unit, preview overlay, stage a move, end turn, mocked AI turn resolves + board updates, stats reflect win/loss, forfeit path, logout/login
+[ ] e2e/playwright: register flow, login (bad + good), create game (202 → "Being designed…" card/board state → resolves to player_turn), select unit, preview overlay, stage a move, end turn, mocked AI turn resolves + board updates, stats reflect win/loss, forfeit path, Store tab renders "Coming soon…", logout/login
 [ ] full quality gate: lint + prettier + vitest + playwright all green
 [ ] deployed on the VM: docker compose up -d; model pulled into ollama volume via 01's one-time command
 [ ] public URL serves landing → register → play a REAL AI turn (Ollama live, persona erratic) — owner-verified

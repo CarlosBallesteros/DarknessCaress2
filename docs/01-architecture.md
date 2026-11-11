@@ -87,12 +87,14 @@ CREATE TABLE IF NOT EXISTS games (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   difficulty  TEXT NOT NULL,             -- persona id from config
-  status      TEXT NOT NULL DEFAULT 'player_turn',
-              -- player_turn | ai_turn | won | lost (board gen happens before insert)
+  status      TEXT NOT NULL DEFAULT 'generating_board',
+              -- generating_board | player_turn | ai_turn | won | lost
+              -- (created as generating_board with an all-plain placeholder board and
+              -- empty units; the background job fills the real battlefield in — 06 ep. 10)
   board       JSONB NOT NULL,            -- {tiles: string[15][15]} codes from 02
   units       JSONB NOT NULL,            -- array of units (shape in 02)
   turn_number INT NOT NULL DEFAULT 1,
-  ai_last_error TEXT,                    -- set when an AI turn job fails, cleared on success
+  ai_last_error TEXT,                    -- set when a background job (AI turn OR board design) fails, cleared on success
   used_fallback BOOLEAN NOT NULL DEFAULT false,  -- true when board generation used the fallback template (debug; not exposed via DTO)
   moves_applied BOOLEAN NOT NULL DEFAULT false,  -- true once a /moves bundle was applied THIS round (incl. empty); reset to false at /end-turn with the acted stroke — the once-per-round lock (`06` ep. 13); not exposed via DTO
   last_ai_actions JSONB,                 -- the AiAction[] of the last applied AI turn (null until the first AI turn)
@@ -138,9 +140,10 @@ The server loads it once and serves the public subset via `GET /api/meta` — an
 
 - **One Express process does everything**: API + AI job runner + serving the built SPA via `express.static` in production. Same origin in production ⇒ **no CORS code at all**; in dev, Vite proxies `/api` to the server (no CORS either).
 - **AI turn job:** when `POST /api/games/:id/end-turn` flips a game to `ai_turn`, the route kicks off `runAiTurn(gameId)` **without awaiting** it (fire-and-forget with an appended `"unhandled"` safe catch that logs). The job: load state → call LLM per `04-ai-integration.md` → validate + apply moves with the pure engine → **persist conditionally**: `UPDATE … WHERE status = 'ai_turn'` — if the game left `ai_turn` meanwhile (a forfeit during the AI's thinking), the job's result is DISCARDED and the forfeit's `lost` stands; only then update the row (`player_turn` | `lost` — never `won`: `06`'s status matrix has no `ai_turn → won`; clears `ai_last_error`). On failure: writes `ai_last_error`, sets `updated_at = now()` (fresh sweep timer — prevents rapid hammering), leaves `ai_turn` — `turn_number` stays UNCHANGED on failure (consistent with `04`; it advances only on a successful AI turn).
-- **Stale recovery** (the only keeper): any `GET` of a game or the games list first re-triggers jobs for that user's games where `status = 'ai_turn' AND now() - updated_at > config.ai.staleAfterSeconds`. Idempotency guard (race-proof): in-process `Map<gameId, startedAt>` acting as an **ACTIVE-JOB set — an entry is added synchronously (check-and-set in the same tick, before any await) and REMOVED only when the job completes (success or failure)**; a sweep skips any game with an active entry. No time window: however long the LLM takes (retries can stretch a job past a minute), a running job is never double-launched. Server restart empties the map — which is precisely when self-heal is wanted.
+- **Background jobs (two kinds, one mechanism):** the AI turn job above, and the **board-design job** (POST /api/games inserts `generating_board` + placeholder board, then runs `generateBoard` fire-and-forget the same way; on success the row flips to `player_turn` with the real board/armies per `03`; on failure it writes `ai_last_error`, refreshes `updated_at`, and stays `generating_board` — retried forever by the sweep, never surfaced as a client error, per `06` ep. 10). Both share the ACTIVE-JOB set guard and stale sweep below.
+- **Stale recovery** (the only keeper): any `GET` of a game or the games list first re-triggers jobs for that user's games where `(status = 'ai_turn' OR status = 'generating_board') AND now() - updated_at > config.ai.staleAfterSeconds`. Idempotency guard (race-proof): in-process `Map<gameId, startedAt>` acting as an **ACTIVE-JOB set — an entry is added synchronously (check-and-set in the same tick, before any await) and REMOVED only when the job completes (success or failure)**; a sweep skips any game with an active entry. No time window: however long the LLM takes (retries can stretch a job past a minute), a running job is never double-launched. Server restart empties the map — which is precisely when self-heal is wanted.
 - **Row→DTO mapping:** DB columns are snake_case (`turn_number`, `updated_at`, `ai_last_error`); public DTOs are camelCase (`turnNumber`, `updatedAt`). One small mapping function per feature converts rows to `06`'s DTOs — no ORM magic, no ad-hoc renames sprinkled around.
-- **No queues, no websockets, no cron.** Polling every 3 s from the client on list/board views while a game is `ai_turn`.
+- **No queues, no websockets, no cron.** Polling every 3 s from the client on list/board views while any of the user's games is `ai_turn` OR `generating_board` (`05`).
 
 ## Environment variables (`.env.example` — exact)
 
