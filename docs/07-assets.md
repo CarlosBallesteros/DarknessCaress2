@@ -21,9 +21,9 @@ client/public/assets/
 │   │                            # they never chose. The landing shows THE GAME's face.
 │   └── landscape.png            # 1920x1080 max
 ├── fonts/                       # OWNER-supplied display fonts (UI-wide, universal)
-│   ├── UnifrakturCook-Bold.woff2   # THE game-title font: gothic blackletter (wordmark + landing h1)
-│   ├── Cinzel-Regular.woff2     # secondary display font (section headings, panel headers)
-│   └── Cinzel-Bold.woff2
+│   │                            # THE family: "Blackletter" by Dieter Steffmann (dafont, 100% Free)
+│   ├── Blackletter-ExtraBold.woff2   # THE game-title font: wordmark (top menu) + landing h1
+│   └── Blackletter-Shadow.woff2      # secondary display font: section headings, panel headers
 ├── warriors-europe/             # theme id = directory name (config.themes) — ARMY cosmetics only
 │   └── <class>/                 # one directory per class key present in config.classes
 │       ├── portrait-player.png        # 512x512 SQUARE, player-side artwork (white/gold)
@@ -43,7 +43,7 @@ Side sprites: the two sprite files MUST be the same design/silhouette with diffe
 ## Rules the pipeline enforces (`client/src/components/` + loader)
 
 - All access via **one helper** `assetPath(kind, classKey?, side?, tileType?)`: kinds = `portrait` | `portrait-full` | `sprite` | `hero` | `terrain`. `portrait`/`portrait-full`/`sprite` take the USER'S theme + class + side (`portrait` returns `/assets/{themeId}/{classKey}/portrait-{side}.png` — the SQUARE, used everywhere in UI; `portrait-full` returns the same with the `-full` suffix — the RECTANGULAR full-art, used ONLY by the Champions-tab lightbox); `hero` takes neither — and deliberately NO theme (returns `/assets/hero/landscape.png`, the universal backdrop); `terrain` also takes neither (returns `/assets/terrain/{tileType}.png`). No component ever hardcodes `/assets/…` with a theme or class name pasted in — theme/class always come from config/api state.
-- Format: PNG with alpha (RGBA) always, whatever the tool exports (owner converts if needed). Filenames lower-case, exact, never renamed. TERRAIN and FONT files are universal asset-level art — see the tree above; the OWNER also supplies the display font (self-hosted woff2, e.g. Cinzel — OFL license, no CDN loads).
+- Format: PNG with alpha (RGBA) always, whatever the tool exports (owner converts if needed). Filenames lower-case, exact, never renamed. TERRAIN and FONT files are universal asset-level art — see the tree above; the OWNER also supplies the display fonts (self-hosted woff2 — the Blackletter pair by Dieter Steffmann, dafont "100% Free"; no CDN loads, provenance recorded in the staging table).
 - If an expected file is missing at runtime, the component renders its **placeholder fallback**: a flat colored rectangle — gray base `#8d8d8d` with the class's first letter printed in the tile text color, and the side tint ring applied for sprites — plus exactly one `console.warn`. Never a broken image icon, never a crash. TERRAIN fallback = the CSS tile colors from `05`'s tokens (the sprite versions replace them one type at a time). (Fallback colors are client-side UI tokens, not config — they exist purely until real art arrives.)
 - Landing hero uses `object-fit: cover`; sprites render at ~40 px inside tiles (`image-rendering: pixelated` NOT used — sprites are painterly, not pixel-art).
 
@@ -75,7 +75,7 @@ During a fresh orchestrator rebuild, final owner art lives **OUTSIDE the repo** 
 | `landing_background/landing.png` (1376×768) | `hero/landscape.png` | universal, NOT theme-branded |
 | `unit_images_cropped/{side}_{class}_cropped.png` (512×512 PNG) | `warriors-europe/{class}/portrait-{side}.png` | the SQUARE, used everywhere in UI |
 | `unit_images_full/{side}_{class}.jpg` (784×1168 JPG) | `warriors-europe/{class}/portrait-{side}-full.png` | RECTANGULAR lightbox art; convert JPG→PNG at copy time (alpha not required — full-bleed) |
-| `font/blackletter_ds/BLACEB__.TTF` + `Blacklettersh.ttf` | `fonts/Blackletter-ExtraBold.woff2` + `fonts/Blackletter-Shadow.woff2` | THE game title fonts (wordmark + landing h1). Source: dafont Gothic>Medieval — "Blackletter" by Dieter Steffmann, license tag **100% Free** (unrestricted, commercial OK; no embedded copyright string in the TTFs — provenance recorded here). Convert TTF→woff2 at copy time. Role of the Shadow cut vs the secondary serif (spec's Cinzel slot) still open. |
+| `font/blackletter_ds/BLACEB__.TTF` + `Blacklettersh.ttf` | `fonts/Blackletter-ExtraBold.woff2` + `fonts/Blackletter-Shadow.woff2` | Title/wordmark = ExtraBold; Shadow = section headings (the Cinzel slot is retired). Source: dafont Gothic>Medieval — "Blackletter" by Dieter Steffmann, license tag **100% Free** (unrestricted, commercial OK; no embedded copyright string in the TTFs — provenance recorded here). ✅ **CONVERTED already** — the woff2 outputs exist in staging at `font/Blackletter-ExtraBold.woff2` + `font/Blackletter-Shadow.woff2` (verified wOF2 magic); the copy step for fonts is a pure copy now. |
 
 Filename transforms during the copy: `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{side}_{class}.jpg` → `portrait-{side}-full.png` (side = `player`/`enemy`, class keys per `config.classes`); the two blackletter TTFs → `fonts/*.woff2` names as in the table. Still missing from staging (arrive later): `terrain/` (7 files) and the board sprites (`sprite-{side}.png` per class).
 
