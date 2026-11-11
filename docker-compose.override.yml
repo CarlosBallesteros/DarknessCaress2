@@ -1,6 +1,0 @@
-# Dev-only override (docs/01): binds the db to host loopback so host-run
-# tests/dev reach it. In production this merely allocates the port on
-# VM-localhost - deploy behavior is unchanged.
-services:
-  db:
-    ports: ["127.0.0.1:5432:5432"]
