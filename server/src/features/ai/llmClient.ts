@@ -2,11 +2,12 @@
 // API; the mock (docs/04 → mockLlm) serves committed fixtures and is selected
 // by LLM_MOCK=1 — the test runners inject it automatically, day-to-day local
 // dev sets it in .env, production never does. No plugin system: two
-// implementations, chosen explicitly. turn() is a stub until phase 5
-// (docs/09): the board-design brief is phase 4's only LLM call.
+// implementations, chosen explicitly.
 import { config } from "../../config/load";
 import { env } from "../../env";
 import { briefJsonSchema } from "../board/briefSchema";
+import { parseSerializedState } from "./serialize";
+import { turnJsonSchema } from "./turnSchema";
 import { mockLlm } from "./mockLlm";
 
 export interface ChatMessage {
@@ -95,10 +96,24 @@ export const ollamaLlm: LlmClient = {
     return result;
   },
 
-  // Phase 5 owns the AI-turn call (docs/09 phase 5): the client shape exists
-  // now, the call does not.
-  turn: () => {
-    throw new LlmError("turn() is implemented in phase 5");
+  // The AI-turn call (docs/04). The `format` schema's array bounds are part
+  // of the decoding grammar: maxItems for `moves` = the acting side's unit
+  // count, derived from the serialized game state carried by the messages
+  // (the state at call time — never a frozen literal); path maxItems =
+  // boardSize² (from config). The zod authority validates afterwards with
+  // the same bound (aiTurn.ts) — the two stay in lockstep.
+  turn: async ({ messages, temperature }) => {
+    const userMessage = messages.find((message) => message.role === "user");
+    const state = userMessage === undefined ? undefined : parseSerializedState(userMessage.content);
+    if (state === undefined) {
+      throw new LlmError("cannot derive turn schema bounds: no serialized state in messages");
+    }
+    const actingUnitCount = state.units.filter((unit) => unit.side === "enemy").length;
+    return postChat({
+      messages,
+      temperature,
+      schema: turnJsonSchema(actingUnitCount, config.boardSize),
+    });
   },
 };
 

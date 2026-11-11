@@ -4,6 +4,7 @@
 // guard and stale sweep.
 import { pool } from "../../db/pool";
 import { config } from "../../config/load";
+import { runAiTurn } from "../ai/aiTurn";
 import { getLlmClient } from "../ai/llmClient";
 import { briefPrompt } from "../board/briefPrompt";
 import { generateBoard } from "../board/generate";
@@ -66,21 +67,22 @@ export async function runBoardDesignJob(gameId: string): Promise<void> {
 }
 
 // Stale recovery (docs/01, endpoints 9/11 side effect): re-triggers jobs for
-// the user's games sitting in a job-owned status with an updated_at older
-// than config.ai.staleAfterSeconds. Optionally scoped to one game. Phase 4
-// sweeps generating_board rows; phase 5 adds the ai_turn arm — the guard
-// already makes both idempotent.
+// the user's games sitting in a job-owned status (generating_board OR
+// ai_turn) with an updated_at older than config.ai.staleAfterSeconds.
+// Optionally scoped to one game. Dispatch by status; the ACTIVE-JOB set
+// guard makes re-triggering idempotent — a running job is never
+// double-launched, and the sweep skips any game with an active entry.
 export async function retriggerStaleJobs(userId: string, gameId?: string): Promise<void> {
   const params: unknown[] = [userId, config.ai.staleAfterSeconds];
-  let sql = `SELECT id FROM games
-             WHERE user_id = $1 AND status = 'generating_board'
+  let sql = `SELECT id, status FROM games
+             WHERE user_id = $1 AND status IN ('generating_board', 'ai_turn')
                AND updated_at < now() - make_interval(secs => $2::int)`;
   if (gameId !== undefined) {
     sql += " AND id = $3";
     params.push(gameId);
   }
-  const { rows } = await pool.query<{ id: string }>(sql, params);
+  const { rows } = await pool.query<{ id: string; status: string }>(sql, params);
   for (const row of rows) {
-    startGameJob(row.id, runBoardDesignJob);
+    startGameJob(row.id, row.status === "ai_turn" ? runAiTurn : runBoardDesignJob);
   }
 }

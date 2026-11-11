@@ -6,6 +6,7 @@ import { HttpError } from "./httpError";
 import { authRouter } from "./features/auth/router";
 import { gamesRouter } from "./features/games/router";
 import { meta } from "./features/meta/meta";
+import { statsRouter } from "./features/stats/router";
 import { usersRouter } from "./features/users/router";
 
 export function createServer(): express.Express {
@@ -22,6 +23,7 @@ export function createServer(): express.Express {
 
   app.use("/api", authRouter);
   app.use("/api", usersRouter);
+  app.use("/api", statsRouter);
   app.use("/api/games", gamesRouter);
 
   // Terminal error middleware: every failure surfaces as the contract's

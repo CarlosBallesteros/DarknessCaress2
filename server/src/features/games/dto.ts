@@ -28,3 +28,17 @@ export interface GameStateDto {
   lastAiActions: AiAction[] | null; // null at creation
   updatedAt: string;
 }
+
+// games-list item — `previewBoard` + `previewUnits` exist ONLY for card
+// mini-maps in docs/05's strip (tile grid + generic side dots rendered
+// client-side, never class-specific); both are projections of the row's
+// stored state, not extra storage.
+export interface GameSummaryDto {
+  id: string;
+  difficulty: string;
+  status: GameStateDto["status"];
+  turnNumber: number;
+  updatedAt: string;
+  previewBoard: Board;
+  previewUnits: Array<{ x: number; y: number; side: Unit["side"] }>;
+}
