@@ -50,7 +50,10 @@ export async function runAiTurn(gameId: string): Promise<void> {
       messages.push({ role: "user", content: SCHEMA_FAIL_MESSAGE });
       continue;
     }
-    const parsed = turnMovesSchema(enemyUnitCount, config.boardSize).safeParse(raw);
+    // path bound = largest mov + 1 (docs/04): a longer path is engine-illegal
+    // anyway; the tight bound keeps the grammar and zod in lockstep.
+    const maxMov = Math.max(...Object.values(config.classes).map((cls) => cls.mov));
+    const parsed = turnMovesSchema(enemyUnitCount, maxMov + 1).safeParse(raw);
     if (!parsed.success) {
       lastError = SCHEMA_FAIL_MESSAGE;
       messages.push({ role: "assistant", content: JSON.stringify(raw) });

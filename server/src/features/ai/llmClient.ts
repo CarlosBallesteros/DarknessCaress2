@@ -104,8 +104,12 @@ export const ollamaLlm: LlmClient = {
   // of the decoding grammar: maxItems for `moves` = the acting side's unit
   // count, derived from the serialized game state carried by the messages
   // (the state at call time — never a frozen literal); path maxItems =
-  // boardSize² (from config). The zod authority validates afterwards with
-  // the same bound (aiTurn.ts) — the two stay in lockstep.
+  // the largest `mov` across config.classes + 1 (docs/04) — a path with more
+  // entries than mov+1 is engine-illegal ("path length N exceeds movement M"),
+  // so the grammar must not offer the room: real-play showed models WANDERING
+  // paths into 2000-token replies (900 s per attempt) under the wider bound.
+  // The zod authority validates afterwards with the same bound (aiTurn.ts) —
+  // the two stay in lockstep.
   turn: async ({ messages, temperature }) => {
     const userMessage = messages.find((message) => message.role === "user");
     const state = userMessage === undefined ? undefined : parseSerializedState(userMessage.content);
@@ -113,10 +117,11 @@ export const ollamaLlm: LlmClient = {
       throw new LlmError("cannot derive turn schema bounds: no serialized state in messages");
     }
     const actingUnitCount = state.units.filter((unit) => unit.side === "enemy").length;
+    const maxMov = Math.max(...Object.values(config.classes).map((cls) => cls.mov));
     return postChat({
       messages,
       temperature,
-      schema: turnJsonSchema(actingUnitCount, config.boardSize),
+      schema: turnJsonSchema(actingUnitCount, maxMov + 1),
     });
   },
 };

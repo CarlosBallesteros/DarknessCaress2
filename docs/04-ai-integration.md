@@ -155,7 +155,13 @@ attempt = 1..config.ai.moveRetries (3):
         stop emitting move objects and spins to the context ceiling (measured: 20
         minutes at ~6 tok/s, bundle unparsable, retry, repeat). With `maxItems` the
         grammar physically closes the array at the bound, so the model CANNOT spin;
-        the `num_predict` cap is the second belt. The zod schema and the JSON Schema
+        the `num_predict` cap is the second belt. **`path` maxItems = the largest
+        `mov` across `config.classes` + 1** (6 at baseline) — NOT boardSize² (the
+        original conservative bound): any path with more edges than `mov` is
+        engine-illegal anyway ("path length N exceeds movement M"), so the wider
+        grammar only let models WANDER paths and burn minutes per attempt (real-play
+        evidence: 900 s per turn cycle at 225-entry grammar room; after the bound,
+        replies are ~300–500 tokens ≈ 1–2 min). The zod schema and the JSON Schema
         in `format` stay in lockstep (zod remains the authority). **The discriminated
         action union MUST be `oneOf` in the `format` schema, never `anyOf`** (real-play
         evidence, ollama 0.40.16): the grammar converter mishandles `anyOf` — required
