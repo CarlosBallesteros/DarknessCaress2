@@ -5,6 +5,9 @@ playwright-report
 test-results
 client/public/assets
 
+# Deliberately unparsable JSON — the malformed-fixture family of docs/04
+server/src/features/ai/__fixtures__/turn.malformed.json
+
 # Owner-frozen artifacts: never reformatted
 docs
 README.md

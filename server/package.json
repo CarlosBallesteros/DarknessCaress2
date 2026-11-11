@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "node --env-file=../.env --import tsx src/app.ts",
-    "build": "tsc && node -e \"const fs=require('fs');fs.copyFileSync('src/config/config.json','dist/config/config.json');fs.copyFileSync('src/db/schema.sql','dist/db/schema.sql')\"",
+    "build": "tsc && node -e \"const fs=require('fs');fs.copyFileSync('src/config/config.json','dist/config/config.json');fs.copyFileSync('src/db/schema.sql','dist/db/schema.sql');fs.cpSync('src/features/ai/__fixtures__','dist/features/ai/__fixtures__',{recursive:true})\"",
     "migrate": "node dist/db/migrate.js",
     "start": "node dist/app.js",
     "test": "vitest run",

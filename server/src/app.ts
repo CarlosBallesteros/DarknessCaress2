@@ -4,6 +4,7 @@ import type { NextFunction, Request, Response } from "express";
 import { env } from "./env";
 import { HttpError } from "./httpError";
 import { authRouter } from "./features/auth/router";
+import { gamesRouter } from "./features/games/router";
 import { meta } from "./features/meta/meta";
 import { usersRouter } from "./features/users/router";
 
@@ -21,6 +22,7 @@ export function createServer(): express.Express {
 
   app.use("/api", authRouter);
   app.use("/api", usersRouter);
+  app.use("/api/games", gamesRouter);
 
   // Terminal error middleware: every failure surfaces as the contract's
   // {"error": "<message>"} body. Body-parser syntax errors carry status 400.
