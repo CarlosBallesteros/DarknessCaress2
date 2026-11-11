@@ -1,0 +1,12 @@
+{
+  "moves": [
+    {
+      "unitId": "E-sword-1",
+      "path": [
+        [5, 1],
+        [5, 2]
+      ],
+      "action": { "type": "wait" }
+    }
+  ]
+}

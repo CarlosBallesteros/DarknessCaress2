@@ -2,11 +2,11 @@
 // API; the mock (docs/04 → mockLlm) serves committed fixtures and is selected
 // by LLM_MOCK=1 — the test runners inject it automatically, day-to-day local
 // dev sets it in .env, production never does. No plugin system: two
-// implementations, chosen explicitly. `turn()` is a stub until phase 5
-// (docs/09 phase 4 builds the client pieces the board brief needs).
+// implementations, chosen explicitly.
 import { config } from "../../config/config";
 import { env } from "../../env";
 import { briefJsonSchema } from "../board/brief-schema";
+import { TURN_JSON_SCHEMA } from "./turn-schema";
 import { mockLlm } from "./mockLlm";
 
 export interface ChatMessage {
@@ -97,9 +97,8 @@ export const ollamaLlm: LlmClient = {
     return result;
   },
 
-  turn: () => {
-    throw new LlmError("turn() arrives with phase 5 (docs/09)");
-  },
+  turn: ({ messages, temperature }) =>
+    postChat({ messages, temperature, schema: TURN_JSON_SCHEMA }),
 };
 
 export function getLlmClient(): LlmClient {

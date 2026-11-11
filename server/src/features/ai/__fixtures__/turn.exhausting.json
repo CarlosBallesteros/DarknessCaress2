@@ -1,0 +1,9 @@
+{
+  "moves": [
+    {
+      "unitId": "E-ghost-1",
+      "path": [[0, 0]],
+      "action": { "type": "wait" }
+    }
+  ]
+}

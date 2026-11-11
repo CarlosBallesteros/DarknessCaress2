@@ -29,3 +29,14 @@ export interface GameStateDto {
   lastAiActions: AiAction[] | null; // null at creation
   updatedAt: string;
 }
+
+// games-list item — `previewBoard` exists ONLY for the strip cards' mini-maps
+// (docs/06): a projection of the row's board JSON, not extra storage.
+export interface GameSummaryDto {
+  id: string;
+  difficulty: string;
+  status: GameStateDto["status"];
+  turnNumber: number;
+  updatedAt: string;
+  previewBoard: Board;
+}
