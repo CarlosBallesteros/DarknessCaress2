@@ -1,9 +1,12 @@
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { renderToString } from "react-dom/server";
-import App from "./App";
+import { App } from "./App";
 
-describe("App (phase-1 shell)", () => {
-  it("renders without crashing", () => {
-    expect(renderToString(<App />)).toContain("<main");
+describe("App", () => {
+  it("renders the landing title (the product's face)", () => {
+    render(<App />);
+    expect(
+      screen.getByRole("heading", { name: "Darkness Caress II" }),
+    ).toBeTruthy();
   });
 });
