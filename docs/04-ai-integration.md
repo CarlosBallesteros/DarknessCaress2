@@ -162,7 +162,9 @@ attempt = 1..config.ai.moveRetries (3):
         sibling properties (e.g. `path`) silently become optional, so models emit moves
         WITHOUT `path`, failing zod on every attempt (an unresolvable loop);
         `oneOf` — the correct construct for a closed discriminated union — compiles
-        correctly and enforces every required field.
+        correctly and enforces every required field. This applies to EVERY union in
+        every `format` schema (the board brief's null|object river/lake unions had the
+        same latent hole — switched to `oneOf` proactively).
   3. engine: applyMoves(state, moves, "enemy", engineCfg)   ← from 02-game-rules.md
      ok  → SUCCESS: persist new game row state (units positions/hps, status player_turn|lost,
             turnNumber+1, lastAiActions = the events list mapped to the AiAction DTO in 06),

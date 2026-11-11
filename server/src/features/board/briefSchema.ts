@@ -50,14 +50,18 @@ export type Brief = z.infer<typeof briefSchema>;
 
 // JSON Schema handed to Ollama's `format` field so the model's reply is valid
 // JSON of exactly this shape before zod ever sees it (docs/04). Mirrors
-// briefSchema — keep the two in sync.
+// briefSchema — keep the two in sync. THE UNIONS MUST BE `oneOf`, NEVER
+// `anyOf` (docs/04 real-play evidence: ollama 0.40.16's grammar converter
+// makes required sibling properties optional under `anyOf`; here that would
+// let the model omit bridgeTiles/forestZones and fail zod into the fallback
+// template path).
 export const briefJsonSchema = {
   type: "object",
   additionalProperties: false,
   required: ["river", "bridgeTiles", "forestZones", "hillZones", "lake"],
   properties: {
     river: {
-      anyOf: [
+      oneOf: [
         { type: "null" },
         {
           type: "object",
@@ -93,7 +97,7 @@ export const briefJsonSchema = {
       items: zoneJsonSchema(rowBounds, 1, 2),
     },
     lake: {
-      anyOf: [{ type: "null" }, zoneJsonSchema(lakeRowBounds, 1, 2)],
+      oneOf: [{ type: "null" }, zoneJsonSchema(lakeRowBounds, 1, 2)],
     },
   },
 };
