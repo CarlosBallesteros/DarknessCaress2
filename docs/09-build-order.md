@@ -81,6 +81,7 @@
 [ ] illegal player bundle → 400 with exact message, DB row untouched (atomicity via transaction), the errored move's index exposed in "move N:" prefix; FAILED attempts leave the round unlocked (re-submission allowed); a SECOND applied submission in one round → 409 "Turn moves already submitted"; the lock is `games.moves_applied` — RESTART-PROOF (a server restart mid-round does NOT re-open chain-following: an applied empty bundle stays locked after restart)
 [ ] EVOLVING landing validation: chain-follow SUCCESSES (a later bundle entry lands on a tile vacated by an earlier entry — legal), must-fail cases still reject (two entries claiming ONE evolving tile; entering a still-occupied tile), and swap-by-order works (B first, then A, both land in swapped-new-origin — dirty-swap still impossible unless ordered)
 [ ] stats endpoint matches seeded outcomes
+[ ] server-side interval sweep (`01`): with the interval configured, a stale job resumes WITHOUT any client GET (stop all polling, advance updated_at past staleAfterSeconds, wait one interval, observe the job run); the ACTIVE-JOB guard still prevents double-launch when GET and interval fire together
 [ ] contract conformance: full table of 06 verified by tests (paths/statuses/bodies)
 [ ] commit "feat(phase-5): ...", pushed
 ```

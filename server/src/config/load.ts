@@ -28,6 +28,7 @@ const configSchema = z.object({
   ai: z.object({
     moveRetries: z.number().int().nonnegative(),
     staleAfterSeconds: z.number().int().positive(),
+    sweepIntervalSeconds: z.number().int().positive(),
     briefTemperature: z.number(),
     boardRetries: z.object({
       materializations: z.number().int().positive(),

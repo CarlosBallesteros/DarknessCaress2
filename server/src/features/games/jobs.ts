@@ -86,3 +86,21 @@ export async function retriggerStaleJobs(userId: string, gameId?: string): Promi
     startGameJob(row.id, row.status === "ai_turn" ? runAiTurn : runBoardDesignJob);
   }
 }
+
+// The server-side interval sweep (docs/01): the same stale-job recovery for
+// ALL users, on an in-process timer started at boot. Real-play evidence (v3):
+// a failed job whose user closed the browser would otherwise wait forever —
+// async recovery must never depend on a client GET. The GET-triggered sweep
+// stays as the immediate-recovery convenience. The ACTIVE-JOB set guard makes
+// the two triggers race-proof together.
+export async function sweepStaleJobsAllUsers(): Promise<void> {
+  const { rows } = await pool.query<{ id: string; status: string }>(
+    `SELECT id, status FROM games
+     WHERE status IN ('generating_board', 'ai_turn')
+       AND updated_at < now() - make_interval(secs => $1::int)`,
+    [config.ai.staleAfterSeconds],
+  );
+  for (const row of rows) {
+    startGameJob(row.id, row.status === "ai_turn" ? runAiTurn : runBoardDesignJob);
+  }
+}

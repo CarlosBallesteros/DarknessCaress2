@@ -12,6 +12,7 @@ import { migrate } from "../../db/migrate";
 import { pool } from "../../db/pool";
 import type { Board, ClassKey, Side, Tile, Unit } from "../../game/types";
 import { insertGeneratingGame } from "./repo";
+import { sweepStaleJobsAllUsers } from "./jobs";
 
 const app = createServer();
 const EMAIL_DOMAIN = "dc2-turn.example";
@@ -171,6 +172,33 @@ describe("GET /api/games (docs/06 endpoint 9)", () => {
     const game = await pollUntil(cookie, gameId, "player_turn");
     expect(game.turnNumber).toBe(2);
     expect(game.lastAiActions).toHaveLength(1);
+  });
+
+  it("server-side interval sweep: a stale ai_turn row resumes with NO client request at all (docs/01)", async () => {
+    const { userId } = await registerUser("svsweep");
+    const gameId = await insertPlayerTurnGame(userId, [
+      ["E-sword-1", "sword", "enemy", 5, 1],
+      ["P-sword-1", "sword", "player", 4, 13],
+    ]);
+    await pool.query(
+      "UPDATE games SET status = 'ai_turn', updated_at = now() - interval '5 minutes' WHERE id = $1",
+      [gameId],
+    );
+    // NO HTTP request anywhere — the sweep runs because the server would run
+    // it on its boot-time interval (docs/01). Called directly here; the guard
+    // and the mock-LLM fixtures are the production machinery.
+    await sweepStaleJobsAllUsers();
+    const deadline = Date.now() + 5000;
+    for (;;) {
+      const row = await rawRow(gameId);
+      if (row.status === "player_turn") {
+        expect(row.turn_number).toBe(2);
+        expect(row.last_ai_actions).toHaveLength(1);
+        break;
+      }
+      if (Date.now() > deadline) throw new Error(`game ${gameId} never resumed without any client request`);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
   });
 });
 

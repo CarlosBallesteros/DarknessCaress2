@@ -89,6 +89,7 @@ describe("config.json", () => {
     expect(config.ai).toMatchObject({
       moveRetries: 3,
       staleAfterSeconds: 60,
+      sweepIntervalSeconds: 15,
       briefTemperature: 0.8,
       boardRetries: { materializations: 3, briefs: 3 },
     });

@@ -3,12 +3,31 @@ import cookieParser from "cookie-parser";
 import path from "node:path";
 import type { NextFunction, Request, Response } from "express";
 import { env } from "./env";
+import { config } from "./config/load";
 import { HttpError } from "./httpError";
 import { authRouter } from "./features/auth/router";
 import { gamesRouter } from "./features/games/router";
 import { meta } from "./features/meta/meta";
 import { statsRouter } from "./features/stats/router";
 import { usersRouter } from "./features/users/router";
+import { sweepStaleJobsAllUsers } from "./features/games/jobs";
+
+// The server-side interval sweep (docs/01): stale-job recovery for ALL users
+// on an in-process timer, so a failed background job recovers even when no
+// client is polling — async recovery never depends on the browser being open.
+// Real-play evidence (v3): the GET-triggered sweep alone left failed jobs
+// waiting forever once the owner closed the page. Not cron/queues/external
+// machinery (forbidden) — one timer inside the one Express process. Started
+// ONLY in the real boot path below (tests drive the sweep explicitly).
+function startIntervalSweep(): NodeJS.Timeout {
+  const interval = setInterval(() => {
+    sweepStaleJobsAllUsers().catch((err: unknown) => {
+      console.error("interval sweep failed:", err);
+    });
+  }, config.ai.sweepIntervalSeconds * 1000);
+  interval.unref(); // never hold the process open just for the sweep
+  return interval;
+}
 
 export function createServer(): express.Express {
   const app = express();
@@ -66,6 +85,7 @@ export function createServer(): express.Express {
 
 // Boots only when run directly; tests import createServer() instead.
 if (require.main === module) {
+  startIntervalSweep();
   createServer().listen(env.PORT, () => {
     console.log(`server listening on port ${env.PORT}`);
   });
