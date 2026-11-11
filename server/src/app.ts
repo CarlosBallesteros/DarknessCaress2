@@ -3,6 +3,8 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import type { NextFunction, Request, Response } from "express";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { HttpError } from "./http-error";
 import { config } from "./config/config";
 import { createAuthRouter } from "./features/auth/auth.routes";
@@ -54,6 +56,24 @@ export function createApp() {
       lore: config.lore,
     });
   });
+
+  // Production serves the built SPA from ../client/dist (01: app.ts = "express
+  // app + static serving of ../client/dist in production"): static files, then
+  // a fallback to index.html for client-side routes. /api keeps its own 404s —
+  // the fallback must not swallow them as HTML.
+  if (process.env.NODE_ENV === "production") {
+    const distDir = path.resolve(__dirname, "..", "..", "client", "dist");
+    if (existsSync(distDir)) {
+      app.use(express.static(distDir));
+      app.get("*", (req, res, next) => {
+        if (req.path.startsWith("/api")) {
+          next();
+          return;
+        }
+        res.sendFile(path.join(distDir, "index.html"));
+      });
+    }
+  }
 
   // One error funnel: contract-shaped bodies for known failures, loud logging
   // (and never a leaking message) for everything else.
