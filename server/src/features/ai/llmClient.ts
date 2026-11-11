@@ -46,9 +46,13 @@ async function postChat(body: {
         stream: false,
         format: body.schema,
         // num_predict is MANDATORY (docs/04): an unbounded generation on CPU
-        // grammar-constrained decoding can spin for tens of minutes; 1024
-        // tokens covers the largest legal response with margin.
-        options: { temperature: body.temperature, num_predict: 1024 },
+        // grammar-constrained decoding can spin for tens of minutes. It must
+        // also be GENEROUS: real-play (v3, 7B) showed 1024 truncates
+        // legitimate turn replies mid-JSON (grammar output is always
+        // syntactic JSON — truncation is the only schema-fail path), causing
+        // an unresolvable retry loop. 2048 covers real prompts; prompt +
+        // 2048 stays inside the 4096 ctx window.
+        options: { temperature: body.temperature, num_predict: 2048 },
       }),
     });
   } catch (cause) {
