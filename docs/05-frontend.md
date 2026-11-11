@@ -6,7 +6,7 @@
 
 | Path | Page | Auth | Contents |
 |---|---|---|---|
-| `/` | Landing | public | Title `"Darkness Caress II"` (h1, **large display font**, styled tagline) `The long-awaited sequel to the legendary game`, one button `Battle!` (→ `/play` when authenticated; → `/login` otherwise). **Ambient dressing:** full-viewport hero (art via `assetPath("hero")` — the UNIVERSAL `assets/hero/landscape.png`, NO theme involved: the landing is pre-login and PRE-theme-choice) with CSS-only vignette + slow hero zoom over a dark overlay (placeholder ships with it — see `07`). |
+| `/` | Landing | public | Title `"Darkness Caress II"` (h1, **large display font**, styled tagline) `The long-awaited sequel to the legendary game`, one button `To Battle!` (→ `/play` when authenticated; → `/login` otherwise). **Ambient dressing:** full-viewport hero (art via `assetPath("hero")` — the UNIVERSAL `assets/hero/landscape.png`, NO theme involved: the landing is pre-login and PRE-theme-choice) with CSS-only vignette + slow hero zoom over a dark overlay (placeholder ships with it — see `07`). |
 | `/login` | Login | public | Email + password form, error banner on 401/429. Link to `/register`. |
 | `/register` | Register | public | Email, username, password, password-again. Client checks length/format per `01`. Link to `/login`. |
 | `/play` | Games strip | yes | "Games" tab home: scroll-snap strip in creation order. See below. |
@@ -180,7 +180,7 @@ Three cards, own submit button, inline success/error text (never browser alerts)
 }
 ```
 
-Font: system stack for body text; **display font = `Cinzel` via self-hosted `@font-face`** (`assets/fonts/Cinzel-Regular.woff2` + `Cinzel-Bold.woff2`, OFL-licensed — owner-supplied files, no CDN loads; `--font-display: 'Cinzel', Georgia, 'Times New Roman', serif` — used by the wordmark, landing h1, and headings). Fallback stack when the font files are missing: Georgia, 'Times New Roman', serif. Everything else stays on the system stack.
+Fonts: system stack for body text; **display fonts = the Blackletter pair via self-hosted `@font-face`** (per `07`: `assets/fonts/Blackletter-ExtraBold.woff2` = wordmark + landing h1 — THE game-title font; `assets/fonts/Blackletter-Shadow.woff2` = section headings, panel headers — the secondary display font; the Cinzel slot is retired; dafont "100% Free", provenance in `07`; no CDN loads; `--font-display: 'Blackletter', Georgia, 'Times New Roman', serif` and `--font-display-soft: 'Blackletter-Shadow', Georgia, 'Times New Roman', serif`). Fallback stack when the font files are missing: Georgia, 'Times New Roman', serif. Everything else stays on the system stack.
 
 ## API client (`src/api/`)
 
