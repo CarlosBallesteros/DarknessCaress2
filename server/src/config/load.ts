@@ -38,9 +38,16 @@ const configSchema = z.object({
 
 export type GameConfig = z.infer<typeof configSchema>;
 
-function loadConfig(): GameConfig {
-  const raw: unknown = JSON.parse(readFileSync(path.join(__dirname, "config.json"), "utf8"));
+export function parseConfig(raw: unknown): GameConfig {
   return configSchema.parse(raw);
+}
+
+export function loadConfigFrom(filePath: string): GameConfig {
+  return parseConfig(JSON.parse(readFileSync(filePath, "utf8")));
+}
+
+function loadConfig(): GameConfig {
+  return loadConfigFrom(path.join(__dirname, "config.json"));
 }
 
 export const config: GameConfig = loadConfig();
