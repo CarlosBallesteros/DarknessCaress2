@@ -6,7 +6,7 @@
 
 - Base path: `/api`. Production serves this from the same origin as the SPA (see `01-architecture.md`).
 - **Success** response: `200`/`201`/`204` with a JSON body per endpoint below — no generic wrapper (no `{"data":…}` envelope): the body IS the resource, under its natural top-level key (`{"user": …}`, `{"game": …}`, `{"games": […]}`).
-- **Error** response: proper HTTP status with body `{"error": "<human-readable message>"}`. Statuses used: `400` validation, `401` not authenticated (`{"error":"Not authenticated"}`) and bad login, `404` unknown/not-yours (deliberate: existence is never leaked — see next rule), `409` state conflict (game cap, wrong phase, already finished), `429` rate limited, `503` board generation failed.
+- **Error** response: proper HTTP status with body `{"error": "<human-readable message>"}`. Statuses used: `400` validation, `401` not authenticated (`{"error":"Not authenticated"}`) and bad login, `404` unknown/not-yours (deliberate: existence is never leaked — see next rule), `409` state conflict (game cap, wrong phase, already finished), `429` rate limited.
 - Auth: every endpoint below except `health`, `meta`, `register`, `login`, `logout` requires the `dc_session` cookie (missing/invalid ⇒ `401 {"error":"Not authenticated"}`; logout is deliberately exempt — it must always succeed, even with no session; `meta` is deliberately public — the landing page needs the default theme and the data shown is harmless game metadata).
 - All request bodies are validated with zod against the schemas below; failures = `400 {"error":"<first zod issue>"}`.
 - Every game reference is owned by the authenticated user; a game id not belonging to the caller ⇒ `404 {"error":"Not found"}` — never `403`, which would betray that the resource exists. Endpoint-specific 404 bodies (e.g. `{"error":"Unit not playable"}`) are allowed when they likewise leak nothing — "not playable" covers unknown-or-foreign unit ids without revealing which.
@@ -48,9 +48,11 @@ interface AiAction {
   } | null;
 }
 
-// full game state, as returned by game endpoints
+// full game state, as returned by game endpoints — during `generating_board`,
+// `board` holds an all-plain placeholder grid and `units` is empty (the real
+// battlefield arrives when the background job finishes designing it)
 interface GameState {
-  id: string; difficulty: string; status: "player_turn" | "ai_turn" | "won" | "lost";
+  id: string; difficulty: string; status: "generating_board" | "player_turn" | "ai_turn" | "won" | "lost";
   turnNumber: number; board: Board; units: Unit[];
   lastAiActions: AiAction[] | null;   // set after an AI turn applies; REPLACED by the next AI turn,
                                       // null at creation. The client animates only the poll response
@@ -77,8 +79,8 @@ interface GameSummary { id: string; difficulty: string; status: GameState["statu
 | 6 | `PATCH /api/me/password` | Change password | yes |
 | 7 | `GET /api/meta` | Public config subset (stats, personas, themes, lore) | none |
 | 8 | `GET /api/stats` | Statistics tab data | yes |
-| 9 | `GET /api/games` | Games list (+ stale AI-turn recovery, see `01`) | yes |
-| 10 | `POST /api/games` | Create game (runs board generation — may take ~10–60 s) | yes |
+| 9 | `GET /api/games` | Games list — includes `generating_board` rows ("being designed…" mini-maps; plain placeholder grid); stale AI/board-job recovery sweep mandated (see `01`) | yes |
+| 10 | `POST /api/games` | Create game — returns immediately (202), board generation runs as a background job like AI turns | yes |
 | 11 | `GET /api/games/:id` | Full game state (+ stale recovery) | yes |
 | 12 | `GET /api/games/:id/preview/:unitId` | Move/action preview for one player unit | yes |
 | 13 | `POST /api/games/:id/moves` | Submit all moves for the player's turn | yes |
@@ -132,15 +134,15 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
 }
 ```
 
-Games in flight (`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count. `byDifficulty` ALWAYS contains one row per persona in config (zeros included — stable table); `winRate = wins / gamesPlayed`, floored to `0` when `gamesPlayed = 0` (never NaN/null/omitted).
+Games in flight (`generating_board`/`player_turn`/`ai_turn`) are excluded; only `won`/`lost` count. `byDifficulty` ALWAYS contains one row per persona in config (zeros included — stable table); `winRate = wins / gamesPlayed`, floored to `0` when `gamesPlayed = 0` (never NaN/null/omitted).
 
 ### 9. `GET /api/games` → `200 {"games":[GameSummary, …]}` ordered by **creation order** (`created_at` ascending) — position is the player's mental map, never reshuffled by activity; finished games stay in place (the client dims them). Each summary includes `previewBoard` + `previewUnits` (tile grid + generic side dots for the strip cards' mini-maps, per the DTO note). **Side effect (mandated):** before reading, re-trigger stale AI jobs for this user (`01-architecture.md` → stale recovery).
 
-### 10. `POST /api/games` — `{"difficulty":"aggressive"}` (must be a personality id from config). **Capability checks first** (auth ✓, difficulty valid ✓, cap ✓ — fail fast before any generation), then runs board generation (LLM brief + materialization, `03`) **synchronously**; then assembles both armies and inserts the row with `status: "player_turn"`, `turnNumber: 1`.
+### 10. `POST /api/games` — `{"difficulty":"aggressive"}` (must be a personality id from config). **Capability checks first** (auth ✓, difficulty valid ✓, cap ✓ — fail fast before anything else), then inserts the row with `status: "generating_board"`, `turnNumber: 1`, an all-plain placeholder board and empty armies, and **returns immediately (202)** — board generation (LLM brief + materialization, `03`) runs as a **background job** exactly like AI turns (fire-and-forget, ACTIVE-JOB set guard, stale-recovery sweep at `config.ai.staleAfterSeconds`).
 
-`201` → `{"game": GameState}`. Errors: `400 {"error":"Unknown difficulty"}`, `409 {"error":"Active game limit reached (5)"}` (the `(5)` is interpolated from `config.maxActiveGames`, not a literal; counting `player_turn`+`ai_turn` only). If board generation fails after its bounded retries (`03`): `503 {"error":"Battlefield generation failed, try again"}`.
+`202` → `{"game": GameState}` with `status: "generating_board"`. When the job finishes designing: `status = "player_turn"`, real board, armies placed per `03` (the client discovers via normal 3 s polling — no waiting request). Errors: `400 {"error":"Unknown difficulty"}`, `409 {"error":"Active game limit reached (5)"}` (the `(5)` is interpolated from `config.maxActiveGames`, not a literal; counting every game that is not `lost`). If generation fails after its bounded retries (`03`): the job writes `ai_last_error`, sets `updated_at = now()`, leaves `generating_board` — the stale sweep re-triggers it like a failed AI turn; the row keeps visibly retrying ("being designed…") and never surfaces a client error state.
 
-### 11. `GET /api/games/:id` → `200 {"game": GameState}` (stale-recovery side effect as in 9, for this game). A game id that doesn't belong to the caller ⇒ `404 {"error":"Not found"}` per the conventions rule. While `ai_turn`, the response reflects the state at query time — no blocking, no long-polling.
+### 11. `GET /api/games/:id` → `200 {"game": GameState}` (stale-recovery side effect as in 9, for this game — covering BOTH `ai_turn` games and `generating_board` games whose design job stalled). A game id that doesn't belong to the caller ⇒ `404 {"error":"Not found"}` per the conventions rule. While `ai_turn` or `generating_board`, the response reflects the state at query time — no blocking, no long-polling.
 
 ### 12. `GET /api/games/:id/preview/:unitId` — any unit id belonging to THIS game, only while `player_turn`. Own units = staging preview (already-acted own units excluded). ENEMY units = read-only inspection preview (`05`'s enemy-inspect overlay; never staged). A unit that already acted this turn gets `404 {"error":"Unit not playable"}`.
 
@@ -182,12 +184,16 @@ Victory check also runs here and on 13: if all enemy units are dead, no AI turn 
 ## Status matrix (the only legal transitions)
 
 ```
+(generation job: worked)  → player_turn      (board designed, armies placed)
+(generation job: failed)  → generating_board (unchanged; stale sweep retries forever)
 player_turn → ai_turn            (explicit: completed)
 ai_turn → player_turn            (AI: worked)
 ai_turn → lost                   (AI: conditions met — the player's army was wiped)
 player_turn → won                (all enemies dead by the player's actions before end-turn)
 any_active → lost                (forfeit)
 ```
+
+`generating_board` is a holding state, not a transition target: it is entered at creation and left only by its background job (to `player_turn` — or never, if generation keeps failing; the row visibly retries forever and the owner debugs via `ai_last_error` in logs).
 
 `ai_turn → won` does NOT exist — the AI can never destroy its own army, so a player victory is only ever produced by endpoint 13 (or a forfeit's mirror: `ai_turn → lost`).
 

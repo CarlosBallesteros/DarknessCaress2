@@ -13,25 +13,26 @@
 | `/play/:id` | Board | yes | The battle screen. See below. |
 | `/stats` | Statistics | yes | Table from `GET /api/stats`: totals row + per-difficulty table. |
 | `/champions` | Champions | yes | 6 class cards from `GET /api/meta`. See below. |
+| `/store` | Store | yes | Flavor page: "Coming soon…" (no functionality, per `00`). |
 | `/profile` | Profile | yes | 3 forms, content visually centered. See below. |
 
 `ProtectedRoute` component: on mount calls `GET /api/me`; on 401 redirects to `/login` (state back-link included). While loading: minimal spinner, nothing else. After any `401` caught by the api wrapper app-wide: same redirect.
 
-**Top menu** (all authed pages): left — wordmark "Darkness Caress II" in the display font, **clickable → `/play`** (the title is the way home from anywhere); center — tabs `Games · Statistics · Champions · Profile` (active tab underlined gold); right — `ui-mode-toggle` (sun/moon icon), username (link to `/profile`) + `Log out` button (`POST /api/auth/logout` → `/`). Wraps to two rows under 480 px.
+**Top menu** (all authed pages): left — wordmark "Darkness Caress II" in the gothic blackletter display font, **clickable → `/play`** (the title is the way home from anywhere); center — tabs `Games · Statistics · Champions · Store · Profile` (active tab underlined gold); right — `ui-mode-toggle` (sun/moon icon), username (link to `/profile`) + `Log out` button (`POST /api/auth/logout` → `/`). Wraps to two rows under 480 px.
 
 **Light/dark UI mode:** pure client feature — a tiny `useUiMode` hook sets `data-ui-mode="dark"|"light"` on `<html>`, persisted under `localStorage` key `dc.uiMode`. **Default = system preference** (`matchMedia("(prefers-color-scheme: dark)")`, falling back to dark when the API is unavailable); an explicit user toggle overrides and persists. No API, no profile write (a later hook may persist it per-account). Tokens are split so semantic tokens (backgrounds, text, borders) have light-mode overrides in `:root[data-ui-mode="light"]`; game/side colors (gold, blood, board tiles, overlays) are identical in both modes.
 
 ## Games strip (`/play`)
 
 - Fetches `GET /api/games` + `GET /api/meta` (for persona labels + cap).
-- **Presentation — the strip, in TWO rows:** **"Active battles"** (all `player_turn`/`ai_turn` games, creation order) and **"Past battles"** (`won`/`lost`, dimmed, creation order) — each its own scroll-snap row sized so **~3½ cards fit the viewport** at the reference width (keyboard + swipe + arrows continue past them; no page-level scrollbar). No carousel library — plain CSS per doctrine.
+- **Presentation — the strip, in TWO rows:** **"Active battles"** (all `generating_board`/`player_turn`/`ai_turn` games, creation order) and **"Past battles"** (`won`/`lost`, dimmed, creation order) — each its own scroll-snap row sized so **~3½ cards fit the viewport** at the reference width (keyboard + swipe + arrows continue past them; no page-level scrollbar). No carousel library — plain CSS per doctrine.
 - **Order = creation order within each row** (`06` endpoint 9); there is no reshuffling, ever. Past-battle cards render **dimmed** (Victory/Defeat badge visible). Only ≤ 5 cards are ever vivid (the active cap).
-- **Poll every 3 s while any game's status is `ai_turn`** (custom hook `usePolling(fn, active)` — `active` switches polling; no cross-tab or visibility-API fanciness).
+- **Poll every 3 s while any game's status is `ai_turn` OR `generating_board`** (custom hook `usePolling(fn, active)` — `active` switches polling; no cross-tab or visibility-API fanciness).
 - Each card: a **mini board map** (tile grid from the card's `previewBoard` + **unit dots from `previewUnits`** — generic gold/red side markers, never class-specific), persona label badge (`--persona-<id>` accent, same tokens as the board banner), status badge (`Your turn` gold / `AI is thinking…` red pulse / `Victory` gold-solid / `Defeat` red-solid), `Turn 7`, relative `updated_at`. Click the focused card → `/play/:id`; **active** cards also carry a ⋮ menu with `Forfeit` (confirm dialog → `POST /api/games/:id/forfeit`); finished cards have no ⋮ (the server would 409).
-- **New battle is NOT a card in the strip** — it is an always-visible **separate action button** beside the rows (persona pick modal opens from there; coherent chrome, zero extra rows). Disabled with tooltip `Limit of 5 active games reached` when count ≥ cap ("the server is still the authority on 409"). `Create` → `POST /api/games` (loading state: "The battlefield is being designed…" — this POST legitimately runs 10–60 s) → redirect into the created game.
+- **New battle is NOT a card in the strip** — it is an always-visible **separate action button** beside the rows (persona pick modal opens from there; coherent chrome, zero extra rows). Disabled with tooltip `Limit of 5 active games reached` when count ≥ cap ("the server is still the authority on 409"). `Create` → `POST /api/games` returns **immediately (202)**: the modal closes, the new card appears at the end of the Active row with a **"Being designed…" pulse badge**, and the strip's 3 s polling brings the board to life in place — the async philosophy applies to creation exactly like AI turns. NO loading lock, NO modal wait. Exactly ONE New battle control per page, ever.
 - Route table label: `/play` is the **"Games strip"** (Games tab home).
 - Empty state: no rows, just the New battle button with the caption "No battles yet" beneath it.
-- New-game failure handling: a `503` from `POST /api/games` renders the server's `error` string verbatim in the modal's error banner ("Battlefield generation failed, try again"); other errors surface in the modal's error banner the same way. The loading state ("The battlefield is being designed…") has NO timeout — the POST legitimately runs 10–60 s.
+- Async creation failure handling: the background job retries board design forever (the card keeps its "Being designed…" pulse); the server never surfaces a client error for design jobs. If a design job is suspected stuck, the owner checks `ai_last_error` in the server logs — the client UI has no error state for creation.
 
 ## Board screen (`/play/:id`)
 
@@ -120,7 +121,7 @@ Notes:
 
 ## Champions tab (`/champions`)
 
-`GET /api/meta` → 6 cards (2×3 grid, 1 col under 700 px). Card: role badge first (small pill: `Attacker` gold-tinted, `Supporter` green-tinted — values straight from the served meta), both portraits side-by-side (`portrait-player.png` under a gold label, `portrait-enemy.png` under a red label), class label overlaid on the stat block, and the lore text. Portrait click → simple lightbox (larger view, `Esc`/click closes). No other interactivity.
+`GET /api/meta` → 6 cards (2×3 grid, 1 col under 700 px). Card: role badge first (small pill: `Attacker` gold-tinted, `Supporter` green-tinted — values straight from the served meta), both SQUARE portraits side-by-side (`portrait-player.png` under a gold label, `portrait-enemy.png` under a red label — the square versions are used everywhere in the UI), class label overlaid on the stat block, and the lore text. Portrait click → lightbox showing the RECTANGULAR full-art version (`portrait-{side}-full.png`, per `07`'s assetPath `portrait-full` kind) with `Esc`/click closes. No other interactivity.
 
 ## Statistics tab (`/stats`)
 
