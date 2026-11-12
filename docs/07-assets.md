@@ -88,4 +88,4 @@ Filename transforms: `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{s
 
 ## Owner guidance → `docs/10-prompts.md`, Template T6
 
-Everything about **how to produce the art** — the consistency kit, per-side palettes, per-class subjects, prompt seeds, and the post-drop checklist — lives in `10-prompts.md` Template **T6** (owner-only). This file deliberately does NOT contain art guidance: it is the technical contract the *pipeline* needs, nothing more. If new art requirements appear, they change T6 (owner-facing) and, only if they affect files/naming/plumbing, this file's sections above.
+Everything about **how to produce the art** — the consistency kit, per-side palettes, per-class subjects, prompt seeds, and the post-drop checklist — lives in `10-prompts.md` Template **T6** (owner-only). This file deliberately does NOT contain art guidance: it is the technical contract the *pipeline* needs, nothing more. If new art requirements appear, they would change T6 (owner-facing) and, only if they affect files/naming/plumbing, this file's sections above.

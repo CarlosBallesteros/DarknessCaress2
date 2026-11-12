@@ -127,8 +127,8 @@ open http://<VM-IP> — verify phases: health, register, play one turn
 
 ## Phase 8 — Code refactor (behavior-preserving)
 
-**Read:** `00`, `01`, `02`, `03`, `04`, `06`, `08`, `09`, `10-phase-8-code-refactor.md`.
-**Build:** Stabilize and refactor server/client code without changing rules, contracts, or user-visible behavior: resolve remaining 8×8-migration test fallout to get suites green, then apply focused maintainability refactors in hotspots (board/spawn/invariants, AI/games/jobs, board UI state/helpers) while preserving boundaries and determinism. See `10-phase-8-code-refactor.md` for scope, constraints, risks, and execution breakdown.
+**Read:** `00`, `01`, `02`, `03`, `04`, `06`, `08`, `09`, `11-phase-8-code-refactor.md`.
+**Build:** Stabilize and refactor server/client code without changing rules, contracts, or user-visible behavior: resolve remaining 8×8-migration test fallout to get suites green, then apply focused maintainability refactors in hotspots (board/spawn/invariants, AI/games/jobs, board UI state/helpers) while preserving boundaries and determinism. See `11-phase-8-code-refactor.md` for scope, constraints, risks, and execution breakdown.
 **Acceptance:**
 
 ```
@@ -143,8 +143,8 @@ open http://<VM-IP> — verify phases: health, register, play one turn
 
 ## Phase 9 — UI refactor (professional & responsive)
 
-**Read:** `00`, `01`, `05`, `06`, `07`, `08`, `09`, `11-phase-9-ui-refactor.md`.
-**Build:** Refactor the frontend presentation for a professional, consistent, and responsive experience across routes (shell/nav, games strip, board screen, stats/champions/profile/store/auth/landing), consolidating tokens/styles and improving interaction affordances/accessibility basics — without changing gameplay behavior, routes, API usage, or contracts. See `11-phase-9-ui-refactor.md` for scope, constraints, risks, and execution breakdown.
+**Read:** `00`, `01`, `05`, `06`, `07`, `08`, `09`, `12-phase-9-ui-refactor.md`.
+**Build:** Refactor the frontend presentation for a professional, consistent, and responsive experience across routes (shell/nav, games strip, board screen, stats/champions/profile/store/auth/landing), consolidating tokens/styles and improving interaction affordances/accessibility basics — without changing gameplay behavior, routes, API usage, or contracts. See `12-phase-9-ui-refactor.md` for scope, constraints, risks, and execution breakdown.
 **Acceptance:**
 
 ```
