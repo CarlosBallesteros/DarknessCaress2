@@ -171,7 +171,8 @@ describe("GET /api/games (docs/06 endpoint 9)", () => {
     await request(app).get("/api/games").set("Cookie", cookie).expect(200);
     const game = await pollUntil(cookie, gameId, "player_turn");
     expect(game.turnNumber).toBe(2);
-    expect(game.lastAiActions).toHaveLength(1);
+    expect(Array.isArray(game.lastAiActions)).toBe(true);
+    expect((game.lastAiActions as unknown[]).length).toBeGreaterThan(0);
   });
 
   it("server-side interval sweep: a stale ai_turn row resumes with NO client request at all (docs/01)", async () => {
@@ -193,7 +194,8 @@ describe("GET /api/games (docs/06 endpoint 9)", () => {
       const row = await rawRow(gameId);
       if (row.status === "player_turn") {
         expect(row.turn_number).toBe(2);
-        expect(row.last_ai_actions).toHaveLength(1);
+        expect(Array.isArray(row.last_ai_actions)).toBe(true);
+        expect((row.last_ai_actions as unknown[]).length).toBeGreaterThan(0);
         break;
       }
       if (Date.now() > deadline)
@@ -747,23 +749,23 @@ describe("POST /api/games/:id/end-turn (docs/06 endpoint 14)", () => {
     expect(res.body.game.units.every((u: Unit) => !u.acted)).toBe(true); // both sides reset
     expect((await rawRow(gameId)).moves_applied).toBe(false);
 
-    // The fire-and-forget job applies the enemy's (mocked) turn: standalone
-    // mode steps the id-sorted first enemy east to the first free adjacent
-    // tile (compass order) and waits.
+    // The fire-and-forget job applies the enemy's turn via server-side policy
+    // (docs/04): aggressive advances toward the player.
     const game = await pollUntil(cookie, gameId, "player_turn");
     expect(game.turnNumber).toBe(2);
-    expect(game.lastAiActions).toEqual([
-      {
-        unitId: "E-sword-1",
-        path: [
-          [5, 1],
-          [6, 1],
-        ],
-        action: { type: "wait" },
-        outcome: null,
-      },
-    ]);
-    expect((game.units as Unit[]).find((u) => u.id === "E-sword-1")?.acted).toBe(true);
+    const actions = game.lastAiActions as Array<{
+      unitId: string;
+      path: [number, number][];
+      action: { type: string };
+    }>;
+    expect(actions).toHaveLength(1);
+    expect(actions[0].unitId).toBe("E-sword-1");
+    expect(actions[0].path[0]).toEqual([5, 1]); // started at its tile
+    expect(actions[0].path.length).toBeGreaterThanOrEqual(1);
+    expect(actions[0].action.type).toBe("wait");
+    const eSword = (game.units as Unit[]).find((u) => u.id === "E-sword-1")!;
+    expect(eSword.acted).toBe(true);
+    expect(eSword.y).toBeGreaterThan(1); // advanced south toward the player
     expect((game.units as Unit[]).find((u) => u.id === "P-sword-1")?.acted).toBe(false);
 
     // A second end-turn while the game is (deterministically) back in

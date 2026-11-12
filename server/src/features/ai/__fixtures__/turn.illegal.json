@@ -1,9 +1,0 @@
-{
-  "moves": [
-    {
-      "unitId": "E-archer-1",
-      "to": [6, 0],
-      "action": { "type": "attack", "targetId": "P-sword-1" }
-    }
-  ]
-}

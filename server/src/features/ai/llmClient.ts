@@ -1,13 +1,10 @@
-// The one LLM seam (docs/04). The real client speaks Ollama's native chat
+// The LLM seam (docs/03, 04). The real client speaks Ollama's native chat
 // API; the mock (docs/04 → mockLlm) serves committed fixtures and is selected
-// by LLM_MOCK=1 — the test runners inject it automatically, day-to-day local
-// dev sets it in .env, production never does. No plugin system: two
-// implementations, chosen explicitly.
+// by LLM_MOCK=1. Board briefs (Call #1) remain LLM-driven; move decisions are
+// server-side policies (no LLM turn call).
 import { config } from "../../config/load";
 import { env } from "../../env";
 import { briefJsonSchema } from "../board/briefSchema";
-import { parseSerializedState } from "./serialize";
-import { turnJsonSchema } from "./turnSchema";
 import { mockLlm } from "./mockLlm";
 
 export interface ChatMessage {
@@ -23,7 +20,6 @@ export interface LlmClient {
   }): Promise<unknown>; // parsed JSON object, still un-validated — callers zod it
 
   brief(opts: { user: string }): Promise<unknown>; // single-shot board-design call (docs/03)
-  turn(opts: { messages: ChatMessage[]; temperature: number }): Promise<unknown>; // AI-turn call (docs/04, phase 5)
 }
 
 // Non-2xx or unparsable ⇒ typed failure: the caller counts it as a failed
@@ -45,13 +41,6 @@ async function postChat(body: {
         messages: body.messages,
         stream: false,
         format: body.schema,
-        // num_predict is MANDATORY (docs/04): an unbounded generation on CPU
-        // grammar-constrained decoding can spin for tens of minutes. It must
-        // also be GENEROUS: real-play (v3, 7B) showed 1024 truncates
-        // legitimate turn replies mid-JSON (grammar output is always
-        // syntactic JSON — truncation is the only schema-fail path), causing
-        // an unresolvable retry loop. 2048 covers real prompts; prompt +
-        // 2048 stays inside the 4096 ctx window.
         options: { temperature: body.temperature, num_predict: 2048 },
       }),
     });
@@ -88,7 +77,6 @@ export const ollamaLlm: LlmClient = {
       temperature: config.ai.briefTemperature,
       schema: briefJsonSchema,
     });
-    // Success logging per docs/04: counts only, never request/response bodies.
     console.log(
       JSON.stringify({
         call: "brief",
@@ -98,27 +86,6 @@ export const ollamaLlm: LlmClient = {
       }),
     );
     return result;
-  },
-
-  // The AI-turn call (docs/04). The `format` schema's array bounds are part
-  // of the decoding grammar: maxItems for `moves` = the acting side's unit
-  // count, derived from the serialized game state carried by the messages
-  // (the state at call time — never a frozen literal). Destination-only
-  // orders (docs/04 menu amendment): the model never emits a path; the job
-  // expands `to` deterministically via docs/02 pathTo. The zod authority
-  // validates afterwards with the same bound (aiTurn.ts) — lockstep.
-  turn: async ({ messages, temperature }) => {
-    const userMessage = messages.find((message) => message.role === "user");
-    const state = userMessage === undefined ? undefined : parseSerializedState(userMessage.content);
-    if (state === undefined) {
-      throw new LlmError("cannot derive turn schema bounds: no serialized state in messages");
-    }
-    const actingUnitCount = state.units.filter((unit) => unit.side === "enemy").length;
-    return postChat({
-      messages,
-      temperature,
-      schema: turnJsonSchema(actingUnitCount),
-    });
   },
 };
 

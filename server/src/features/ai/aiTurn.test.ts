@@ -1,11 +1,8 @@
-// The AI-turn validation loop (docs/04 test list 1–3) driven by the
-// committed MockLlm fixtures: success path, retry on malformed JSON and on an
-// illegal move (the feedback carries the engine's exact rejection), the
-// exhaustion path (ai_last_error set, status stays ai_turn, turn unchanged),
-// stale recovery re-triggering, and the conditional-persist guard.
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+// The AI-turn job (docs/04): server-side menu-choice policy, no LLM.
+// Verifies: successful application + persistence, conditional persist guard,
+// victory-on-wipe, and stale recovery re-trigger.
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { engineConfig } from "../../config/engine";
-import { config } from "../../config/load";
 import { migrate } from "../../db/migrate";
 import { pool } from "../../db/pool";
 import type { Board, ClassKey, Side, Tile, Unit } from "../../game/types";
@@ -13,7 +10,6 @@ import { insertUser } from "../users/repo";
 import { retriggerStaleJobs } from "../games/jobs";
 import { getGameById, insertGeneratingGame, type GameRow } from "../games/repo";
 import { runAiTurn } from "./aiTurn";
-import { queueTurnFixtures, recordedTurns, resetTurnFixtures } from "./mockLlm";
 
 const EMAIL_DOMAIN = "dc2-aiturn.example";
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -29,8 +25,6 @@ function unit(id: string, cls: ClassKey, side: Side, x: number, y: number, hp?: 
   return { id, side, class: cls, x, y, hp: hp ?? maxHp, maxHp, acted: false };
 }
 
-// The docs/04 example arrangement (enemy on rows 0-1, player on 13-14
-// within the 8×2 spawn block) — the coordinate-bound fixtures apply to it.
 function fullUnits(): Unit[] {
   return [
     unit("E-spear-2", "spear", "enemy", 5, 0),
@@ -90,19 +84,14 @@ beforeAll(async () => {
   userId = user.id;
 });
 
-beforeEach(() => {
-  resetTurnFixtures();
-});
-
 afterAll(async () => {
   await pool.query("DELETE FROM users WHERE email LIKE $1", [`%@${EMAIL_DOMAIN}`]);
   await pool.end();
 });
 
-describe("runAiTurn — the validation loop (docs/04)", () => {
-  it("success path: the valid fixture applies; status flips player_turn, turn advances, lastAiActions populated", async () => {
-    const game = await insertAiTurnGame(fullUnits());
-    queueTurnFixtures(["turn.valid.json"]);
+describe("runAiTurn — server-side policy (docs/04)", () => {
+  it("applies a legal policy turn: status flips player_turn, turn advances, lastAiActions populated", async () => {
+    const game = await insertAiTurnGame(fullUnits(), "aggressive");
 
     await runAiTurn(game.id);
 
@@ -110,145 +99,63 @@ describe("runAiTurn — the validation loop (docs/04)", () => {
     expect(row.status).toBe("player_turn");
     expect(row.turn_number).toBe(2);
     expect(row.ai_last_error).toBeNull();
-    expect(row.last_ai_actions).toEqual([
-      {
-        unitId: "E-sword-1",
-        path: [
-          [5, 1],
-          [4, 1],
-        ],
-        action: { type: "wait" },
-        outcome: null,
-      },
-    ]);
-    // acted was set on the entry's unit only; the unit moved to its `to`.
-    const units = row.units;
-    expect(units.find((u) => u.id === "E-sword-1")?.acted).toBe(true);
-    expect(units.find((u) => u.id === "E-axe-1")?.acted).toBe(false);
-    expect(units.find((u) => u.id === "E-sword-1")?.x).toBe(4);
+    expect(Array.isArray(row.last_ai_actions)).toBe(true);
+    expect((row.last_ai_actions as unknown[]).length).toBeGreaterThan(0);
+    // Every action belongs to an enemy unit and has a path + action.
+    for (const action of row.last_ai_actions as Array<{
+      unitId: string;
+      path: unknown;
+      action: unknown;
+    }>) {
+      expect(action.unitId.startsWith("E-")).toBe(true);
+      expect(Array.isArray(action.path)).toBe(true);
+      expect(action.action).toBeDefined();
+    }
   });
 
-  it("the conversation carries the system prompt and the serialized state", async () => {
-    const game = await insertAiTurnGame(fullUnits());
-    queueTurnFixtures(["turn.valid.json"]);
+  it("aggressive advances toward the player on an open board (turn 1)", async () => {
+    const game = await insertAiTurnGame(fullUnits(), "aggressive");
     await runAiTurn(game.id);
-
-    expect(recordedTurns).toHaveLength(1);
-    const { messages, temperature } = recordedTurns[0];
-    expect(temperature).toBe(config.personalities.aggressive.temperature);
-    expect(messages[0].role).toBe("system");
-    expect(messages[0].content).toContain("PERSONA: Hunt them without mercy.");
-    expect(messages[1].role).toBe("user");
-    expect(messages[1].content).toContain("UNITS:");
-    expect(messages[1].content).toContain("E-sword-1=sword 5,1 20/20");
+    const row = await rowOf(game.id);
+    // At least some front enemy units should have moved south (larger y) from spawn rows.
+    const movedSouth = row.units.some(
+      (u) => u.side === "enemy" && u.y > 1 && u.id !== "E-healer-1",
+    );
+    expect(movedSouth).toBe(true);
   });
 
-  it("malformed JSON once, then valid — schema feedback, success on attempt 2", async () => {
-    const game = await insertAiTurnGame(fullUnits());
-    queueTurnFixtures(["turn.malformed.json", "turn.valid.json"]);
-
+  it("defensive holds ground on an open board (no reckless advance)", async () => {
+    const game = await insertAiTurnGame(fullUnits(), "defensive");
     await runAiTurn(game.id);
-
     const row = await rowOf(game.id);
     expect(row.status).toBe("player_turn");
-    expect(row.turn_number).toBe(2);
-    expect(recordedTurns).toHaveLength(2);
-    // The unparsable reply never became an assistant turn; the mandated
-    // schema message went back to the model (docs/04).
-    const retry = recordedTurns[1].messages;
-    expect(retry).toHaveLength(3);
-    expect(retry[2]).toEqual({
-      role: "user",
-      content: "Your reply was not valid JSON matching the schema.",
-    });
+    // Defensive should not charge deep into the board on turn 1 with no contact.
+    const deep = row.units.filter((u) => u.side === "enemy" && u.y >= 5).length;
+    expect(deep).toBe(0);
   });
 
-  it("an illegal move once, then valid — the feedback carries the engine's exact rejection", async () => {
-    const game = await insertAiTurnGame(fullUnits());
-    queueTurnFixtures(["turn.illegal.json", "turn.valid.json"]);
-
-    await runAiTurn(game.id);
-
-    const row = await rowOf(game.id);
-    expect(row.status).toBe("player_turn");
-    expect(row.ai_last_error).toBeNull();
-    expect(recordedTurns).toHaveLength(2);
-    // E-archer-1 (6,0) attacks P-sword-1 (4,13): Manhattan 15 - out of the
-    // archer's [2] range. Menu-pair enforcement (docs/04, expansion step)
-    // rejects it before applyMoves with the menu-aligned message.
-    const feedback = recordedTurns[1].messages.at(-1);
-    expect(feedback?.role).toBe("user");
-    expect(feedback?.content).toContain("E-archer-1: cannot attack P-sword-1 from (6,0)");
-    expect(feedback?.content).toContain("not in this unit's attacks menu");
-    expect(feedback?.content).toContain("Resubmit the FULL corrected move list");
-    expect(recordedTurns[1].messages.at(-2)?.role).toBe("assistant");
-  });
-
-  it("exhaustion after moveRetries: ai_last_error set, status stays ai_turn, turn unchanged", async () => {
-    const game = await insertAiTurnGame(fullUnits());
-    queueTurnFixtures(["turn.exhausting.json", "turn.exhausting.json", "turn.exhausting.json"]);
-
-    await runAiTurn(game.id);
-
-    const row = await rowOf(game.id);
-    expect(row.status).toBe("ai_turn"); // never a heuristic fallback
-    expect(row.turn_number).toBe(1); // unchanged on failure
-    expect(row.ai_last_error).toBe("unknown unit E-ghost-1");
-    expect(row.updated_at.getTime()).toBeGreaterThan(Date.now() - 60_000); // fresh sweep timer
-    expect(recordedTurns).toHaveLength(config.ai.moveRetries);
-    expect(row.last_ai_actions).toBeNull(); // nothing applied
-  });
-
-  it("stale recovery re-triggers an exhausted game (simulated stale timestamps)", async () => {
-    const game = await insertAiTurnGame(fullUnits());
-    queueTurnFixtures(["turn.exhausting.json", "turn.exhausting.json", "turn.exhausting.json"]);
-    await runAiTurn(game.id);
-    expect((await rowOf(game.id)).status).toBe("ai_turn");
-
-    // Simulate staleness: the failed game waited its full stale window.
-    await pool.query("UPDATE games SET updated_at = now() - interval '5 minutes' WHERE id = $1", [
-      game.id,
-    ]);
-    queueTurnFixtures(["turn.valid.json"]); // the fresh attempt succeeds
-    await retriggerStaleJobs(userId, game.id);
-
-    const row = await waitFor(game.id, (candidate) => candidate.status === "player_turn");
-    expect(row.ai_last_error).toBeNull();
-    expect(row.turn_number).toBe(2);
-  });
-
-  it("a FRESH ai_turn row is not re-triggered (no hammering)", async () => {
-    const game = await insertAiTurnGame(fullUnits());
-    await retriggerStaleJobs(userId, game.id);
-    // The sweep leaves it alone: still ai_turn, no LLM call.
-    expect((await rowOf(game.id)).status).toBe("ai_turn");
-    expect(recordedTurns).toHaveLength(0);
-  });
-
-  it("the conditional-persist guard: a forfeit during the thinking stands", async () => {
+  it("conditional persist: a forfeited game (not ai_turn) is not overwritten", async () => {
     const game = await insertAiTurnGame(fullUnits());
     await pool.query("UPDATE games SET status = 'lost' WHERE id = $1", [game.id]);
-    queueTurnFixtures(["turn.valid.json"]);
 
     await runAiTurn(game.id);
 
     const row = await rowOf(game.id);
-    expect(row.status).toBe("lost"); // the forfeit's lost stands (docs/06 ep. 15)
+    expect(row.status).toBe("lost"); // forfeit stands
     expect(row.turn_number).toBe(1);
     expect(row.last_ai_actions).toBeNull();
-    expect(row.units.find((u) => u.id === "E-sword-1")?.acted).toBe(false);
   });
 
   it("ai_turn → lost when the player's army is wiped (never won)", async () => {
-    // Mid-game state: one player unit left, at 1 hp, within the archer's
-    // range-2 of E-archer-1 — the committed turn.illegal fixture now applies
-    // legally and kills the last player unit.
+    // One player unit left at 1 hp, within an archer's range-2: aggressive
+    // policy takes the available attack pair and kills it.
     const units = [
       ...fullUnits().filter((u) => u.side === "enemy"),
       unit("P-sword-1", "sword", "player", 6, 2, 1),
     ];
-    const game = await insertAiTurnGame(units);
-    queueTurnFixtures(["turn.illegal.json"]);
+    // Ensure an archer can shoot from its position: E-archer-1 is at (6,0),
+    // distance to (6,2) is 2 — in range [2].
+    const game = await insertAiTurnGame(units, "aggressive");
 
     await runAiTurn(game.id);
 
@@ -256,19 +163,35 @@ describe("runAiTurn — the validation loop (docs/04)", () => {
     expect(row.status).toBe("lost");
     expect(row.turn_number).toBe(2);
     expect(row.ai_last_error).toBeNull();
-    expect(row.last_ai_actions).toEqual([
-      {
-        unitId: "E-archer-1",
-        path: [[6, 0]],
-        action: { type: "attack", targetId: "P-sword-1" },
-        outcome: {
-          targetId: "P-sword-1",
-          damage: 1, // 6 − 5; the 1-hp sword dies; archer is at range 2, no counter
-          targetHp: 0,
-          targetDied: true,
-          counter: null,
-        },
-      },
+    const actions = row.last_ai_actions as Array<{
+      unitId: string;
+      action: { type: string; targetId?: string };
+    }>;
+    expect(actions.some((a) => a.action.type === "attack")).toBe(true);
+  });
+
+  it("stale recovery re-triggers an ai_turn game and completes it", async () => {
+    const game = await insertAiTurnGame(fullUnits(), "aggressive");
+    // Simulate staleness so the sweep picks it up.
+    await pool.query("UPDATE games SET updated_at = now() - interval '5 minutes' WHERE id = $1", [
+      game.id,
     ]);
+    await retriggerStaleJobs(userId, game.id);
+
+    const row = await waitFor(game.id, (candidate) => candidate.status === "player_turn");
+    expect(row.ai_last_error).toBeNull();
+    expect(row.turn_number).toBe(2);
+  });
+
+  it("a FRESH ai_turn row is not re-triggered by the sweep", async () => {
+    const game = await insertAiTurnGame(fullUnits());
+    const before = await rowOf(game.id);
+    await retriggerStaleJobs(userId, game.id);
+    // Give it a moment; it should remain untouched.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const row = await rowOf(game.id);
+    expect(row.status).toBe("ai_turn");
+    expect(row.turn_number).toBe(before.turn_number);
+    expect(row.last_ai_actions).toBeNull();
   });
 });

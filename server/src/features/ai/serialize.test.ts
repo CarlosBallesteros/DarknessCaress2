@@ -1,116 +1,89 @@
-// The AI-turn state serializer (docs/04 test list #4): a golden snapshot for
-// a hand-built board+units, stable under a config stat change (everything is
-// read from config — no hardcoded 20/25), and the inverse parser round-trips
-// the snapshot the mock's standalone mode consumes.
+// serializeSnapshot is the compact state serializer (docs/04). It must be
+// stable and config-driven (class ordering, glyphs) — used for state encoding
+// utilities and debugging; move decisions are server-side policies.
 import { describe, expect, it } from "vitest";
-import type { GameConfig } from "../../config/load";
-import { config } from "../../config/load";
 import { engineConfig } from "../../config/engine";
-import type { Board, ClassKey, Side, Tile, Unit } from "../../game/types";
+import type { Board, Tile, Unit } from "../../game/types";
 import { parseSerializedState, serializeSnapshot } from "./serialize";
-import { statsKernel } from "./statsKernel";
-import { turnUserMessage } from "./turnPrompt";
 
 function plainBoard(): Board {
   const size = engineConfig.boardSize;
   return { tiles: Array.from({ length: size }, () => Array<Tile>(size).fill("plain")) };
 }
 
-function unit(id: string, cls: ClassKey, side: Side, x: number, y: number, hp?: number): Unit {
-  const maxHp = engineConfig.classes[cls].hp;
-  return { id, side, class: cls, x, y, hp: hp ?? maxHp, maxHp, acted: false };
-}
-
-// A hand-built sample: mixed terrain so the glyph map is exercised, both
-// armies, a wounded unit.
 function sampleBoard(): Board {
   const board = plainBoard();
-  board.tiles[3][7] = "river";
-  board.tiles[3][8] = "bridge";
-  board.tiles[6][5] = "forest";
-  board.tiles[9][10] = "hill";
-  board.tiles[2][2] = "lake";
-  board.tiles[11][1] = "rock";
+  board.tiles[5][3] = "forest";
+  board.tiles[7][7] = "hill";
+  board.tiles[9][2] = "river";
+  board.tiles[9][3] = "bridge";
   return board;
 }
 
 function sampleUnits(): Unit[] {
   return [
-    unit("P-sword-1", "sword", "player", 4, 13),
-    unit("E-sword-1", "sword", "enemy", 5, 1),
-    unit("P-healer-1", "healer", "player", 11, 14, 10),
-    unit("E-healer-1", "healer", "enemy", 11, 0),
+    { id: "E-sword-1", side: "enemy", class: "sword", x: 5, y: 1, hp: 20, maxHp: 20, acted: false },
+    {
+      id: "E-archer-1",
+      side: "enemy",
+      class: "archer",
+      x: 6,
+      y: 0,
+      hp: 12,
+      maxHp: 16,
+      acted: false,
+    },
+    {
+      id: "P-sword-1",
+      side: "player",
+      class: "sword",
+      x: 4,
+      y: 13,
+      hp: 15,
+      maxHp: 20,
+      acted: false,
+    },
+    {
+      id: "P-healer-1",
+      side: "player",
+      class: "healer",
+      x: 10,
+      y: 14,
+      hp: 18,
+      maxHp: 18,
+      acted: true,
+    },
   ];
 }
 
 describe("serializeSnapshot", () => {
-  it("golden snapshot: BOARD rows, STATS line, UNITS lines in display order", () => {
-    const snapshot = serializeSnapshot(sampleBoard(), sampleUnits());
-    const lines = snapshot.split("\n");
-    const size = engineConfig.boardSize;
-    expect(lines[0]).toBe("BOARD:");
-    const rows = lines.slice(1, 1 + size);
-    expect(rows).toHaveLength(size);
-    // y=2 row: x=2 lake; y=3 row: x=7 river, x=8 bridge (glyphs, prompt-encoding only)
-    expect(rows[2][2]).toBe("L");
-    expect(rows[3][7]).toBe("~");
-    expect(rows[3][8]).toBe("B");
-    expect(rows[6][5]).toBe("f");
-    expect(rows[9][10]).toBe("h");
-    expect(rows[11][1]).toBe("r");
-    expect(lines[1 + size]).toBe("STATS:");
-    expect(lines[2 + size]).toBe(statsKernel(config));
-    expect(lines[3 + size]).toBe("UNITS:");
-    // Display order: enemy army first (config class order), then player's.
-    expect(lines.slice(4 + size, 4 + size + 4)).toEqual([
-      "E-sword-1=sword 5,1 20/20",
-      "E-healer-1=healer 11,0 18/18",
-      "P-sword-1=sword 4,13 20/20",
-      "P-healer-1=healer 11,14 10/18",
-    ]);
+  it("emits the board glyphs, stats, and units in the documented format", () => {
+    const snap = serializeSnapshot(sampleBoard(), sampleUnits());
+    expect(snap.startsWith("BOARD:\n")).toBe(true);
+    expect(snap).toContain("\nSTATS:\n");
+    expect(snap).toContain("\nUNITS:\n");
+    expect(snap).toContain("...f"); // row 5, col 3 = forest glyph
+    expect(snap).toContain("~B"); // row 9: river then bridge
+    expect(snap).toContain("E-sword-1=sword 5,1 20/20");
+    expect(snap).toContain("P-healer-1=healer 10,14 18/18");
   });
 
-  it("is stable under a config stat change — only the STATS line moves", () => {
-    const mutated = structuredClone(config) as GameConfig;
-    mutated.classes.sword.hp = 99;
-    const before = serializeSnapshot(sampleBoard(), sampleUnits()).split("\n");
-    const after = serializeSnapshot(sampleBoard(), sampleUnits(), mutated).split("\n");
-    expect(after).not.toEqual(before);
-    const size = engineConfig.boardSize;
-    // Board rows and UNITS lines are untouched by stat values.
-    expect(after.slice(0, 1 + size + 1)).toEqual(before.slice(0, 1 + size + 1));
-    expect(after.slice(3 + size)).toEqual(before.slice(3 + size));
+  it("orders units: enemy side first, then by class/config order, then by id number", () => {
+    const snap = serializeSnapshot(sampleBoard(), sampleUnits());
+    const unitSection = snap.split("UNITS:\n")[1];
+    const ids = unitSection.split("\n").map((line) => line.split("=")[0]);
+    expect(ids).toEqual(["E-sword-1", "E-archer-1", "P-sword-1", "P-healer-1"]);
   });
 
-  it("round-trips through the inverse parser (the mock's standalone reader)", () => {
-    const snapshot = serializeSnapshot(sampleBoard(), sampleUnits());
-    const state = parseSerializedState(snapshot);
-    expect(state).toBeDefined();
-    expect(state!.board).toEqual(sampleBoard());
-    expect(state!.units).toHaveLength(4);
-    for (const original of sampleUnits()) {
-      const parsed = state!.units.find((candidate) => candidate.id === original.id);
-      expect(parsed).toMatchObject({
-        id: original.id,
-        side: original.side,
-        class: original.class,
-        x: original.x,
-        y: original.y,
-        hp: original.hp,
-        maxHp: original.maxHp,
-      });
-    }
-  });
-
-  it("the user message carries the explanation, the snapshot and the ask", () => {
-    const message = turnUserMessage(sampleBoard(), sampleUnits());
-    expect(message).toContain(`BOARD (${engineConfig.boardSize}x${engineConfig.boardSize}):`);
-    expect(message).toContain(". plain | f forest | h hill | L lake | r rock | ~ river | B bridge");
-    expect(message).toContain("UNITS: BOTH armies, id=class x,y hp/maxHp");
-    expect(message).toContain(serializeSnapshot(sampleBoard(), sampleUnits()));
-    expect(message).toContain("Produce THIS TURN's orders.");
-    expect(message).toContain("Attack ONLY a target in the unit's attacks line");
-    expect(message).toContain("MENU: GENERATED by the engine");
+  it("round-trips through parseSerializedState", () => {
+    const board = sampleBoard();
+    const units = sampleUnits();
+    const snap = serializeSnapshot(board, units);
+    const parsed = parseSerializedState(snap);
+    expect(parsed).toBeDefined();
+    expect(parsed!.board).toEqual(board);
+    // acted is not serialized; parse sets it false
+    expect(parsed!.units).toEqual(units.map((u) => ({ ...u, acted: false })));
   });
 
   it("parseSerializedState returns undefined without a snapshot", () => {

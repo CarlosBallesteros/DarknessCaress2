@@ -1,145 +1,41 @@
-// The AI-turn validation loop (docs/04) — the meat. The golden design rule:
-// the LLM decides, the engine executes. The model computes ZERO damage,
-// ZERO counters, ZERO deaths — it only returns movement/action intents,
-// which src/game/applyMoves validates and executes against the row's
-// authoritative state. Any illegal intent bounces back to the model with a
-// precise complaint, bounded by config.ai.moveRetries; nothing ever quietly
-// degrades, and no heuristic ever plays the enemy army.
-import { config } from "../../config/load";
+// The AI-turn job (docs/04): server-side menu-choice policy, no LLM. The golden
+// rule still holds — the engine executes. The policy only selects from
+// engine-generated legal options; `applyMoves` validates and applies the
+// expanded bundle against the authoritative state. Moves are computed in one
+// shot (instant, deterministic per persona except erratic randomness).
 import { engineConfig } from "../../config/engine";
 import { applyMoves, checkVictory } from "../../game/apply";
-import { pathTo } from "../../game/reach";
-import type { Move } from "../../game/types";
 import { completeAiTurn, getGameById, markAiTurnFailed } from "../games/repo";
 import { toAiActions } from "./aiActions";
-import { getLlmClient, type ChatMessage } from "./llmClient";
-import { turnSystemPrompt, turnUserMessage } from "./turnPrompt";
-import { turnMovesSchema } from "./turnSchema";
-
-function distance(ax: number, ay: number, bx: number, by: number): number {
-  return Math.abs(ax - bx) + Math.abs(ay - by);
-}
-
-const SCHEMA_FAIL_MESSAGE = "Your reply was not valid JSON matching the schema.";
+import { computePolicyOrders, expandOrders } from "./policy";
 
 export async function runAiTurn(gameId: string): Promise<void> {
   const row = await getGameById(gameId);
   if (row === undefined || row.status !== "ai_turn") {
     return;
   }
-  const personality = config.personalities[row.difficulty];
-  if (personality === undefined) {
-    // Config drift (a persona removed after the game was created): the job
-    // can never succeed — it surfaces through the same failure channel as
-    // every other job, never a heuristic fallback.
-    await markAiTurnFailed(gameId, `unknown difficulty "${row.difficulty}"`);
-    return;
-  }
 
-  const enemyUnitCount = row.units.filter((unit) => unit.side === "enemy").length;
-  const messages: ChatMessage[] = [
-    { role: "system", content: turnSystemPrompt(row.difficulty) },
-    { role: "user", content: turnUserMessage(row.board, row.units) },
-  ];
-  const promptChars = messages.reduce((sum, message) => sum + message.content.length, 0);
   const startedAt = Date.now();
-  let lastError = "";
-
-  for (let attempt = 1; attempt <= config.ai.moveRetries; attempt++) {
-    let raw: unknown;
-    try {
-      raw = await getLlmClient().turn({ messages, temperature: personality.temperature });
-    } catch {
-      // Unparsable or undeliverable reply — counted as a failed attempt,
-      // never a crashed process (docs/04).
-      lastError = SCHEMA_FAIL_MESSAGE;
-      messages.push({ role: "user", content: SCHEMA_FAIL_MESSAGE });
-      continue;
-    }
-    // Destination-only orders (docs/04 menu amendment): zod first, then the
-    // deterministic engine-owned expansion of `to` → full legal path.
-    const parsed = turnMovesSchema(enemyUnitCount).safeParse(raw);
-    if (!parsed.success) {
-      lastError = SCHEMA_FAIL_MESSAGE;
-      messages.push({ role: "assistant", content: JSON.stringify(raw) });
-      messages.push({ role: "user", content: SCHEMA_FAIL_MESSAGE });
-      continue;
-    }
-    const expanded: Move[] = [];
-    let expansionError: string | null = null;
-    for (const order of parsed.data.moves) {
-      const unit = row.units.find((u) => u.side === "enemy" && u.id === order.unitId);
-      if (unit === undefined) {
-        // Defer to the engine's catalogue message via a fake rejection — the
-        // bundle is atomic, so one bad order rejects the whole attempt.
-        expansionError = `unknown unit ${order.unitId}`;
-        break;
-      }
-      const dest = order.to ?? ([unit.x, unit.y] as [number, number]);
-      const path = pathTo(row.board, row.units, unit, dest, engineConfig);
-      if (path === null) {
-        expansionError = `${order.unitId}: to (${dest[0]},${dest[1]}) is not in the unit's reachable menu — pick a reachable tile`;
-        break;
-      }
-      // Menu-pair enforcement (docs/04): reject actions that are impossible from
-      // this destination BEFORE applyMoves, so the model gets a precise "not in
-      // your menu" message instead of a generic engine distance rejection. This
-      // is the hard stop against hallucinated attacks from units with no attack
-      // options (a move-only line means every player unit is out of reach).
-      const action = order.action;
-      if (action.type === "attack") {
-        const cls = config.classes[unit.class];
-        const target = row.units.find((u) => u.id === action.targetId && u.side !== unit.side);
-        const inRange =
-          target !== undefined &&
-          (cls.range as number[]).includes(distance(dest[0], dest[1], target.x, target.y));
-        if (!inRange) {
-          expansionError = `${order.unitId}: cannot attack ${action.targetId} from (${dest[0]},${dest[1]}) - that (target, to) pair is not in this unit's attacks menu (or the unit has no attacks line this turn). Pick a paired attack option, or a move/wait.`;
-          break;
-        }
-      } else if (action.type === "heal") {
-        const cls = config.classes[unit.class];
-        const target = row.units.find((u) => u.id === action.targetId && u.side === unit.side);
-        const adjacent =
-          target !== undefined && distance(dest[0], dest[1], target.x, target.y) === 1;
-        if (!("healAmount" in cls) || !adjacent) {
-          expansionError = `${order.unitId}: cannot heal ${action.targetId} from (${dest[0]},${dest[1]}) - that (ally, to) pair is not in this unit's heals menu. Pick a paired heal option, or a move/wait.`;
-          break;
-        }
-      }
-      expanded.push({ unitId: order.unitId, path, action: order.action });
-    }
-    if (expansionError !== null) {
-      lastError = expansionError;
-      messages.push({ role: "assistant", content: JSON.stringify(raw) });
-      messages.push({
-        role: "user",
-        content: `${expansionError}\nResubmit the FULL corrected move list — every \`to\` must come from the unit's reachable menu.`,
-      });
-      continue;
-    }
+  try {
+    const orders = computePolicyOrders(row.board, row.units, row.difficulty);
+    const expanded = expandOrders(row.board, row.units, orders, engineConfig);
     const applied = applyMoves(
       { board: row.board, units: row.units },
       expanded,
       "enemy",
       engineConfig,
     );
+
     if (!applied.ok) {
-      // The engine's exact rejection (docs/02 catalogue), prefixed with the
-      // bundle's unit ids for context, plus the full-resubmit instruction.
-      lastError = applied.error;
-      messages.push({ role: "assistant", content: JSON.stringify(raw) });
-      messages.push({
-        role: "user",
-        content: `${expanded.map((move) => move.unitId).join(", ")}: ${applied.error}\nResubmit the FULL corrected move list.`,
-      });
-      continue;
+      // Unexpected: policy should only emit legal bundles. Surface via the
+      // failure channel (stale sweep may re-trigger; policy is pure so re-run
+      // is safe) rather than crashing or guessing.
+      await markAiTurnFailed(gameId, applied.error);
+      return;
     }
 
-    // SUCCESS (docs/04): persist conditionally — if the game left ai_turn
-    // meanwhile (a forfeit during the thinking), the result is DISCARDED and
-    // the forfeit's lost stands. Never won: docs/06's status matrix has no
-    // ai_turn → won.
+    // Persist conditionally (docs/04, 06): if the game left ai_turn
+    // meanwhile (forfeit during execution), discard. Never won: no ai_turn → won.
     const status = checkVictory(applied.result.state.units) === "enemy" ? "lost" : "player_turn";
     await completeAiTurn(gameId, {
       status,
@@ -152,17 +48,11 @@ export async function runAiTurn(gameId: string): Promise<void> {
         call: "turn",
         gameId,
         durationMs: Date.now() - startedAt,
-        promptChars,
-        responseChars: JSON.stringify(raw).length,
-        attempt,
+        policy: row.difficulty,
+        moves: expanded.length,
       }),
     );
-    return;
+  } catch (err) {
+    await markAiTurnFailed(gameId, err instanceof Error ? err.message : String(err));
   }
-
-  // Exhausted (docs/04): ai_last_error set, status stays ai_turn,
-  // turn_number unchanged, updated_at = now() (fresh sweep timer — a failed
-  // game waits a full stale window before sweeping again). The stale sweep
-  // re-triggers with a full fresh prompt and retries reset. NO fallback AI.
-  await markAiTurnFailed(gameId, lastError);
 }

@@ -1,15 +1,12 @@
-// statsKernel (docs/04 test list #5): the emitted STATS line matches the
-// documented format, is entirely config-driven (mutating the config changes
-// the line — adding a class included), and the persona/digest prose never
-// changes with it (they are code constants, no stat literals).
+// statsKernel (docs/04): the emitted STATS line matches the documented format,
+// is entirely config-driven (mutating the config changes the line), and stays
+// independent of move-decision logic (moves are server-side policies).
 import { describe, expect, it } from "vitest";
 import type { GameConfig } from "../../config/load";
 import { config } from "../../config/load";
 import { statsKernel } from "./statsKernel";
-import { turnSystemPrompt } from "./turnPrompt";
 
 function expectLine(key: string): RegExp {
-  // <class>=hp<hp>/atk<atk>/def<def>/mov<mov>/rng<range>/role<role>[/heal<n>]
   const cls = config.classes[key];
   const rng = cls.range.length > 0 ? cls.range.join(",") : "0";
   const heal = cls.healAmount !== undefined ? `\\/heal${cls.healAmount}` : "";
@@ -66,15 +63,5 @@ describe("statsKernel", () => {
     const line = statsKernel(mutated);
     expect(line).toContain("dragon=hp30/atk9/def4/mov6/rng1,2/role-attacker");
     expect(line.split(" | ")).toHaveLength(Object.keys(mutated.classes).length);
-  });
-
-  it("the persona/digest prose never changes with the config (no stat literals)", () => {
-    const prompt = turnSystemPrompt("aggressive");
-    expect(prompt).toContain("PERSONA: Hunt them without mercy.");
-    expect(prompt).toContain("RANGE lists may skip distances");
-    // The system prompt carries NO serialized stats — the kernel is the only
-    // config-derived part of the prompt system.
-    expect(prompt).not.toContain("/role");
-    expect(prompt).not.toContain("rng");
   });
 });
