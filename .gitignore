@@ -5,5 +5,6 @@ coverage/
 test-results/
 playwright-report/
 client/public/assets/
+*.tsbuildinfo
 
 docker-compose.play.yml

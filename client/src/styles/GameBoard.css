@@ -1,13 +1,1 @@
-.gameboard {
-  padding: 1rem;
-}
-.board {
-  border: 1px solid var(--line);
-  background: var(--tile-plain);
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  aspect-ratio: 1;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-}
+/* Phase 1 scaffold */

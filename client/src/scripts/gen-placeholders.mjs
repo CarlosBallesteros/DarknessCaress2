@@ -1,15 +1,16 @@
-/* global process */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PNG } from "pngjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, "../../../");
-const CONFIG_PATH = path.join(ROOT, "server/src/config/config.json");
-const ASSETS = path.resolve(__dirname, "../../public/assets");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientRoot = path.resolve(__dirname, "../..");
+const repoRoot = path.resolve(clientRoot, "..");
+const configPath = path.join(repoRoot, "server/src/config/config.json");
+const assetsRoot = path.join(clientRoot, "public/assets");
 
-const PALETTE = {
+const baselinePalette = {
   sword: "#7a86a8",
   axe: "#a87b4f",
   spear: "#7aa87b",
@@ -18,7 +19,7 @@ const PALETTE = {
   healer: "#a8d0c0",
 };
 
-const TERRAIN = {
+const terrainColors = {
   plain: "#c8b47a",
   forest: "#6f8b4f",
   hill: "#a08553",
@@ -28,88 +29,86 @@ const TERRAIN = {
   rock: "#6e6659",
 };
 
-const HERO_COLOR = "#201d29";
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "");
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16),
+  };
+}
+
+function darken(rgb, factor) {
+  return {
+    r: Math.max(0, Math.min(255, Math.round(rgb.r * factor))),
+    g: Math.max(0, Math.min(255, Math.round(rgb.g * factor))),
+    b: Math.max(0, Math.min(255, Math.round(rgb.b * factor))),
+  };
+}
 
 function hashColor(key) {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) {
-    h = ((h << 5) - h + key.charCodeAt(i)) | 0;
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   }
-  const r = (h >> 16) & 0xff;
-  const g = (h >> 8) & 0xff;
-  const b = h & 0xff;
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+  const r = 64 + ((hash & 0xff) % 160);
+  const g = 64 + (((hash >> 8) & 0xff) % 160);
+  const b = 64 + (((hash >> 16) & 0xff) % 160);
+  return { r, g, b };
 }
 
-function classColor(key) {
-  return PALETTE[key] ?? hashColor(key);
+function classColor(classKey) {
+  const hex = baselinePalette[classKey];
+  return hex ? hexToRgb(hex) : hashColor(classKey);
 }
 
-function darken(color, factor = 0.6) {
-  const m = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
-  if (!m) return color;
-  const r = Math.round(parseInt(m[1], 16) * factor);
-  const g = Math.round(parseInt(m[2], 16) * factor);
-  const b = Math.round(parseInt(m[3], 16) * factor);
-  const toHex = (v) => v.toString(16).padStart(2, "0");
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
-function parseColor(color) {
-  const m = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
-  return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
-}
-
-function fill(png, color) {
-  const [r, g, b] = parseColor(color);
-  for (let i = 0; i < png.data.length; i += 4) {
-    png.data[i] = r;
-    png.data[i + 1] = g;
-    png.data[i + 2] = b;
-    png.data[i + 3] = 255;
-  }
-}
-
-function writePng(file, width, height, color) {
-  const png = new PNG({ width, height });
-  fill(png, color);
-  fs.writeFileSync(file, PNG.sync.write(png));
-}
-
-function ensure(dir) {
+function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-function main() {
-  const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
-  const classKeys = Object.keys(config.classes);
-  const themeIds = config.themes.map((t) => t.id);
-
-  for (const themeId of themeIds) {
-    for (const classKey of classKeys) {
-      const dir = path.join(ASSETS, themeId, classKey);
-      ensure(dir);
-      const color = classColor(classKey);
-      const enemy = darken(color);
-      writePng(path.join(dir, "portrait-player.png"), 512, 512, color);
-      writePng(path.join(dir, "portrait-enemy.png"), 512, 512, enemy);
-      writePng(path.join(dir, "portrait-player-full.png"), 512, 768, color);
-      writePng(path.join(dir, "portrait-enemy-full.png"), 512, 768, enemy);
-      writePng(path.join(dir, "sprite-player.png"), 128, 128, color);
-      writePng(path.join(dir, "sprite-enemy.png"), 128, 128, enemy);
+function writeSolidPng(filePath, width, height, rgb) {
+  ensureDir(path.dirname(filePath));
+  const png = new PNG({ width, height });
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const idx = (width * y + x) << 2;
+      png.data[idx] = rgb.r;
+      png.data[idx + 1] = rgb.g;
+      png.data[idx + 2] = rgb.b;
+      png.data[idx + 3] = 255;
     }
   }
+  fs.writeFileSync(filePath, PNG.sync.write(png));
+}
 
-  ensure(path.join(ASSETS, "terrain"));
-  for (const [tile, color] of Object.entries(TERRAIN)) {
-    writePng(path.join(ASSETS, "terrain", `${tile}.png`), 64, 64, color);
+function main() {
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const classes = Object.keys(config.classes ?? {});
+  const themeId = config.themes?.[0]?.id ?? "warriors-europe";
+
+  // Universal terrain (7 files)
+  for (const [tile, hex] of Object.entries(terrainColors)) {
+    writeSolidPng(path.join(assetsRoot, "terrain", `${tile}.png`), 128, 128, hexToRgb(hex));
   }
 
-  ensure(path.join(ASSETS, "hero"));
-  writePng(path.join(ASSETS, "hero", "landscape.png"), 1920, 1080, HERO_COLOR);
+  // Universal hero
+  writeSolidPng(path.join(assetsRoot, "hero", "landscape.png"), 1920, 1080, hexToRgb("#201d29"));
 
-  process.stdout.write(
-    `gen-placeholders: ${classKeys.length} classes x ${themeIds.length} themes + terrain + hero\n`,
+  // Theme army files: 6 per class
+  for (const classKey of classes) {
+    const player = classColor(classKey);
+    const enemy = darken(player, 0.6);
+    const dir = path.join(assetsRoot, themeId, classKey);
+    writeSolidPng(path.join(dir, "portrait-player.png"), 512, 512, player);
+    writeSolidPng(path.join(dir, "portrait-enemy.png"), 512, 512, enemy);
+    writeSolidPng(path.join(dir, "portrait-player-full.png"), 512, 768, player);
+    writeSolidPng(path.join(dir, "portrait-enemy-full.png"), 512, 768, enemy);
+    writeSolidPng(path.join(dir, "sprite-player.png"), 128, 128, player);
+    writeSolidPng(path.join(dir, "sprite-enemy.png"), 128, 128, enemy);
+  }
+
+  console.log(
+    `Generated placeholders: ${classes.length * 6} theme files, ${Object.keys(terrainColors).length} terrain files, 1 hero file.`,
   );
 }
 

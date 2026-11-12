@@ -1,3 +1,2 @@
-export interface HealthResponse {
-  ok: boolean;
-}
+// API DTO types placeholder (mirrors 06).
+export {};

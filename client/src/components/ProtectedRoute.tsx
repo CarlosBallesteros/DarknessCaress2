@@ -1,7 +1,5 @@
-import { Navigate, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { pathname } = useLocation();
-  const token = localStorage.getItem("dc_session");
-  return token ? <>{children}</> : <Navigate to="/login" state={{ from: pathname }} replace />;
+export function ProtectedRoute({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }

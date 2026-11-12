@@ -1,3 +1,2 @@
-export async function getMeta() {
-  return fetch("/api/meta", { credentials: "include" });
-}
+// Meta API client placeholder (phase 2+).
+export {};

@@ -71,12 +71,12 @@
   },
   "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],
   "lore": {
-    "sword": "The steel that holds the line.",
-    "axe": "Heavy hands, heavier blows.",
-    "spear": "Reach before they reach you.",
-    "archer": "Death from beyond the blade.",
-    "mage": "Arcane force, carefully aimed.",
-    "healer": "Mends the wounded, keeps them standing."
+    "sword": "Placeholder lore for swordsmen.",
+    "axe": "Placeholder lore for axemen.",
+    "spear": "Placeholder lore for spearmen.",
+    "archer": "Placeholder lore for archers.",
+    "mage": "Placeholder lore for mages.",
+    "healer": "Placeholder lore for healers."
   },
   "ai": {
     "moveRetries": 3,
