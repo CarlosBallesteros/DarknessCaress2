@@ -12,4 +12,20 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    files: ["src/game/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/features/**", "../features/**", "../../features/**"],
+              message: "The game engine must not import from features/.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );
