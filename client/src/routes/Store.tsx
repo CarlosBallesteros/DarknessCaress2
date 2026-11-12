@@ -8,7 +8,9 @@ export function Store() {
         <div className="store-card">
           <h1 id="store-title">Store</h1>
           <p className="coming-soon">Coming soon…</p>
-          <p className="store-copy">New themes and cosmetics will appear here in a future update.</p>
+          <p className="store-copy">
+            New themes and cosmetics will appear here in a future update.
+          </p>
         </div>
       </section>
     </main>
