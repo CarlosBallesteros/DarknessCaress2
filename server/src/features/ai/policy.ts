@@ -356,10 +356,9 @@ export function computePolicyOrders(
 
     // Simulate primary attack damage so later orders don't target a unit this
     // bundle will kill (applyMoves is sequential; a dead target can't be hit again).
-    if (order.action.type === "attack") {
-      const targetIdx = planned.findIndex(
-        (u) => u.id === order.action.targetId && u.side === "player",
-      );
+    const action = order.action;
+    if (action.type === "attack") {
+      const targetIdx = planned.findIndex((u) => u.id === action.targetId && u.side === "player");
       if (targetIdx >= 0) {
         const attackerCls = config.classes[unit.class];
         const target = planned[targetIdx];
