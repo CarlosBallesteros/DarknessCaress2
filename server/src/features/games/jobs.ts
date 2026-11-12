@@ -19,16 +19,28 @@ export function isJobActive(gameId: string): boolean {
   return activeJobs.has(gameId);
 }
 
+function launchJob(gameId: string, task: () => Promise<void>): void {
+  if (activeJobs.has(gameId)) return;
+  activeJobs.set(gameId, Date.now());
+
+  void (async () => {
+    try {
+      await task();
+    } finally {
+      activeJobs.delete(gameId);
+    }
+  })().catch(() => {
+    // defensive: should not happen
+  });
+}
+
 export function runBoardGenerationJob(
   pool: Pool,
   config: AppConfig,
   llm: LlmClient,
   gameId: string,
 ): void {
-  if (activeJobs.has(gameId)) return;
-  activeJobs.set(gameId, Date.now());
-
-  void (async () => {
+  launchJob(gameId, async () => {
     try {
       const row = await findGameById(pool, gameId);
       if (!row || row.status !== "generating_board") {
@@ -43,28 +55,17 @@ export function runBoardGenerationJob(
       } catch {
         // best-effort failure recording; sweep will retry later
       }
-    } finally {
-      activeJobs.delete(gameId);
     }
-  })().catch(() => {
-    // defensive: should not happen
   });
 }
 
 export function runAiTurnJob(pool: Pool, config: AppConfig, gameId: string): void {
-  if (activeJobs.has(gameId)) return;
-  activeJobs.set(gameId, Date.now());
-
-  void (async () => {
+  launchJob(gameId, async () => {
     try {
       await runAiTurn(pool, config, gameId);
     } catch {
       // runAiTurn handles persistence on failure; swallow to avoid unhandled rejections
-    } finally {
-      activeJobs.delete(gameId);
     }
-  })().catch(() => {
-    // defensive
   });
 }
 
