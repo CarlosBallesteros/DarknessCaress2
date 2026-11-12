@@ -1,18 +1,18 @@
 {
-  "name": "darkness-caress-2",
+  "name": "darknesscaress2",
   "private": true,
+  "description": "Darkness Caress II — turn-based tactics game",
   "workspaces": [
     "client",
     "server"
   ],
   "scripts": {
+    "build": "npm -w server run build && npm -w client run build",
     "lint": "npm -w server run lint && npm -w client run lint",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "test": "npm -w server test && npm -w client test",
-    "build": "npm -w client run build && npm -w server run build"
+    "test": "npm -w server run test && npm -w client run test",
+    "gen:placeholders": "npm -w client run gen:placeholders"
   },
   "devDependencies": {
-    "prettier": "^3.5.3"
+    "prettier": "^3.4.2"
   }
 }

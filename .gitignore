@@ -4,5 +4,6 @@ coverage/
 .env
 test-results/
 playwright-report/
+client/public/assets/
 
 docker-compose.play.yml
