@@ -111,7 +111,9 @@ test.describe.serial("phase 7 local e2e flow", () => {
 
     const activeCard = page.locator(".strip-row .game-card.active").first();
     await expect(activeCard).toBeVisible({ timeout: 30_000 });
-    await expect(activeCard).toContainText("Being designed");
+    // Mock generation can be near-instant; accept the transient "Being designed"
+    // state when observable, or an already-resolved "Your turn" card.
+    await expect(activeCard).toContainText(/Being designed|Your turn/);
 
     // wait for design to finish and card become playable
     await expect(activeCard).toContainText("Your turn", { timeout: 180_000 });
