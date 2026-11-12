@@ -12,6 +12,10 @@ function findUnit(units: Unit[], id: string): Unit | undefined {
   return units.find((u) => u.id === id);
 }
 
+function findUnitAt(units: Unit[], x: number, y: number): Unit | undefined {
+  return units.find((u) => u.x === x && u.y === y);
+}
+
 function manhattan(ax: number, ay: number, bx: number, by: number): number {
   return Math.abs(ax - bx) + Math.abs(ay - by);
 }
@@ -56,7 +60,7 @@ export function applyMoves(
       if (claimedFinals.has(finalKey)) {
         return { ok: false, error: `tile (${fx},${fy}) is claimed by two moves` };
       }
-      const occupant = findUnit(working.units, fx, fy);
+      const occupant = findUnitAt(working.units, fx, fy);
       if (occupant && occupant.id !== unit.id) {
         return {
           ok: false,

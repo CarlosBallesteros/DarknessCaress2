@@ -25,6 +25,18 @@ export interface Move {
     { type: "attack"; targetId: string } | { type: "heal"; targetId: string } | { type: "wait" };
 }
 
+export interface AppliedTurn {
+  events: Array<
+    | { kind: "moved"; unitId: string; from: [number, number]; to: [number, number] }
+    | { kind: "attack"; attackerId: string; targetId: string; damage: number; targetHp: number }
+    | { kind: "counter"; attackerId: string; targetId: string; damage: number; targetHp: number }
+    | { kind: "heal"; healerId: string; targetId: string; healed: number; targetHp: number }
+    | { kind: "died"; unitId: string }
+    | { kind: "wait"; unitId: string }
+  >;
+  state: { board: Board; units: Unit[] }; // NEW state; caller persists it
+}
+
 export interface GameEngineConfig {
   // projected from server/config.json — the engine never reads the file
   boardSize: number; // the ONE source of grid size — reach/parsing derive it from here
