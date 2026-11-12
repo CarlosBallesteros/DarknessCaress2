@@ -566,8 +566,9 @@ export function GameBoard() {
           <div
             className="board-grid"
             style={{
-              gridTemplateColumns: `repeat(${boardSize}, min(40px, calc((100vw - 32px) / ${boardSize})))`,
-              gridTemplateRows: `repeat(${boardSize}, min(40px, calc((100vw - 32px) / ${boardSize})))`,
+              gridTemplateColumns: `repeat(${boardSize}, var(--tile-size))`,
+              gridTemplateRows: `repeat(${boardSize}, var(--tile-size))`,
+              ["--tile-size" as string]: `clamp(28px, calc((min(100vw, 720px) - 2rem) / ${boardSize}), 44px)`,
             }}
           >
             {tiles.map((row, y) =>

@@ -1,5 +1,7 @@
 .champions-page {
-  padding: 1rem;
+  width: min(1200px, 100% - 2rem);
+  margin: 0 auto;
+  padding: 1.25rem 0 2rem;
 }
 .champions-grid {
   display: grid;
@@ -9,24 +11,30 @@
 .champion-card {
   background: var(--ink-raised);
   border: 1px solid var(--ink-border);
-  border-radius: 8px;
-  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
 }
 .role-badge {
   display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  margin-bottom: 0.5rem;
+  align-self: flex-start;
+  padding: 0.18rem 0.55rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.1rem;
 }
 .role-attacker {
-  background: rgba(201, 162, 39, 0.2);
+  background: rgba(201, 162, 39, 0.18);
   color: var(--gold-soft);
   border: 1px solid rgba(201, 162, 39, 0.4);
 }
 .role-supporter {
-  background: rgba(96, 176, 120, 0.2);
-  color: #9fe0b0;
+  background: rgba(96, 176, 120, 0.18);
+  color: var(--success-fg);
   border: 1px solid rgba(96, 176, 120, 0.4);
 }
 .portraits-row {
@@ -43,6 +51,7 @@
   background: transparent;
   width: 100%;
   cursor: pointer;
+  border-radius: var(--radius-sm);
 }
 .portrait-btn img {
   width: 100%;
@@ -50,11 +59,12 @@
   object-fit: cover;
   display: block;
   border: 1px solid var(--ink-border);
+  border-radius: var(--radius-sm);
 }
 .side-label {
   text-align: center;
-  font-size: 0.85rem;
-  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  margin-top: 0.25rem;
 }
 .side-label.player {
   color: var(--gold-soft);
@@ -63,31 +73,52 @@
   color: var(--blood-soft);
 }
 .champion-stats-block h2 {
-  margin: 0.5rem 0 0.25rem;
+  margin: 0.25rem 0;
+  font-size: 1.2rem;
 }
 .champion-stats-block ul {
   margin: 0;
-  padding-left: 1rem;
+  padding-left: 1.1rem;
   columns: 2;
+  gap: 1rem;
 }
 .champion-lore {
-  margin-top: 0.5rem;
+  margin: 0.2rem 0 0;
   color: var(--text-dim);
+  font-size: 0.95rem;
 }
 .lightbox {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.82);
   display: grid;
   place-items: center;
+  padding: 1rem;
   z-index: 40;
+  overflow: auto;
 }
 .lightbox img {
-  max-width: 90vw;
+  max-width: min(92vw, 720px);
   max-height: 90vh;
+  width: auto;
+  height: auto;
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+}
+@media (max-width: 980px) {
+  .champions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 700px) {
+  .champions-page {
+    width: min(1200px, 100% - 1.5rem);
+  }
   .champions-grid {
     grid-template-columns: 1fr;
+  }
+  .champion-stats-block ul {
+    columns: 1;
   }
 }

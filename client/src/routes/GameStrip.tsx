@@ -227,7 +227,22 @@ export function GameStrip() {
       </section>
 
       {modalOpen ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !creating) {
+              setModalOpen(false);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !creating) {
+              setModalOpen(false);
+            }
+          }}
+          tabIndex={-1}
+        >
           <div className="modal">
             <h2>New battle</h2>
             <p>Choose a difficulty:</p>
