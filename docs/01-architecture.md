@@ -10,7 +10,7 @@
 | Backend | Node 22 (LTS, alpine), **Express 4**, TypeScript (strict), `cookie-parser`, `jsonwebtoken`, `bcrypt`, `pg` (node-postgres), `zod`, `express-rate-limit` |
 | Database | PostgreSQL 16 (alpine), plain SQL migrations, no ORM |
 | AI | Ollama (`ollama/ollama` image), model `qwen2.5:7b-instruct-q4_K_M` via `OLLAMA_MODEL` env |
-| Tests | Vitest (unit, both sides), Playwright (E2E, top-level `/e2e`) |
+| Tests | Vitest (unit, both sides), `supertest` + `@types/supertest` (server endpoint/integration tests, devDependencies), Playwright (E2E, top-level `/e2e`) |
 | Quality | ESLint 9 (flat config) + Prettier |
 | Deploy | docker-compose, 3 services, single VM (Oracle Always Free ARM, aarch64) — deploys on ANY Docker host; the free-tier A1 shape (1 OCPU / 6 GB) runs the full MVP (4/24 is optional growth, see `00` later hooks) |
 

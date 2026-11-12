@@ -1,6 +1,8 @@
 # Build Order — Phases, Acceptance, Prompts
 
 > The execution roadmap. For each phase: what to build, which docs the agent reads, and the acceptance checklist THE AGENT must satisfy before claiming done. Prompts to paste live in `10-prompts.md`. **Strictly sequential** — every phase builds on its green predecessor; no phase runs parallel to another.
+>
+> **Global quality gate (ALL phases):** in addition to each phase's checklist, `npm -w server run build` and `npm -w client run build` must both pass before a phase is claimed done. A phase whose artifact does not compile is NOT green, even where the per-phase list doesn't restate it. Rationale: Vitest/esbuild and ESLint do not type-check, so tsc/vite build failures are invisible to lint/test gates — this bit phases 2–3 (22 tsc errors shipped through two "green" phase verifications).
 
 ## Phase 0 — Prerequisites (owner, human)
 
@@ -35,7 +37,7 @@
 [ ] supertest-based endpoint tests: register→login→me→patch username→password change→logout round trip, all statuses per contract (incl. 400s)
 [ ] rate limit fires 429 on 11th rapid login attempt
 [ ] contract deviates NOWHERE from 06 (paths, status, message strings)
-[ ] lint/format/tests green; commit(s) "feat(phase-2): ...", pushed
+[ ] lint/format/tests/builds green; commit(s) "feat(phase-2): ...", pushed
 ```
 
 ## Phase 3 — Rules engine (pure `src/game/`)
@@ -96,7 +98,7 @@ Also: Vite dev proxy to server; production static serving works via express.stat
 
 ```
 [ ] Vitest suites green (api wrapper, usePolling, reducer, path-display helper)
-[ ] manual-vs-code review: every data-testid from 05 present; lint/format/tests green
+[ ] manual-vs-code review: every data-testid from 05 present; lint/format/tests/builds green
 [ ] dev flow works: register → login → land on /play (verified manually; Playwright covers it fully in phase 7)
 [ ] commit "feat(phase-6): ...", pushed
 ```
