@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { engineConfig } from "../../config/engine";
 import { applyMoves } from "../../game/apply";
 import { pathTo } from "../../game/reach";
-import type { Board, ClassKey, Move, Side, Tile, Unit } from "../../game/types";
+import type { Board, ClassKey, Side, Tile, Unit } from "../../game/types";
 import { turnUserMessage } from "./turnPrompt";
 import { env } from "../../env";
 import { briefSchema } from "../board/briefSchema";
@@ -43,7 +43,7 @@ describe("mock LlmClient", () => {
   it("turn() serves a queued fixture family by name", async () => {
     queueTurnFixtures(["turn.valid.json"]);
     const result = (await mockLlm.turn({ messages: [], temperature: 0.5 })) as {
-      moves: Move[];
+      moves: Array<{ unitId: string; to?: [number, number]; action: { type: "wait" } }>;
     };
     expect(result).toEqual({
       moves: [{ unitId: "E-sword-1", to: [4, 1], action: { type: "wait" } }],
@@ -64,8 +64,10 @@ describe("mock LlmClient", () => {
     ];
     const messages = [{ role: "user" as const, content: turnUserMessage(board, units) }];
 
-    const first = (await mockLlm.turn({ messages, temperature: 0.5 })) as { moves: Move[] };
-    const second = (await mockLlm.turn({ messages, temperature: 0.5 })) as { moves: Move[] };
+    const first = (await mockLlm.turn({ messages, temperature: 0.5 })) as {
+      moves: Array<{ unitId: string; to?: [number, number]; action: { type: "wait" } }>;
+    };
+    const second = (await mockLlm.turn({ messages, temperature: 0.5 })) as typeof first;
     expect(second).toEqual(first); // deterministic given the state
 
     // One entry for the id-sorted first unit; (5,1) is ally-occupied so the
@@ -104,7 +106,9 @@ describe("mock LlmClient", () => {
       unit("E-spear-2", "spear", "enemy", 5, 0),
     ];
     const messages = [{ role: "user" as const, content: turnUserMessage(board, units) }];
-    const result = (await mockLlm.turn({ messages, temperature: 0.5 })) as { moves: Move[] };
+    const result = (await mockLlm.turn({ messages, temperature: 0.5 })) as {
+      moves: Array<{ unitId: string; to?: [number, number]; action: { type: "wait" } }>;
+    };
     expect(result.moves).toEqual([{ unitId: "E-axe-1", action: { type: "wait" } }]);
   });
 
