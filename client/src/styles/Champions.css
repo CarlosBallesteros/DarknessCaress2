@@ -1,0 +1,6 @@
+.champions {
+  padding: 1rem;
+}
+.champions .placeholder {
+  color: var(--muted);
+}

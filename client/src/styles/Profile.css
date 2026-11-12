@@ -1,0 +1,6 @@
+.profile {
+  padding: 1rem;
+}
+.profile .placeholder {
+  color: var(--muted);
+}

@@ -1,0 +1,55 @@
+:root {
+  --bg: #201d29;
+  --panel: #2a2633;
+  --panel-2: #332d3e;
+  --text: #e8e4ea;
+  --muted: #9a92a3;
+  --line: #443c54;
+  --accent: #7a86a8;
+  --accent-dark: #5a5e7a;
+  --danger: #c96a6a;
+  --ok: #a8d0c0;
+
+  --tile-plain: #c8b47a;
+  --tile-forest: #6f8b4f;
+  --tile-hill: #a08553;
+  --tile-lake: #4b7ec2;
+  --tile-river: #4f97c4;
+  --tile-bridge: #8d6b3f;
+  --tile-rock: #6e6659;
+
+  --side-player: #e8e4ea;
+  --side-enemy: #1a161e;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  height: 100%;
+}
+
+#root {
+  height: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}

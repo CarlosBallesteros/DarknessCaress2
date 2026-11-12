@@ -1,0 +1,6 @@
+.statistics {
+  padding: 1rem;
+}
+.statistics .placeholder {
+  color: var(--muted);
+}

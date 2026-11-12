@@ -1,0 +1,6 @@
+.gamestrip {
+  padding: 1rem;
+}
+.gamestrip .placeholder {
+  color: var(--muted);
+}
