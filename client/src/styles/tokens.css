@@ -1,8 +1,104 @@
 :root {
-  color-scheme: light dark;
+  /* sides & UI accents (mode-independent) */
+  --gold: #c9a227;
+  --gold-soft: #e2c25f;
+  --white-soft: #f2efe9;
+  --blood: #8a1c1c;
+  --blood-soft: #c0392b;
+
+  /* board tiles (mode-independent) */
+  --tile-plain: #c8b47a;
+  --tile-forest: #6f8b4f;
+  --tile-hill: #a08553;
+  --tile-lake: #4b7ec2;
+  --tile-river: #4f97c4;
+  --tile-bridge: #8d6b3f;
+  --tile-rock: #6e6659;
+
+  /* overlays: rgb triplets used in rgba() */
+  --overlay-move: 201 162 39;
+  --overlay-attack: 192 57 43;
+  --overlay-heal: 96 176 120;
+  --overlay-select: 242 239 233;
+  --overlay-inspect: 75 126 194;
+  --overlay-error: 220 20 60;
+  --hp-error-chip: #d9534f;
+
+  /* persona accents */
+  --persona-aggressive: #c0392b;
+  --persona-defensive: #4b7ec2;
+  --persona-erratic: #8a6fa8;
+
+  --font-display: "Blackletter", Georgia, "Times New Roman", serif;
+  --font-display-soft: "Blackletter-Shadow", Georgia, "Times New Roman", serif;
+}
+
+/* semantic tokens */
+:root,
+:root[data-ui-mode="dark"] {
+  color-scheme: dark;
+  --ink: #14121a;
+  --ink-raised: #201d29;
+  --ink-border: #37324a;
+  --text: #ded9e8;
+  --text-dim: #9a94ad;
+}
+:root[data-ui-mode="light"] {
+  color-scheme: light;
+  --ink: #efe9dc;
+  --ink-raised: #f7f2e8;
+  --ink-border: #cfc3a9;
+  --text: #33302a;
+  --text-dim: #6b6355;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  background: var(--ink);
+  color: var(--text);
+}
+
+a {
+  color: var(--gold-soft);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+main {
+  min-height: 100vh;
+}
+
+.error-banner {
+  background: rgba(138, 28, 28, 0.25);
+  border: 1px solid var(--blood-soft);
+  color: #ffd9d9;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin: 0.5rem 0;
+}
+
+.success-text {
+  color: #9fe0b0;
+}
+
+.spinner {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-dim);
 }

@@ -1,1 +1,93 @@
-/* Phase 1 scaffold */
+.champions-page {
+  padding: 1rem;
+}
+.champions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+.champion-card {
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+.role-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+.role-attacker {
+  background: rgba(201, 162, 39, 0.2);
+  color: var(--gold-soft);
+  border: 1px solid rgba(201, 162, 39, 0.4);
+}
+.role-supporter {
+  background: rgba(96, 176, 120, 0.2);
+  color: #9fe0b0;
+  border: 1px solid rgba(96, 176, 120, 0.4);
+}
+.portraits-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.portraits-row figure {
+  margin: 0;
+}
+.portrait-btn {
+  padding: 0;
+  border: none;
+  background: transparent;
+  width: 100%;
+  cursor: pointer;
+}
+.portrait-btn img {
+  width: 100%;
+  aspect-ratio: 1/1;
+  object-fit: cover;
+  display: block;
+  border: 1px solid var(--ink-border);
+}
+.side-label {
+  text-align: center;
+  font-size: 0.85rem;
+  margin-top: 0.2rem;
+}
+.side-label.player {
+  color: var(--gold-soft);
+}
+.side-label.enemy {
+  color: var(--blood-soft);
+}
+.champion-stats-block h2 {
+  margin: 0.5rem 0 0.25rem;
+}
+.champion-stats-block ul {
+  margin: 0;
+  padding-left: 1rem;
+  columns: 2;
+}
+.champion-lore {
+  margin-top: 0.5rem;
+  color: var(--text-dim);
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: grid;
+  place-items: center;
+  z-index: 40;
+}
+.lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+}
+@media (max-width: 700px) {
+  .champions-grid {
+    grid-template-columns: 1fr;
+  }
+}

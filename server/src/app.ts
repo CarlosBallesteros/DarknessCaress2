@@ -1,5 +1,8 @@
 import cookieParser from "cookie-parser";
 import express, { type NextFunction, type Request, type Response } from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type pg from "pg";
 import { config, type AppConfig } from "./config/index.js";
 import { createPool } from "./db/pool.js";
@@ -13,6 +16,9 @@ import { createMetaRouter } from "./features/meta/router.js";
 import { createStatsRouter } from "./features/stats/router.js";
 import { createUsersRouter } from "./features/users/router.js";
 import { wrapAsync } from "./features/wrapAsync.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface ServerOptions {
   pool: pg.Pool;
@@ -72,6 +78,15 @@ export function createServer(options?: ServerOptions) {
       res.status(500).json({ error: "Internal server error" });
     }
   });
+
+  // Production SPA: serve built client and fall back to index.html for non-API routes.
+  const clientDist = path.resolve(__dirname, "../../client/dist");
+  if (fs.existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    app.get(/^\/(?!api(?:\/|$)).*/, (_req, res) => {
+      res.sendFile(path.join(clientDist, "index.html"));
+    });
+  }
 
   return app;
 }

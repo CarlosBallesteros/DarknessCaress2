@@ -1,1 +1,18 @@
-/* Phase 1 scaffold */
+.profile-page {
+  padding: 1rem;
+}
+.profile-cards {
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+}
+.profile-card {
+  width: min(520px, 100%);
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.profile-card h2 {
+  margin-top: 0;
+}
