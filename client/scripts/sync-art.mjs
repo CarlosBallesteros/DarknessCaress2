@@ -32,19 +32,15 @@ function sync() {
 
   let copied = 0;
 
-  // Fonts (universal)
-  copied += copyIfExists(
-    path.join(artDir, "font", "Blackletter-ExtraBold.woff2"),
-    "fonts/Blackletter-ExtraBold.woff2",
-  )
-    ? 1
-    : 0;
-  copied += copyIfExists(
-    path.join(artDir, "font", "Blackletter-Shadow.woff2"),
-    "fonts/Blackletter-Shadow.woff2",
-  )
-    ? 1
-    : 0;
+  // Fonts (universal): sync every .woff2 present in art/font so all in-repo fonts
+  // are usable in builds; known display fonts keep their canonical destinations.
+  const fontDir = path.join(artDir, "font");
+  if (existsSync(fontDir)) {
+    for (const file of readdirSync(fontDir)) {
+      if (!/\.woff2$/i.test(file)) continue;
+      if (copyIfExists(path.join(fontDir, file), `fonts/${file}`)) copied++;
+    }
+  }
 
   // Landing hero (universal)
   copied += copyIfExists(
@@ -74,21 +70,37 @@ function sync() {
 
   // Full portraits: prefer {side}_{class}.png, fall back to .jpg (copied with .png
   // destination name; browsers may not decode a mislabeled file, so prefer real PNGs).
+  // To avoid clobbering a real .png asset with mislabeled JPG bytes, skip non-PNG
+  // sources when a .png destination already exists.
   const fullDir = path.join(artDir, "unit_images_full");
   if (existsSync(fullDir)) {
     for (const file of readdirSync(fullDir)) {
       const m = /^(player|enemy)_([a-z0-9]+)\.(png|jpg|jpeg)$/i.exec(file);
       if (!m) continue;
       const [, side, cls, ext] = m;
-      // If a PNG exists for this base, skip non-PNG variants to prefer it.
       const base = `${side}_${cls}`;
       if (ext.toLowerCase() !== "png" && existsSync(path.join(fullDir, `${base}.png`))) {
         continue;
       }
+      const destRel = `warriors-europe/${cls.toLowerCase()}/portrait-${side.toLowerCase()}-full.png`;
+      if (ext.toLowerCase() !== "png" && existsSync(path.join(assetsDir, destRel))) {
+        continue;
+      }
+      if (copyIfExists(path.join(fullDir, file), destRel)) copied++;
+    }
+  }
+
+  // Sprites: {side}_{class}_sprite.png -> warriors-europe/{class}/sprite-{side}.png
+  const spritesDir = path.join(artDir, "unit_images_sprites");
+  if (existsSync(spritesDir)) {
+    for (const file of readdirSync(spritesDir)) {
+      const m = /^(player|enemy)_([a-z0-9]+)_sprite\.png$/i.exec(file);
+      if (!m) continue;
+      const [, side, cls] = m;
       if (
         copyIfExists(
-          path.join(fullDir, file),
-          `warriors-europe/${cls.toLowerCase()}/portrait-${side.toLowerCase()}-full.png`,
+          path.join(spritesDir, file),
+          `warriors-europe/${cls.toLowerCase()}/sprite-${side.toLowerCase()}.png`,
         )
       ) {
         copied++;
