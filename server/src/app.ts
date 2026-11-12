@@ -4,8 +4,11 @@ import type pg from "pg";
 import { config, type AppConfig } from "./config/index.js";
 import { createPool } from "./db/pool.js";
 import { loadEnv } from "./env.js";
+import { getLlmClient, type LlmClient } from "./features/ai/llmClient.js";
 import { createAuthRouter } from "./features/auth/router.js";
 import { createRequireAuth } from "./features/auth/requireAuth.js";
+import { createGamesRouter } from "./features/games/router.js";
+import { startBoardSweep } from "./features/games/jobs.js";
 import { createMetaRouter } from "./features/meta/router.js";
 import { createUsersRouter } from "./features/users/router.js";
 import { wrapAsync } from "./features/wrapAsync.js";
@@ -14,6 +17,7 @@ export interface ServerOptions {
   pool: pg.Pool;
   jwtSecret: string;
   config: AppConfig;
+  llm?: LlmClient;
 }
 
 function createBaseApp() {
@@ -30,7 +34,7 @@ function createBaseApp() {
 }
 
 export function createServer(options?: ServerOptions) {
-  const resolved =
+  const resolved: ServerOptions | null =
     options ??
     (() => {
       const databaseUrl = process.env.DATABASE_URL;
@@ -53,9 +57,11 @@ export function createServer(options?: ServerOptions) {
 
   const app = createBaseApp();
   const requireAuth = createRequireAuth(resolved.pool, resolved.jwtSecret);
+  const llm = resolved.llm ?? getLlmClient();
   app.use("/api", createMetaRouter(resolved.config));
   app.use("/api", createAuthRouter(resolved.pool, resolved.jwtSecret));
   app.use("/api", createUsersRouter(resolved.pool, resolved.config, requireAuth));
+  app.use("/api", createGamesRouter(resolved.pool, resolved.config, requireAuth, llm));
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     void err;
@@ -77,10 +83,15 @@ function isDirectRun(): boolean {
 if (isDirectRun()) {
   const env = loadEnv();
   const port = env.PORT;
+  const pool = createPool(env.DATABASE_URL);
+  const llm = getLlmClient();
+  // Interval sweep for stale background jobs (board design in phase 4; AI turns added in phase 5).
+  startBoardSweep(pool, config, llm);
   const app = createServer({
-    pool: createPool(env.DATABASE_URL),
+    pool,
     jwtSecret: env.JWT_SECRET,
     config,
+    llm,
   });
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
