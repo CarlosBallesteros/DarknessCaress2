@@ -3,10 +3,11 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "node scripts/sync-art.mjs && tsc --noEmit && vite build",
     "test": "vitest run",
     "lint": "eslint .",
-    "gen:placeholders": "node scripts/gen-placeholders.mjs"
+    "gen:placeholders": "node scripts/gen-placeholders.mjs",
+    "sync:art": "node scripts/sync-art.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

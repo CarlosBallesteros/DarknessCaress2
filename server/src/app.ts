@@ -1,16 +1,19 @@
 import express from "express";
 import cookieParser from "cookie-parser";
+import bcrypt from "bcrypt";
 import path from "node:path";
 import type { NextFunction, Request, Response } from "express";
 import { env } from "./env";
 import { config } from "./config/load";
 import { HttpError } from "./httpError";
+import { migrate } from "./db/migrate";
 import { authRouter } from "./features/auth/router";
 import { gamesRouter } from "./features/games/router";
 import { meta } from "./features/meta/meta";
 import { statsRouter } from "./features/stats/router";
 import { usersRouter } from "./features/users/router";
 import { sweepStaleJobsAllUsers } from "./features/games/jobs";
+import { findUserByEmail, insertUser } from "./features/users/repo";
 
 // The server-side interval sweep (docs/01): stale-job recovery for ALL users
 // on an in-process timer, so a failed background job recovers even when no
@@ -83,10 +86,39 @@ export function createServer(): express.Express {
   return app;
 }
 
+const DEFAULT_USER = {
+  email: "test@email.com",
+  username: "Player1",
+  password: "12345678",
+} as const;
+
+async function ensureDefaultUser(): Promise<void> {
+  if ((await findUserByEmail(DEFAULT_USER.email)) !== null) {
+    return;
+  }
+  // bcrypt cost 10 per docs/01 (same as registration).
+  const passwordHash = await bcrypt.hash(DEFAULT_USER.password, 10);
+  try {
+    await insertUser(DEFAULT_USER.email, DEFAULT_USER.username, passwordHash);
+    console.log(`seeded default user ${DEFAULT_USER.email}`);
+  } catch (err: unknown) {
+    // Idempotent safety: if a conflicting user exists (email/username), do not crash boot.
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`default user seed skipped: ${message}`);
+  }
+}
+
 // Boots only when run directly; tests import createServer() instead.
 if (require.main === module) {
-  startIntervalSweep();
-  createServer().listen(env.PORT, () => {
-    console.log(`server listening on port ${env.PORT}`);
+  void (async () => {
+    await migrate();
+    await ensureDefaultUser();
+    startIntervalSweep();
+    createServer().listen(env.PORT, () => {
+      console.log(`server listening on port ${env.PORT}`);
+    });
+  })().catch((err: unknown) => {
+    console.error("server failed to start:", err);
+    process.exitCode = 1;
   });
 }

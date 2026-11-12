@@ -71,18 +71,20 @@ Script is idempotent, runs on `npm run gen:placeholders` (client), and is part o
 
 If more than 3 steps are needed to add a theme, the implementation is WRONG — the convention above is the requirement.
 
-## Owner art staging (rebuild rounds only)
+## In-repo art source & automatic sync
 
-During a fresh orchestrator rebuild, final owner art lives **OUTSIDE the repo** at **`C:\CARLOS\TFM\DarknessCaress2_art\`** (sibling of the project, exactly this path) for the whole build: phases 1–7 run against placeholders so sub-agents never see (or depend on) the real files. The owner's **final manual step, after phase 7 completes**, is copying from the staging folders into `client/public/assets/` per the mapping below — nothing earlier, nothing automatic. (In the current live build, where no sub-agents are running, art can simply be dropped straight into `client/public/assets/` at any time.)
+Final/working art lives **inside the repo** at `art/` (relative to the repo root) so builds are portable and can apply art without manual copy steps. `client/scripts/sync-art.mjs` (`npm -w client run sync:art`, and run automatically as part of `npm -w client run build`) copies/transforms the mapped files into `client/public/assets/` when present. The sync is idempotent and skips missing sources (placeholders remain), so terrain and board sprites can stay as placeholders until art arrives.
 
-| Staging source (DarknessCaress2_art) | Final destination (client/public/assets) | Notes |
+| Art source (`art/`, in-repo) | Final destination (`client/public/assets/`) | Notes |
 |---|---|---|
-| `landing_background/landing.png` (1376×768) | `hero/landscape.png` | universal, NOT theme-branded |
-| `unit_images_cropped/{side}_{class}_cropped.png` (512×512 PNG) | `warriors-europe/{class}/portrait-{side}.png` | the SQUARE, used everywhere in UI |
-| `unit_images_full/{side}_{class}.jpg` (784×1168 JPG) | `warriors-europe/{class}/portrait-{side}-full.png` | RECTANGULAR lightbox art; convert JPG→PNG at copy time (alpha not required — full-bleed) |
-| `font/Blackletter-ExtraBold.woff2` + `font/Blackletter-Shadow.woff2` | `fonts/Blackletter-ExtraBold.woff2` + `fonts/Blackletter-Shadow.woff2` | Title/wordmark = ExtraBold; Shadow = section headings (the Cinzel slot is retired). Source: dafont Gothic>Medieval — "Blackletter" by Dieter Steffmann, license tag **100% Free** (unrestricted, commercial OK; no embedded copyright string — provenance recorded here). ✅ **CONVERTED already** — these staging files ARE the woff2 outputs (verified wOF2 magic); the copy step for fonts is a pure copy. (Original TTFs: `blackletter_ds/` subfolder, owner may keep or remove — masters for regeneration.) |
+| `landing_background/landing.png` | `hero/landscape.png` | universal, NOT theme-branded |
+| `unit_images_cropped/{side}_{class}_cropped.png` | `warriors-europe/{class}/portrait-{side}.png` | the SQUARE, used everywhere in UI |
+| `unit_images_full/{side}_{class}.png` (preferred) or `.jpg` | `warriors-europe/{class}/portrait-{side}-full.png` | RECTANGULAR lightbox art; prefer storing a real PNG in `art/` (the sync copies the file to the `.png` destination name) |
+| `font/Blackletter-ExtraBold.woff2` + `font/Blackletter-Shadow.woff2` | `fonts/Blackletter-ExtraBold.woff2` + `fonts/Blackletter-Shadow.woff2` | Title/wordmark = ExtraBold; Shadow = section headings. Source: dafont Gothic>Medieval — "Blackletter" by Dieter Steffmann, license tag **100% Free** (unrestricted, commercial OK). These are the woff2 outputs (wOF2); original TTF masters may be kept alongside if desired. |
 
-Filename transforms during the copy: `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{side}_{class}.jpg` → `portrait-{side}-full.png` (side = `player`/`enemy`, class keys per `config.classes`); the two blackletter TTFs → `fonts/*.woff2` names as in the table. Still missing from staging (arrive later): `terrain/` (7 files) and the board sprites (`sprite-{side}.png` per class).
+Filename transforms: `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{side}_{class}.{png|jpg}` → `portrait-{side}-full.png` (side = `player`/`enemy`, class keys per `config.classes`). Still optional/missing until supplied: `terrain/` (7 files) and board sprites (`sprite-{side}.png` per class) — placeholders cover them.
+
+> **Rebuild rounds:** if a future orchestrator rebuild needs sub-agents isolated from real art, run builds without the `art/` contents or before syncing; the placeholder pipeline (`gen:placeholders`) remains the baseline.
 
 ## Owner guidance → `docs/10-prompts.md`, Template T6
 
