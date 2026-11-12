@@ -2,23 +2,47 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 480px;
+  max-width: 980px;
   /* content visually centered (05) */
   margin: 0 auto;
   width: 100%;
 }
 
-.profile-card {
+.profile-compact {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 20px 24px;
+  align-items: flex-start;
 }
 
-.profile-card h2 {
+.profile-section {
+  flex: 1 1 220px;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-section-password {
+  flex: 2 1 460px;
+  min-width: min(100%, 320px);
+}
+
+.profile-section h2 {
   margin: 0;
   font-size: 20px;
 }
 
-.profile-card .btn {
+.profile-section .btn {
   align-self: flex-start;
+}
+
+.profile-password-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 12px;
+}
+
+.profile-password-grid label {
+  min-width: 0;
 }

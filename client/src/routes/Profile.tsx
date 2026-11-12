@@ -84,78 +84,82 @@ export function Profile(): React.JSX.Element {
   return (
     <section className="profile-page">
       <h1 className="display">Profile</h1>
-      <form className="card profile-card" onSubmit={saveUsername}>
-        <h2 className="display">Username</h2>
-        <label>
-          Username
-          <input
-            type="text"
-            value={username}
-            autoComplete="username"
-            onChange={(e) => setUsername(e.target.value)}
-          />
-        </label>
-        {usernameNote !== null && <p className={noteClass(usernameNote)}>{usernameNote}</p>}
-        <button type="submit" className="btn btn-primary">
-          Save
-        </button>
-      </form>
+      <div className="card profile-compact">
+        <form className="profile-section" onSubmit={saveUsername}>
+          <h2 className="display">Username</h2>
+          <label>
+            Username
+            <input
+              type="text"
+              value={username}
+              autoComplete="username"
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </label>
+          {usernameNote !== null && <p className={noteClass(usernameNote)}>{usernameNote}</p>}
+          <button type="submit" className="btn btn-primary">
+            Save
+          </button>
+        </form>
 
-      <form className="card profile-card" onSubmit={saveTheme}>
-        <h2 className="display">Army theme</h2>
-        <label>
-          Theme
-          <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-            {(meta?.themes ?? [{ id: user.theme, label: user.theme }]).map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {themeNote !== null && <p className={noteClass(themeNote)}>{themeNote}</p>}
-        <button type="submit" className="btn btn-primary">
-          Save
-        </button>
-      </form>
+        <form className="profile-section" onSubmit={saveTheme}>
+          <h2 className="display">Army theme</h2>
+          <label>
+            Theme
+            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+              {(meta?.themes ?? [{ id: user.theme, label: user.theme }]).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {themeNote !== null && <p className={noteClass(themeNote)}>{themeNote}</p>}
+          <button type="submit" className="btn btn-primary">
+            Save
+          </button>
+        </form>
 
-      <form className="card profile-card" onSubmit={savePassword}>
-        <h2 className="display">Password</h2>
-        <label>
-          Current password
-          <input
-            type="password"
-            value={currentPassword}
-            autoComplete="current-password"
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          New password
-          <input
-            type="password"
-            value={newPassword}
-            autoComplete="new-password"
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Repeat new password
-          <input
-            type="password"
-            value={passwordAgain}
-            autoComplete="new-password"
-            onChange={(e) => setPasswordAgain(e.target.value)}
-            required
-          />
-        </label>
-        {passwordNote !== null && <p className={noteClass(passwordNote)}>{passwordNote}</p>}
-        <button type="submit" className="btn btn-primary">
-          Save
-        </button>
-      </form>
+        <form className="profile-section profile-section-password" onSubmit={savePassword}>
+          <h2 className="display">Password</h2>
+          <div className="profile-password-grid">
+            <label>
+              Current password
+              <input
+                type="password"
+                value={currentPassword}
+                autoComplete="current-password"
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              New password
+              <input
+                type="password"
+                value={newPassword}
+                autoComplete="new-password"
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              Repeat new password
+              <input
+                type="password"
+                value={passwordAgain}
+                autoComplete="new-password"
+                onChange={(e) => setPasswordAgain(e.target.value)}
+                required
+              />
+            </label>
+          </div>
+          {passwordNote !== null && <p className={noteClass(passwordNote)}>{passwordNote}</p>}
+          <button type="submit" className="btn btn-primary">
+            Save
+          </button>
+        </form>
+      </div>
     </section>
   );
 }
