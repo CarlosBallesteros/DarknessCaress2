@@ -387,7 +387,30 @@ export function GameBoard(): React.JSX.Element {
             type: "stage",
             action: { type: "attack", targetId: unit.id },
           });
+          return;
         }
+        // otherwise, let the player inspect the enemy without staging
+        const local = previewFor(unit.id);
+        if (local !== null) {
+          uiDispatch({ type: "inspect", unitId: unit.id, preview: local });
+          return;
+        }
+        void getPreview(game.id, unit.id)
+          .then((preview) => uiDispatch({ type: "inspect", unitId: unit.id, preview }))
+          .catch(() => undefined);
+        return;
+      }
+      if (sel.kind === "unit") {
+        // not an "attack from current tile" target (handled earlier) — inspect
+        const local = previewFor(unit.id);
+        if (local !== null) {
+          uiDispatch({ type: "inspect", unitId: unit.id, preview: local });
+          return;
+        }
+        void getPreview(game.id, unit.id)
+          .then((preview) => uiDispatch({ type: "inspect", unitId: unit.id, preview }))
+          .catch(() => undefined);
+        return;
       }
       return;
     }
@@ -458,8 +481,13 @@ export function GameBoard(): React.JSX.Element {
     if (unit.side === "enemy" && (selection.kind === "unit" || selection.kind === "move")) {
       if (selection.kind === "unit") {
         onEnemyClickWhileSelected(unit);
+        // If the enemy wasn't a valid "attack from current tile" target, inspect them.
+        if (ui.selection.kind === "unit") {
+          onUnitClick(unitId);
+        }
+      } else {
+        onUnitClick(unitId);
       }
-      onUnitClick(unitId);
       return;
     }
     onUnitClick(unitId);
