@@ -56,7 +56,7 @@
 ## Phase 4 — Board generation
 
 **Read:** `00`, `08`, `03`, `04` (client + mock only).
-**Build:** brief prompt + zod brief schema, mock+real client pieces of `LlmClient` (turn() can be a stub until phase 5), materializer with seeded walk, invariants validator, army spawn layout, retry policy incl. fallback template, `POST /api/games` (endpoint 10 of `06`) **async per the v2 amendment**: capability checks (auth + cap) → insert `generating_board` row with all-plain placeholder board + empty units → `202 {"game"}` immediately → board generation runs as a BACKGROUND JOB (fire-and-forget, shared ACTIVE-JOB set guard, stale sweep — the same mechanism phase 5's AI turn job uses) that flips the row to `player_turn` with the real board/armies on success, and on failure writes `ai_last_error` + fresh `updated_at` and stays `generating_board` (retried forever by the sweep — no client error state), `used_fallback` recorded in the row when the fallback template fires.
+**Build:** brief prompt + zod brief schema, mock+real client pieces of `LlmClient` (turn() can be a stub until phase 5), materializer with seeded walk, invariants validator, army spawn layout, retry policy incl. fallback template, `POST /api/games` (endpoint 10 of `06`) **async per the v2 amendment**: capability checks (auth + cap) → insert `generating_board` row with all-plain placeholder board + empty units → `202 {"game"}` immediately → board generation runs as a BACKGROUND JOB (fire-and-forget, shared ACTIVE-JOB set guard, stale sweep — the same mechanism phase 5's AI turn job uses) that flips the row to `player_turn` with the real board/armies on success, and on failure writes `ai_last_error` + fresh `updated_at` and stays `generating_board` (retried forever by the sweep — no client error state), `used_fallback` recorded in the row when the fallback template fires. ALSO build the MINIMAL read-only `GET /api/games/:id` (endpoint 11 of `06`): exactly enough to return `200 {"game": GameState}` reflecting the state at query time, so this phase's mock-LLM flow gate is executable. Phase 5 completes endpoint 11's full contract (the stale-recovery side effect for `ai_turn` and stalled `generating_board` jobs, the `404 {"error":"Not found"}` ownership rule).
 **Acceptance:**
 
 ```
@@ -65,7 +65,7 @@
 [ ] retry budget comes from config: `config.ai.boardRetries` honored (a temp config with `materializations: 1` stops after one attempt → regenerates → fallback; proves no hardcoded budget)
 [ ] determinism test: same brief+seed = byte-identical board
 [ ] fallback template validates
-[ ] mock-LLM full flow: POST /api/games → 202 GameState (status generating_board, placeholder board, empty units) → background job designs the board → GET shows status player_turn, armies placed per 03's spawn scatter layout
+[ ] mock-LLM full flow: POST /api/games → 202 GameState (status generating_board, placeholder board, empty units) → background job designs the board → GET /api/games/:id (minimal endpoint 11 per this phase's Build note) shows status player_turn, armies placed per 03's spawn scatter layout
 [ ] 409 on 6th active game (cap from config; a generating_board game COUNTS as active — non-lost counting per 06)
 [ ] commit "feat(phase-4): ...", pushed
 ```
@@ -73,7 +73,7 @@
 ## Phase 5 — AI turns & remaining API
 
 **Read:** `00`, `08`, `02`, `04`, `06` (endpoints 9, 11–15, 8).
-**Build:** server-side enemy move policies (menu-choice over engine-generated options per difficulty), destination-only expansion + engine application, background AI-turn job + fire-and-forget + stale recovery (endpoints 9/11 side effects), moves/end-turn/preview/forfeit/stats endpoints. Board briefs remain the LLM seam (MockLlm for tests).
+**Build:** server-side enemy move policies (menu-choice over engine-generated options per difficulty), destination-only expansion + engine application, background AI-turn job + fire-and-forget + stale recovery (endpoints 9/11 side effects — endpoint 11 arrives from phase 4 in minimal read-only form per `09`'s phase-4 Build note; this phase completes its full contract), moves/end-turn/preview/forfeit/stats endpoints. Board briefs remain the LLM seam (MockLlm for tests).
 **Acceptance:**
 
 ```
