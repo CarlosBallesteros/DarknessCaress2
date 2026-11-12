@@ -73,7 +73,7 @@ If more than 3 steps are needed to add a theme, the implementation is WRONG — 
 
 ## In-repo art source & automatic sync
 
-Final/working art lives **inside the repo** at `art/` (relative to the repo root) so builds are portable and can apply art without manual copy steps. `client/scripts/sync-art.mjs` (`npm -w client run sync:art`, and run automatically as part of `npm -w client run build`) copies/transforms the mapped files into `client/public/assets/` when present. The sync is idempotent and skips missing sources (placeholders remain), so terrain and board sprites can stay as placeholders until art arrives.
+Final/working art lives **inside the repo** at `art/` (relative to the repo root) so builds are portable and can apply art without manual copy steps. `client/scripts/sync-art.mjs` (`npm -w client run sync:art`, and run automatically as part of `npm -w client run build`) copies/transforms the mapped files into `client/public/assets/` when present. The sync is idempotent and skips missing sources (placeholders remain), so terrain and board sprites can stay as placeholders until art arrives. Builds that include `art/` therefore ship the synced assets; builds without it (or run before syncing in isolated rebuild contexts) keep the placeholder baseline.
 
 | Art source (`art/`, in-repo) | Final destination (`client/public/assets/`) | Notes |
 |---|---|---|

@@ -71,8 +71,10 @@ idle → unitSelected            (click own, non-acted unit → GET preview; uni
 idle → enemyInspect            (click an ENEMY unit → same preview endpoint accepts it read-only; its
                                 ActionPanel header shows the enemy PORTRAIT + stats, overlay colors
                                 differentiate: --overlay-inspect for its MOVE area; NO staging,
-                                NO buttons — pure inspection; Esc/empty click → idle)
+                                NO buttons — pure inspection, to see enemy units without moving or acting; Esc/empty click → idle)
 unitSelected → unitSelected    (click another own non-acted unit → re-select)
+unitSelected → enemyInspect    (click an ENEMY unit that is NOT a valid attack-from-current-tile target
+                                → inspect it read-only; valid attack targets still stage per below)
 unitSelected → idle            (click empty/dim area or Esc)
 unitSelected → attackStaged    (click an enemy in attackTiles WHILE no destination is picked and the
                                 target is reachable from the unit's CURRENT tile → stage the attack
@@ -92,6 +94,8 @@ movePicked → staged            (click enemy unit in red overlay → stage a wh
                                 same shape for heal (targetId = own unit) and for wait ({type:"wait"}));
                                 click own wounded unit in green overlay (healer) → stage heal;
                                 click [Wait in place] → stage wait for same tile)
+movePicked → enemyInspect      (click an ENEMY unit that is NOT an actionable attack/heal target from the
+                                picked destination → inspect it read-only)
 movePicked → unitSelected      ([Back] or Esc → re-select)
 staged → staged                (more units staged; unstage via chip click cancels ONLY that staged move)
 staged → playerTurnSubmitted   ([End turn] → POST /moves (staged list) → POST /end-turn → status ai_turn)
@@ -119,6 +123,8 @@ Notes:
 | healTiles | `--overlay-heal` (green, 25%) | allies healable this turn |
 | selected unit ring | `--overlay-select` (white) | currently selected unit |
 | enemy inspect | `--overlay-inspect` (blue, 25%) | enemy unit's move area (read-only inspection) |
+
+Overlay highlights render **above terrain sprite images** on tiles (so move/attack/heal/inspect/path/selected indicators remain visible when terrain art is present). Staged-origin markers likewise render above terrain.
 
 ## Champions tab (`/champions`)
 
