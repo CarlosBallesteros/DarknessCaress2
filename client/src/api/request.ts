@@ -16,15 +16,19 @@ function extractErrorMessage(data: unknown, status: number): string {
   return status >= 500 ? "Server error" : "Request failed";
 }
 
-export async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const headers = new Headers(opts.headers ?? {});
-  const hasBody = opts.body !== undefined && opts.body !== null;
+export async function request<T>(
+  path: string,
+  opts: RequestInit & { suppressUnauthorized?: boolean } = {},
+): Promise<T> {
+  const { suppressUnauthorized, ...init } = opts;
+  const headers = new Headers(init.headers ?? {});
+  const hasBody = init.body !== undefined && init.body !== null;
   if (hasBody && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
   const response = await fetch(path, {
-    ...opts,
+    ...init,
     headers,
     credentials: "include",
   });
@@ -45,7 +49,7 @@ export async function request<T>(path: string, opts: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const message = extractErrorMessage(data, response.status);
-    if (response.status === 401 && onUnauthorized) {
+    if (response.status === 401 && onUnauthorized && !suppressUnauthorized) {
       const fromPath =
         typeof window !== "undefined"
           ? window.location.pathname + window.location.search

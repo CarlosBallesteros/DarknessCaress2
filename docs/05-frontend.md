@@ -16,7 +16,7 @@
 | `/store` | Store | yes | Flavor page: "Coming soon…" (no functionality, per `00`). |
 | `/profile` | Profile | yes | 3 forms, content visually centered. See below. |
 
-`ProtectedRoute` component: on mount calls `GET /api/me`; on 401 redirects to `/login` (state back-link included). While loading: minimal spinner, nothing else. After any `401` caught by the api wrapper app-wide: same redirect.
+`ProtectedRoute` component: on mount calls `GET /api/me`; on 401 redirects to `/login` (state back-link included). While loading: minimal spinner, nothing else. After any `401` caught by the api wrapper app-wide, redirect to `/login` (state back-link to the current path) **except** when the current route is public (`/`, `/login`, `/register`): on those routes the 401 is surfaced to the caller without navigation, so anonymous visitors can land, register, and log in. The bootstrap/session probe `GET /api/me` must never trigger the app-wide redirect (a 401 there means “not logged in”, not an expired session to bounce from a public page).
 
 **Top menu** (all authed pages): left — wordmark "Darkness Caress II" in the gothic blackletter display font, **clickable → `/play`** (the title is the way home from anywhere); center — tabs `Games · Statistics · Champions · Store · Profile` (active tab underlined gold); right — `ui-mode-toggle` (sun/moon icon), username (link to `/profile`) + `Log out` button (`POST /api/auth/logout` → `/`). Wraps to two rows under 480 px.
 

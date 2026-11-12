@@ -23,8 +23,10 @@ export function logout(): Promise<void> {
   return request<void>("/api/auth/logout", { method: "POST" });
 }
 
-export function me(): Promise<{ user: User }> {
-  return request<{ user: User }>("/api/me");
+export function me(opts: { suppressUnauthorized?: boolean } = {}): Promise<{ user: User }> {
+  return request<{ user: User }>("/api/me", {
+    suppressUnauthorized: opts.suppressUnauthorized ?? true,
+  });
 }
 
 export function patchMe(body: { username?: string; theme?: string }): Promise<{ user: User }> {

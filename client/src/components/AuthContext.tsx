@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async (): Promise<User | null> => {
     try {
-      const res = await authApi.me();
+      const res = await authApi.me({ suppressUnauthorized: true });
       setUser(res.user);
       return res.user;
     } catch {
@@ -44,7 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler((fromPath) => {
       setUser(null);
-      const from = fromPath ?? location.pathname + location.search;
+      const path = location.pathname;
+      if (path === "/" || path === "/login" || path === "/register") return;
+      const from = fromPath ?? path + location.search;
       navigate("/login", { replace: true, state: { from } });
     });
     return () => setUnauthorizedHandler(null);
