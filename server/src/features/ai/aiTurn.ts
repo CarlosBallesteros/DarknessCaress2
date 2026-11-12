@@ -16,6 +16,10 @@ import { getLlmClient, type ChatMessage } from "./llmClient";
 import { turnSystemPrompt, turnUserMessage } from "./turnPrompt";
 import { turnMovesSchema } from "./turnSchema";
 
+function distance(ax: number, ay: number, bx: number, by: number): number {
+  return Math.abs(ax - bx) + Math.abs(ay - by);
+}
+
 const SCHEMA_FAIL_MESSAGE = "Your reply was not valid JSON matching the schema.";
 
 export async function runAiTurn(gameId: string): Promise<void> {
@@ -76,6 +80,32 @@ export async function runAiTurn(gameId: string): Promise<void> {
       if (path === null) {
         expansionError = `${order.unitId}: to (${dest[0]},${dest[1]}) is not in the unit's reachable menu — pick a reachable tile`;
         break;
+      }
+      // Menu-pair enforcement (docs/04): reject actions that are impossible from
+      // this destination BEFORE applyMoves, so the model gets a precise "not in
+      // your menu" message instead of a generic engine distance rejection. This
+      // is the hard stop against hallucinated attacks from units with no attack
+      // options (a move-only line means every player unit is out of reach).
+      const action = order.action;
+      if (action.type === "attack") {
+        const cls = config.classes[unit.class];
+        const target = row.units.find((u) => u.id === action.targetId && u.side !== unit.side);
+        const inRange =
+          target !== undefined &&
+          (cls.range as number[]).includes(distance(dest[0], dest[1], target.x, target.y));
+        if (!inRange) {
+          expansionError = `${order.unitId}: cannot attack ${action.targetId} from (${dest[0]},${dest[1]}) - that (target, to) pair is not in this unit's attacks menu (or the unit has no attacks line this turn). Pick a paired attack option, or a move/wait.`;
+          break;
+        }
+      } else if (action.type === "heal") {
+        const cls = config.classes[unit.class];
+        const target = row.units.find((u) => u.id === action.targetId && u.side === unit.side);
+        const adjacent =
+          target !== undefined && distance(dest[0], dest[1], target.x, target.y) === 1;
+        if (!("healAmount" in cls) || !adjacent) {
+          expansionError = `${order.unitId}: cannot heal ${action.targetId} from (${dest[0]},${dest[1]}) - that (ally, to) pair is not in this unit's heals menu. Pick a paired heal option, or a move/wait.`;
+          break;
+        }
       }
       expanded.push({ unitId: order.unitId, path, action: order.action });
     }

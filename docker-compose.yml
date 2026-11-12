@@ -13,6 +13,7 @@ services:
     volumes: [ollama_data:/root/.ollama]
     environment:
       OLLAMA_KEEP_ALIVE: 1h # keep the model in RAM between player turns
+      OLLAMA_NUM_PARALLEL: 2 # two generation slots — one slot serializes every queued job (turns AND briefs) and pending games feel frozen; ctx splits 4096→2048 per slot, fits baseline prompts+replies
     restart: unless-stopped
 
   server:

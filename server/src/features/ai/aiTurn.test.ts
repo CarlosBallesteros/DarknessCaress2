@@ -173,12 +173,14 @@ describe("runAiTurn — the validation loop (docs/04)", () => {
     expect(row.status).toBe("player_turn");
     expect(row.ai_last_error).toBeNull();
     expect(recordedTurns).toHaveLength(2);
-    // E-archer-1 (6,0) attacks P-sword-1 (4,13): Manhattan 15 — out of the
-    // archer's [2] range (docs/02 catalogue text, unit ids for context).
+    // E-archer-1 (6,0) attacks P-sword-1 (4,13): Manhattan 15 - out of the
+    // archer's [2] range. Menu-pair enforcement (docs/04, expansion step)
+    // rejects it before applyMoves with the menu-aligned message.
     const feedback = recordedTurns[1].messages.at(-1);
     expect(feedback?.role).toBe("user");
-    expect(feedback?.content).toContain("E-archer-1: archer cannot attack a unit at 15 tiles");
-    expect(feedback?.content).toContain("Resubmit the FULL corrected move list.");
+    expect(feedback?.content).toContain("E-archer-1: cannot attack P-sword-1 from (6,0)");
+    expect(feedback?.content).toContain("not in this unit's attacks menu");
+    expect(feedback?.content).toContain("Resubmit the FULL corrected move list");
     expect(recordedTurns[1].messages.at(-2)?.role).toBe("assistant");
   });
 
