@@ -1,0 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
+import { pool } from "./pool";
+
+export async function runMigrations(): Promise<void> {
+  const sql = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
+  await pool.query(sql);
+}

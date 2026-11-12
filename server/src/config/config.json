@@ -1,0 +1,88 @@
+{
+  "boardSize": 8,
+  "maxActiveGames": 5,
+  "classes": {
+    "sword": {
+      "count": 2,
+      "hp": 20,
+      "atk": 7,
+      "def": 5,
+      "mov": 3,
+      "range": [1],
+      "role": "attacker",
+      "label": "Swordsman"
+    },
+    "axe": {
+      "count": 2,
+      "hp": 25,
+      "atk": 10,
+      "def": 3,
+      "mov": 2,
+      "range": [1],
+      "role": "attacker",
+      "label": "Axeman"
+    },
+    "spear": {
+      "count": 2,
+      "hp": 18,
+      "atk": 6,
+      "def": 3,
+      "mov": 5,
+      "range": [1],
+      "role": "attacker",
+      "label": "Spearman"
+    },
+    "archer": {
+      "count": 2,
+      "hp": 16,
+      "atk": 6,
+      "def": 2,
+      "mov": 4,
+      "range": [2],
+      "role": "supporter",
+      "label": "Archer"
+    },
+    "mage": {
+      "count": 1,
+      "hp": 15,
+      "atk": 8,
+      "def": 1,
+      "mov": 3,
+      "range": [1, 2, 3],
+      "role": "supporter",
+      "label": "Mage"
+    },
+    "healer": {
+      "count": 1,
+      "hp": 18,
+      "atk": 0,
+      "def": 2,
+      "mov": 2,
+      "range": [],
+      "healAmount": 8,
+      "role": "supporter",
+      "label": "Healer"
+    }
+  },
+  "personalities": {
+    "aggressive": { "label": "Aggressive", "temperature": 0.7 },
+    "defensive": { "label": "Defensive", "temperature": 0.4 },
+    "erratic": { "label": "Erratic", "temperature": 1.2 }
+  },
+  "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],
+  "lore": {
+    "sword": "The steel that holds the line.",
+    "axe": "Heavy hands, heavier blows.",
+    "spear": "Reach before they reach you.",
+    "archer": "Death from beyond the blade.",
+    "mage": "Arcane force, carefully aimed.",
+    "healer": "Mends the wounded, keeps them standing."
+  },
+  "ai": {
+    "moveRetries": 3,
+    "staleAfterSeconds": 60,
+    "sweepIntervalSeconds": 15,
+    "briefTemperature": 0.8,
+    "boardRetries": { "materializations": 3, "briefs": 3 }
+  }
+}
