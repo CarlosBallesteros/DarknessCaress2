@@ -65,10 +65,11 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  z-index: 0;
 }
 
-/* overlays — design tokens (docs/05 table). Rendered as ::before so they sit
-   above the terrain sprite image (the img paints over the button's own shadow). */
+/* overlays — design tokens (docs/05 table). Rendered as ::before above the
+   terrain sprite image. */
 .tile-move::before,
 .tile-attack::before,
 .tile-heal::before,
@@ -79,6 +80,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 1;
 }
 .tile-move {
   cursor: pointer;
@@ -113,6 +115,7 @@
   border: 1px dashed rgb(var(--overlay-move) / 0.9);
   border-radius: 3px;
   pointer-events: none;
+  z-index: 1;
 }
 
 .board-units {
