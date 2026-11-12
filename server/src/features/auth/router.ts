@@ -1,5 +1,5 @@
 import rateLimit from "express-rate-limit";
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { HttpError, parseOrThrow } from "../../httpErrors";
 import { wrapAsync } from "../../wrapAsync";
 import { createUser, findUserByEmail, updatePassword } from "../users/repo";
@@ -21,15 +21,12 @@ export const loginLimiter = rateLimit({
   },
 });
 
-function setSession(
-  res: { cookie: (name: string, value: string, options: unknown) => void },
-  userId: string,
-) {
+function setSession(res: Response, userId: string) {
   const token = signSession(userId);
   res.cookie(sessionCookie.name, token, sessionCookie.options);
 }
 
-function clearSession(res: { clearCookie: (name: string, options: unknown) => void }) {
+function clearSession(res: Response) {
   res.clearCookie(sessionCookie.name, {
     httpOnly: sessionCookie.options.httpOnly,
     sameSite: sessionCookie.options.sameSite,

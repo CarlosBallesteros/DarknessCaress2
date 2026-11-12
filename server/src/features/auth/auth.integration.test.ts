@@ -13,6 +13,14 @@ function uniqueUsername(prefix: string) {
   return `${prefix}_${Math.random().toString(16).slice(2, 8)}`;
 }
 
+// supertest types `headers` as a plain string map, but "set-cookie" is an
+// array at runtime — normalize to the single Cookie header string superagent
+// expects in .set("Cookie", ...).
+function cookieHeader(res: { headers: Record<string, unknown> }): string {
+  const value = res.headers["set-cookie"];
+  return Array.isArray(value) ? value.join("; ") : String(value ?? "");
+}
+
 describe("auth and user endpoints (phase 2)", () => {
   const app = createServer();
 
@@ -44,9 +52,9 @@ describe("auth and user endpoints (phase 2)", () => {
     });
     expect(registerRes.body.user.id).toEqual(expect.any(String));
     expect(registerRes.body.user.createdAt).toEqual(expect.any(String));
-    expect(registerRes.headers["set-cookie"]?.join(";")).toContain("dc_session=");
+    expect(cookieHeader(registerRes)).toContain("dc_session=");
 
-    const registerCookie = registerRes.headers["set-cookie"];
+    const registerCookie = cookieHeader(registerRes);
 
     const loginRes = await request(app).post("/api/auth/login").send({
       email,
@@ -54,8 +62,8 @@ describe("auth and user endpoints (phase 2)", () => {
     });
     expect(loginRes.status).toBe(200);
     expect(loginRes.body.user.email).toBe(email);
-    expect(loginRes.headers["set-cookie"]?.join(";")).toContain("dc_session=");
-    const cookie = loginRes.headers["set-cookie"];
+    expect(cookieHeader(loginRes)).toContain("dc_session=");
+    const cookie = cookieHeader(loginRes);
 
     const meRes = await request(app).get("/api/me").set("Cookie", cookie);
     expect(meRes.status).toBe(200);
@@ -93,9 +101,7 @@ describe("auth and user endpoints (phase 2)", () => {
     });
     expect(newLogin.status).toBe(200);
 
-    const logoutRes = await request(app)
-      .post("/api/auth/logout")
-      .set("Cookie", registerCookie ?? []);
+    const logoutRes = await request(app).post("/api/auth/logout").set("Cookie", registerCookie);
     expect(logoutRes.status).toBe(204);
 
     const logoutAgain = await request(app).post("/api/auth/logout");
@@ -198,7 +204,7 @@ describe("auth and user endpoints (phase 2)", () => {
         password: "correct-horse",
         username: uniqueUsername("val"),
       });
-    const cookie = reg.headers["set-cookie"];
+    const cookie = cookieHeader(reg);
 
     const badPatch = await request(app).patch("/api/me").set("Cookie", cookie).send({});
     expect(badPatch.status).toBe(400);
@@ -244,7 +250,7 @@ describe("auth and user endpoints (phase 2)", () => {
     const taken = b.body.user.username as string;
     const res = await request(app)
       .patch("/api/me")
-      .set("Cookie", a.headers["set-cookie"])
+      .set("Cookie", cookieHeader(a))
       .send({ username: taken });
     expect(res.status).toBe(409);
     expect(res.body).toEqual({ error: "Username already taken" });
