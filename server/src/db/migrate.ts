@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pool } from "./pool";
 
-async function migrate() {
+export async function migrate() {
   const schemaPath = path.join(__dirname, "schema.sql");
   const sql = fs.readFileSync(schemaPath, "utf8");
   await pool.query(sql);

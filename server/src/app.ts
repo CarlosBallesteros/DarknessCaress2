@@ -1,8 +1,12 @@
 import path from "node:path";
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import cookieParser from "cookie-parser";
 import config from "./config/config.json";
 import { env } from "./env";
+import { authRouter } from "./features/auth/router";
+import { metaRouter } from "./features/meta/router";
+import { usersRouter } from "./features/users/router";
+import { HttpError } from "./httpErrors";
 import { wrapAsync } from "./wrapAsync";
 
 export function createServer() {
@@ -18,6 +22,10 @@ export function createServer() {
     res.json({ ok: true });
   });
 
+  app.use("/api", metaRouter);
+  app.use("/api", authRouter);
+  app.use("/api/me", usersRouter);
+
   if (env.NODE_ENV === "production") {
     const clientDist = path.resolve(__dirname, "../../client/dist");
     app.use(express.static(clientDist));
@@ -28,6 +36,30 @@ export function createServer() {
       }),
     );
   }
+
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    void _next;
+    if (err instanceof HttpError) {
+      res.status(err.status).json(err.body);
+      return;
+    }
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "status" in err &&
+      typeof (err as { status?: unknown }).status === "number" &&
+      "body" in err
+    ) {
+      const status = (err as { status: number }).status;
+      const body = (err as { body: unknown }).body;
+      if (typeof body === "object" && body !== null) {
+        res.status(status).json(body);
+        return;
+      }
+    }
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  });
 
   return app;
 }
