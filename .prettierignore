@@ -1,0 +1,14 @@
+docs/
+README.md
+node_modules/
+client/node_modules/
+server/node_modules/
+e2e/node_modules/
+dist/
+coverage/
+client/dist/
+server/dist/
+playwright-report/
+test-results/
+client/public/assets/
+package-lock.json
