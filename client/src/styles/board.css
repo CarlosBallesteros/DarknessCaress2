@@ -67,25 +67,41 @@
   display: block;
 }
 
-/* overlays — design tokens (docs/05 table) */
+/* overlays — design tokens (docs/05 table). Rendered as ::before so they sit
+   above the terrain sprite image (the img paints over the button's own shadow). */
+.tile-move::before,
+.tile-attack::before,
+.tile-heal::before,
+.tile-inspect::before,
+.tile-path::before,
+.tile-selected::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
 .tile-move {
-  box-shadow: inset 0 0 0 999px rgb(var(--overlay-move) / 0.35);
   cursor: pointer;
 }
-.tile-attack {
-  box-shadow: inset 0 0 0 999px rgb(var(--overlay-attack) / 0.4);
+.tile-move::before {
+  background: rgb(var(--overlay-move) / 0.35);
 }
-.tile-heal {
-  box-shadow: inset 0 0 0 999px rgb(var(--overlay-heal) / 0.4);
+.tile-attack::before {
+  background: rgb(var(--overlay-attack) / 0.4);
 }
-.tile-inspect {
-  box-shadow: inset 0 0 0 999px rgb(var(--overlay-inspect) / 0.4);
+.tile-heal::before {
+  background: rgb(var(--overlay-heal) / 0.4);
+}
+.tile-inspect::before {
+  background: rgb(var(--overlay-inspect) / 0.4);
 }
 .tile-path {
-  box-shadow: inset 0 0 0 999px rgb(var(--overlay-move) / 0.6);
   cursor: pointer;
 }
-.tile-selected {
+.tile-path::before {
+  background: rgb(var(--overlay-move) / 0.6);
+}
+.tile-selected::before {
   box-shadow: inset 0 0 0 2px rgb(var(--overlay-select));
 }
 

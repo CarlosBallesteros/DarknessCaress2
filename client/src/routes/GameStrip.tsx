@@ -48,7 +48,10 @@ export function GameStrip(): React.JSX.Element {
 
   const refresh = useCallback(() => {
     return listGames()
-      .then(setGames)
+      .then((next) => {
+        setGames(next);
+        setLoadError(null);
+      })
       .catch((err: unknown) => {
         if (!(err instanceof ApiError && err.status === 401)) {
           setLoadError("The games list is unavailable right now.");
@@ -92,7 +95,14 @@ export function GameStrip(): React.JSX.Element {
     );
   }
   if (loadError !== null) {
-    return <p className="error-banner">{loadError}</p>;
+    return (
+      <div className="page-loading">
+        <p className="error-banner">{loadError}</p>
+        <button type="button" className="btn" onClick={() => void refresh()}>
+          Retry
+        </button>
+      </div>
+    );
   }
 
   const cap = meta.maxActiveGames;
@@ -278,7 +288,6 @@ export function GameStrip(): React.JSX.Element {
       </div>
       {games.length === 0 ? (
         <div className="strip-empty">
-          {newBattleButton("strip-empty-button")}
           <p className="strip-caption">No battles yet</p>
         </div>
       ) : (
