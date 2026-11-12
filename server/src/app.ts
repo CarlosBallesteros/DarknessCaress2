@@ -8,8 +8,9 @@ import { getLlmClient, type LlmClient } from "./features/ai/llmClient.js";
 import { createAuthRouter } from "./features/auth/router.js";
 import { createRequireAuth } from "./features/auth/requireAuth.js";
 import { createGamesRouter } from "./features/games/router.js";
-import { startBoardSweep } from "./features/games/jobs.js";
+import { startJobsSweep } from "./features/games/jobs.js";
 import { createMetaRouter } from "./features/meta/router.js";
+import { createStatsRouter } from "./features/stats/router.js";
 import { createUsersRouter } from "./features/users/router.js";
 import { wrapAsync } from "./features/wrapAsync.js";
 
@@ -61,6 +62,7 @@ export function createServer(options?: ServerOptions) {
   app.use("/api", createMetaRouter(resolved.config));
   app.use("/api", createAuthRouter(resolved.pool, resolved.jwtSecret));
   app.use("/api", createUsersRouter(resolved.pool, resolved.config, requireAuth));
+  app.use("/api", createStatsRouter(resolved.pool, resolved.config, requireAuth));
   app.use("/api", createGamesRouter(resolved.pool, resolved.config, requireAuth, llm));
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
@@ -85,8 +87,8 @@ if (isDirectRun()) {
   const port = env.PORT;
   const pool = createPool(env.DATABASE_URL);
   const llm = getLlmClient();
-  // Interval sweep for stale background jobs (board design in phase 4; AI turns added in phase 5).
-  startBoardSweep(pool, config, llm);
+  // Interval sweep for stale background jobs (board design and AI turns).
+  startJobsSweep(pool, config, llm);
   const app = createServer({
     pool,
     jwtSecret: env.JWT_SECRET,

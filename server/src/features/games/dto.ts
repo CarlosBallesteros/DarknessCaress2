@@ -1,6 +1,20 @@
-import type { Board, Unit } from "../../game/types.js";
+﻿import type { Board, Unit } from "../../game/types.js";
 
 export type GameStatus = "generating_board" | "player_turn" | "ai_turn" | "won" | "lost";
+
+export interface AiActionDto {
+  unitId: string;
+  path: [number, number][];
+  action:
+    { type: "attack"; targetId: string } | { type: "heal"; targetId: string } | { type: "wait" };
+  outcome: {
+    targetId: string;
+    damage: number;
+    targetHp: number;
+    targetDied: boolean;
+    counter: { damage: number; attackerHp: number } | null;
+  } | null;
+}
 
 export interface GameStateDto {
   id: string;
@@ -18,8 +32,18 @@ export interface GameStateDto {
     maxHp: number;
     acted: boolean;
   }>;
-  lastAiActions: unknown[] | null;
+  lastAiActions: AiActionDto[] | null;
   updatedAt: string;
+}
+
+export interface GameSummaryDto {
+  id: string;
+  difficulty: string;
+  status: GameStatus;
+  turnNumber: number;
+  updatedAt: string;
+  previewBoard: { tiles: string[][] };
+  previewUnits: Array<{ x: number; y: number; side: "player" | "enemy" }>;
 }
 
 export interface GameRow {
@@ -33,9 +57,13 @@ export interface GameRow {
   ai_last_error: string | null;
   used_fallback: boolean;
   moves_applied: boolean;
-  last_ai_actions: unknown[] | null;
+  last_ai_actions: AiActionDto[] | null;
   created_at: Date | string;
   updated_at: Date | string;
+}
+
+function iso(ts: Date | string): string {
+  return ts instanceof Date ? ts.toISOString() : new Date(ts).toISOString();
 }
 
 export function toGameState(row: GameRow): GameStateDto {
@@ -55,10 +83,20 @@ export function toGameState(row: GameRow): GameStateDto {
       maxHp: u.maxHp,
       acted: u.acted,
     })),
-    lastAiActions: row.last_ai_actions ?? null,
-    updatedAt:
-      row.updated_at instanceof Date
-        ? row.updated_at.toISOString()
-        : new Date(row.updated_at).toISOString(),
+    lastAiActions: (row.last_ai_actions as AiActionDto[] | null) ?? null,
+    updatedAt: iso(row.updated_at),
+  };
+}
+
+export function toGameSummary(row: GameRow): GameSummaryDto {
+  const units = (row.units as Unit[]) ?? [];
+  return {
+    id: row.id,
+    difficulty: row.difficulty,
+    status: row.status,
+    turnNumber: row.turn_number,
+    updatedAt: iso(row.updated_at),
+    previewBoard: row.board as { tiles: string[][] },
+    previewUnits: units.map((u) => ({ x: u.x, y: u.y, side: u.side })),
   };
 }
