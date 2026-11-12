@@ -110,7 +110,7 @@ Also: Vite dev proxy to server; production static serving works via express.stat
 **Acceptance:**
 
 ```
-[ ] e2e/playwright: register flow, login (bad + good), create game (202 → "Being designed…" card/board state → resolves to player_turn), select unit, preview overlay, stage a move, end turn, mocked AI turn resolves + board updates, stats reflect win/loss, forfeit path, Store tab renders "Coming soon…", logout/login
+[ ] e2e/playwright: register flow, login (bad + good), create game (202 → "Being designed…" card/board state when observable under fast/mock generation, otherwise already resolved → resolves to player_turn), select unit, preview overlay, stage a move, end turn, mocked AI turn resolves + board updates, stats reflect win/loss, forfeit path, Store tab renders "Coming soon…", logout/login
 [ ] full quality gate: lint + prettier + vitest + playwright all green
 [ ] deployed on the VM: docker compose up -d; model pulled into ollama volume via 01's one-time command
 [ ] public URL serves landing → register → play a REAL AI turn (Ollama live, persona erratic) — owner-verified
