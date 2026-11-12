@@ -1,19 +1,18 @@
-// Army spawn layout (docs/03): each army occupies an 8×2 block (columns 4-11
-// at baseline), 16 slots, 10 units, 6 gaps. Front row per side = the row
-// nearer the middle (player: 13; enemy: 1). The seeded PRNG (same family as
-// materialization) shuffles the 8 columns per side and per row; the first
-// columns receive that group's units in fixed class order, the rest stay
-// empty — gaps vary per game, the same game always reproduces the exact same
-// arrangement, and the sides scatter independently.
+// Army spawn layout (docs/03): each army occupies 2 full rows of all board
+// columns (player bottom, enemy top). Front row per side = the row nearer the
+// middle. The seeded PRNG (same family as materialization) shuffles all columns
+// per side and per row; the first columns receive that group's units in fixed
+// class order, the rest stay empty — gaps vary per game, the same game always
+// reproduces the exact same arrangement, and the sides scatter independently.
 import type { ClassKey, GameEngineConfig, Side, Unit } from "../../game/types";
 import { backComposition, frontComposition, totalArmySize } from "./invariants";
-import { SPAWN_BLOCK_COLUMNS, spawnBlockStartColumn } from "./materialize";
+import { spawnBlockStartColumn, spawnBlockWidth } from "./materialize";
 import { mulberry32, shuffled } from "./prng";
 
 export function assembleArmies(seed: number, cfg: GameEngineConfig): Unit[] {
   const size = cfg.boardSize;
   const columns = Array.from(
-    { length: SPAWN_BLOCK_COLUMNS },
+    { length: spawnBlockWidth(size) },
     (_, i) => spawnBlockStartColumn(size) + i,
   );
   const rng = mulberry32(seed);
@@ -44,8 +43,8 @@ export function assembleArmies(seed: number, cfg: GameEngineConfig): Unit[] {
     placeGroup(backComposition(cfg), backRow);
   };
 
-  place("player", size - 2, size - 1); // player front = row 13, back = row 14
-  place("enemy", 1, 0); // enemy front = row 1, back = row 0 — mirrored top-to-bottom
+  place("player", size - 2, size - 1); // player front/back bottom rows
+  place("enemy", 1, 0); // enemy front/back top rows — mirrored top-to-bottom
 
   if (units.length !== totalArmySize(cfg) * 2) {
     throw new Error("config counts do not fill the two spawn rows of both armies");

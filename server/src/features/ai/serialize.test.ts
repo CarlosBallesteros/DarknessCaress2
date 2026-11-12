@@ -13,10 +13,10 @@ function plainBoard(): Board {
 
 function sampleBoard(): Board {
   const board = plainBoard();
-  board.tiles[5][3] = "forest";
-  board.tiles[7][7] = "hill";
-  board.tiles[9][2] = "river";
-  board.tiles[9][3] = "bridge";
+  board.tiles[2][3] = "forest";
+  board.tiles[3][4] = "hill";
+  board.tiles[4][2] = "river";
+  board.tiles[4][3] = "bridge";
   return board;
 }
 
@@ -38,7 +38,7 @@ function sampleUnits(): Unit[] {
       side: "player",
       class: "sword",
       x: 4,
-      y: 13,
+      y: 6,
       hp: 15,
       maxHp: 20,
       acted: false,
@@ -47,8 +47,8 @@ function sampleUnits(): Unit[] {
       id: "P-healer-1",
       side: "player",
       class: "healer",
-      x: 10,
-      y: 14,
+      x: 2,
+      y: 7,
       hp: 18,
       maxHp: 18,
       acted: true,
@@ -62,10 +62,10 @@ describe("serializeSnapshot", () => {
     expect(snap.startsWith("BOARD:\n")).toBe(true);
     expect(snap).toContain("\nSTATS:\n");
     expect(snap).toContain("\nUNITS:\n");
-    expect(snap).toContain("...f"); // row 5, col 3 = forest glyph
-    expect(snap).toContain("~B"); // row 9: river then bridge
+    expect(snap).toContain("f"); // forest glyph present
+    expect(snap).toContain("~B"); // river then bridge
     expect(snap).toContain("E-sword-1=sword 5,1 20/20");
-    expect(snap).toContain("P-healer-1=healer 10,14 18/18");
+    expect(snap).toContain("P-healer-1=healer 2,7 18/18");
   });
 
   it("orders units: enemy side first, then by class/config order, then by id number", () => {

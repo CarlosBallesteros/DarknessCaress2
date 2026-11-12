@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { config } from "./load";
 
 // Phase 1 guard: the config file loads and matches the canonical shape and the
 // stat values fixed in docs/00 (balance tuning later happens only in this file).
 describe("config.json", () => {
   it("has the fixed board and games-cap values", () => {
-    expect(config.boardSize).toBe(15);
+    expect(config.boardSize).toBe(8);
     expect(config.maxActiveGames).toBe(5);
   });
 

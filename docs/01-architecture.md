@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS games (
               -- generating_board | player_turn | ai_turn | won | lost
               -- (created as generating_board with an all-plain placeholder board and
               -- empty units; the background job fills the real battlefield in — 06 ep. 10)
-  board       JSONB NOT NULL,            -- {tiles: string[15][15]} codes from 02
+  board       JSONB NOT NULL,            -- {tiles: string[boardSize][boardSize]} codes from 02 (8x8 baseline)
   units       JSONB NOT NULL,            -- array of units (shape in 02)
   turn_number INT NOT NULL DEFAULT 1,
   ai_last_error TEXT,                    -- set when a background job (AI turn OR board design) fails, cleared on success
@@ -110,7 +110,7 @@ No move-history table in MVP (stats are computed from `games`). Replay/audit is 
 
 ```json
 {
-  "boardSize": 15,
+  "boardSize": 8,
   "maxActiveGames": 5,
   "classes": {
     "sword":  { "count": 2, "hp": 20, "atk": 7,  "def": 5, "mov": 3, "range": [1],    "role": "attacker",  "label": "Swordsman" },

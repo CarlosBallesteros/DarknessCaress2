@@ -126,9 +126,9 @@ describe("GET /api/games (docs/06 endpoint 9)", () => {
 
   it("200 {games} in creation order with previewBoard + previewUnits shapes", async () => {
     const { cookie, userId } = await registerUser("list");
-    const first = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 7]]);
-    const second = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 7]]);
-    const third = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 7]]);
+    const first = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 6]]);
+    const second = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 6]]);
+    const third = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 6]]);
     // Creation order is created_at ascending; force distinct timestamps.
     await pool.query("UPDATE games SET created_at = now() - interval '3 minutes' WHERE id = $1", [
       first,
@@ -154,7 +154,7 @@ describe("GET /api/games (docs/06 endpoint 9)", () => {
       expect(game.turnNumber).toBe(1);
       expect(typeof game.updatedAt).toBe("string");
       expect(game.previewBoard.tiles).toHaveLength(engineConfig.boardSize);
-      expect(game.previewUnits).toEqual([{ x: 4, y: 7, side: "player" }]);
+      expect(game.previewUnits).toEqual([{ x: 4, y: 6, side: "player" }]);
     }
   });
 
@@ -162,7 +162,7 @@ describe("GET /api/games (docs/06 endpoint 9)", () => {
     const { cookie, userId } = await registerUser("stale");
     const gameId = await insertPlayerTurnGame(userId, [
       ["E-sword-1", "sword", "enemy", 5, 1],
-      ["P-sword-1", "sword", "player", 4, 13],
+      ["P-sword-1", "sword", "player", 4, 6],
     ]);
     await pool.query(
       "UPDATE games SET status = 'ai_turn', updated_at = now() - interval '5 minutes' WHERE id = $1",
@@ -179,7 +179,7 @@ describe("GET /api/games (docs/06 endpoint 9)", () => {
     const { userId } = await registerUser("svsweep");
     const gameId = await insertPlayerTurnGame(userId, [
       ["E-sword-1", "sword", "enemy", 5, 1],
-      ["P-sword-1", "sword", "player", 4, 13],
+      ["P-sword-1", "sword", "player", 4, 6],
     ]);
     await pool.query(
       "UPDATE games SET status = 'ai_turn', updated_at = now() - interval '5 minutes' WHERE id = $1",
@@ -221,7 +221,7 @@ describe("GET /api/games/:id/preview/:unitId (docs/06 endpoint 12)", () => {
     expect(unknown.body).toEqual({ error: "Not found" });
 
     const { cookie: cookie2, userId } = await registerUser("prevown2");
-    const real = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 7]]);
+    const real = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 6]]);
     const ghost = await request(app)
       .get(`/api/games/${real}/preview/P-ghost-1`)
       .set("Cookie", cookie2);
@@ -232,8 +232,8 @@ describe("GET /api/games/:id/preview/:unitId (docs/06 endpoint 12)", () => {
   it("200 own-unit staging preview computed by the shared engine", async () => {
     const { cookie, userId } = await registerUser("preview");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["E-axe-1", "axe", "enemy", 6, 7],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["E-axe-1", "axe", "enemy", 5, 4],
     ]);
     const res = await request(app)
       .get(`/api/games/${gameId}/preview/P-sword-1`)
@@ -243,7 +243,7 @@ describe("GET /api/games/:id/preview/:unitId (docs/06 endpoint 12)", () => {
     // at distance 1 is attackable (range [1]); nothing healable.
     expect(res.body).toEqual({
       moveTiles: expect.arrayContaining([
-        [4, 7],
+        [4, 6],
         [5, 7],
       ]),
       attackTiles: [[6, 7]],
@@ -255,8 +255,8 @@ describe("GET /api/games/:id/preview/:unitId (docs/06 endpoint 12)", () => {
   it("200 enemy inspection preview (read-only, side: enemy)", async () => {
     const { cookie, userId } = await registerUser("inspect");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["E-axe-1", "axe", "enemy", 6, 7],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["E-axe-1", "axe", "enemy", 5, 4],
     ]);
     const res = await request(app)
       .get(`/api/games/${gameId}/preview/E-axe-1`)
@@ -265,7 +265,7 @@ describe("GET /api/games/:id/preview/:unitId (docs/06 endpoint 12)", () => {
     expect(res.body.side).toBe("enemy");
     expect(res.body.moveTiles).toEqual(
       expect.arrayContaining([
-        [6, 7],
+        [6, 6],
         [7, 7],
       ]),
     );
@@ -274,11 +274,11 @@ describe("GET /api/games/:id/preview/:unitId (docs/06 endpoint 12)", () => {
 
   it("404 Unit not playable for an own unit that already acted", async () => {
     const { cookie, userId } = await registerUser("acted");
-    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 7]]);
+    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 6]]);
     await pool.query("UPDATE games SET units = $2 WHERE id = $1", [
       gameId,
       JSON.stringify(
-        buildUnits([["P-sword-1", "sword", "player", 4, 7]]).map((u) => ({ ...u, acted: true })),
+        buildUnits([["P-sword-1", "sword", "player", 4, 6]]).map((u) => ({ ...u, acted: true })),
       ),
     ]);
     const res = await request(app)
@@ -290,7 +290,7 @@ describe("GET /api/games/:id/preview/:unitId (docs/06 endpoint 12)", () => {
 
   it("409 Game is not waiting for your turn while ai_turn", async () => {
     const { cookie, userId } = await registerUser("prevbusy");
-    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 7]]);
+    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 6]]);
     await pool.query("UPDATE games SET status = 'ai_turn' WHERE id = $1", [gameId]);
     const res = await request(app)
       .get(`/api/games/${gameId}/preview/P-sword-1`)
@@ -317,7 +317,7 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
     expect(bad.body).toEqual({ error: "Not found" });
 
     const { cookie: cookie2, userId } = await registerUser("mvbusy");
-    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 7]]);
+    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 6]]);
     await pool.query("UPDATE games SET status = 'ai_turn' WHERE id = $1", [gameId]);
     const busy = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -330,8 +330,8 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("zod shape failure → 400 with the first zod issue (generic body)", async () => {
     const { cookie, userId } = await registerUser("mvzod");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["E-axe-1", "axe", "enemy", 12, 3],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["E-axe-1", "axe", "enemy", 5, 3],
     ]);
     const res = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -344,9 +344,9 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("applies a valid bundle: units acted, 200, one-per-round lock engaged", async () => {
     const { cookie, userId } = await registerUser("mvok");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["P-spear-1", "spear", "player", 6, 7],
-      ["E-axe-1", "axe", "enemy", 12, 3], // alive, so the victory check stays quiet
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["P-spear-1", "spear", "player", 6, 6],
+      ["E-axe-1", "axe", "enemy", 5, 3], // alive, so the victory check stays quiet
     ]);
     const res = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -356,7 +356,7 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
           {
             unitId: "P-sword-1",
             path: [
-              [4, 7],
+              [4, 6],
               [4, 6],
             ],
             action: { type: "wait" },
@@ -364,7 +364,7 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
           {
             unitId: "P-spear-1",
             path: [
-              [6, 7],
+              [6, 6],
               [6, 6],
             ],
             action: { type: "wait" },
@@ -397,8 +397,8 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("the lock is RESTART-PROOF: a fresh server instance still refuses", async () => {
     const { cookie, userId } = await registerUser("restart");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["E-axe-1", "axe", "enemy", 12, 3],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["E-axe-1", "axe", "enemy", 5, 3],
     ]);
     const applied = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -411,7 +411,7 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
     const res = await request(freshApp)
       .post(`/api/games/${gameId}/moves`)
       .set("Cookie", cookie)
-      .send({ moves: [{ unitId: "P-sword-1", path: [[4, 7]], action: { type: "wait" } }] });
+      .send({ moves: [{ unitId: "P-sword-1", path: [[4, 6]], action: { type: "wait" } }] });
     expect(res.status).toBe(409);
     expect(res.body).toEqual({ error: "Turn moves already submitted" });
   });
@@ -419,8 +419,8 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("an empty bundle applies nothing but consumes the round; end-turn still works", async () => {
     const { cookie, userId } = await registerUser("empty");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["E-axe-1", "axe", "enemy", 12, 3],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["E-axe-1", "axe", "enemy", 5, 3],
     ]);
     const res = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -444,8 +444,8 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("400 with the exact engine message under the 'move N:' prefix; the row is untouched; re-submission allowed", async () => {
     const { cookie, userId } = await registerUser("mvbad");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["P-spear-1", "spear", "player", 6, 7],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["P-spear-1", "spear", "player", 6, 6],
     ]);
     const before = await rawRow(gameId);
 
@@ -454,12 +454,12 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
       .set("Cookie", cookie)
       .send({
         moves: [
-          { unitId: "P-sword-1", path: [[4, 7]], action: { type: "wait" } },
+          { unitId: "P-sword-1", path: [[4, 6]], action: { type: "wait" } },
           // 7 entries = 6 edges; the spear's mov is 5 (docs/02 catalogue).
           {
             unitId: "P-spear-1",
             path: [
-              [6, 7],
+              [6, 6],
               [6, 6],
               [6, 5],
               [6, 4],
@@ -482,11 +482,11 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
       .set("Cookie", cookie)
       .send({
         moves: [
-          { unitId: "P-sword-1", path: [[4, 7]], action: { type: "wait" } },
+          { unitId: "P-sword-1", path: [[4, 6]], action: { type: "wait" } },
           {
             unitId: "P-spear-1",
             path: [
-              [6, 7],
+              [6, 6],
               [6, 6],
             ],
             action: { type: "wait" },
@@ -498,11 +498,11 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
 
   it("move 1 errors carry index 1 (unknown unit)", async () => {
     const { cookie, userId } = await registerUser("mvu1");
-    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 7]]);
+    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 6]]);
     const res = await request(app)
       .post(`/api/games/${gameId}/moves`)
       .set("Cookie", cookie)
-      .send({ moves: [{ unitId: "P-ghost-1", path: [[4, 7]], action: { type: "wait" } }] });
+      .send({ moves: [{ unitId: "P-ghost-1", path: [[4, 6]], action: { type: "wait" } }] });
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: "move 1: unknown unit P-ghost-1" });
   });
@@ -510,8 +510,8 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("two entries claiming ONE evolving tile → move 1 (the earlier entry)", async () => {
     const { cookie, userId } = await registerUser("claim");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["P-spear-1", "spear", "player", 6, 7],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["P-spear-1", "spear", "player", 6, 6],
     ]);
     const res = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -521,7 +521,7 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
           {
             unitId: "P-sword-1",
             path: [
-              [4, 7],
+              [4, 6],
               [5, 7],
             ],
             action: { type: "wait" },
@@ -529,7 +529,7 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
           {
             unitId: "P-spear-1",
             path: [
-              [6, 7],
+              [6, 6],
               [5, 7],
             ],
             action: { type: "wait" },
@@ -543,22 +543,22 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("entering a still-occupied tile → move 2 (occupied in the turn chain)", async () => {
     const { cookie, userId } = await registerUser("occ");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["P-spear-1", "spear", "player", 6, 7],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["P-spear-1", "spear", "player", 6, 6],
       // A third unit receives NO entry this round — its tile stays occupied
       // in the evolving state through the whole bundle.
-      ["P-axe-1", "axe", "player", 5, 7],
+      ["P-axe-1", "axe", "player", 5, 6],
     ]);
     const res = await request(app)
       .post(`/api/games/${gameId}/moves`)
       .set("Cookie", cookie)
       .send({
         moves: [
-          { unitId: "P-sword-1", path: [[4, 7]], action: { type: "wait" } },
+          { unitId: "P-sword-1", path: [[4, 6]], action: { type: "wait" } },
           {
             unitId: "P-spear-1",
             path: [
-              [6, 7],
+              [6, 6],
               [5, 7],
             ],
             action: { type: "wait" },
@@ -574,9 +574,9 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("EVOLVING chain-follow: a later entry lands on a tile an earlier entry vacated", async () => {
     const { cookie, userId } = await registerUser("chain");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["P-spear-1", "spear", "player", 6, 7],
-      ["E-axe-1", "axe", "enemy", 12, 3],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["P-spear-1", "spear", "player", 6, 6],
+      ["E-axe-1", "axe", "enemy", 5, 3],
     ]);
     const res = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -586,7 +586,7 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
           {
             unitId: "P-sword-1",
             path: [
-              [4, 7],
+              [4, 6],
               [4, 6],
             ],
             action: { type: "wait" },
@@ -594,9 +594,9 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
           {
             unitId: "P-spear-1",
             path: [
-              [6, 7],
+              [6, 6],
               [5, 7],
-              [4, 7],
+              [4, 6],
             ],
             action: { type: "wait" },
           },
@@ -611,9 +611,9 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("EVOLVING swap-by-order works (B first, then A into B's vacated origin)", async () => {
     const { cookie, userId } = await registerUser("swap");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["P-spear-1", "spear", "player", 6, 7],
-      ["E-axe-1", "axe", "enemy", 12, 3],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["P-spear-1", "spear", "player", 6, 6],
+      ["E-axe-1", "axe", "enemy", 5, 3],
     ]);
     const ordered = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -623,7 +623,7 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
           {
             unitId: "P-spear-1",
             path: [
-              [6, 7],
+              [6, 6],
               [6, 6],
               [5, 6],
             ],
@@ -632,9 +632,9 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
           {
             unitId: "P-sword-1",
             path: [
-              [4, 7],
+              [4, 6],
               [5, 7],
-              [6, 7],
+              [6, 6],
             ],
             action: { type: "wait" },
           },
@@ -649,8 +649,8 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("EVOLVING dirty swap (A into B's tile while B is still there) is impossible", async () => {
     const { cookie, userId } = await registerUser("dswap");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["P-spear-1", "spear", "player", 6, 7],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["P-spear-1", "spear", "player", 6, 6],
     ]);
     const res = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -660,18 +660,18 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
           {
             unitId: "P-sword-1",
             path: [
-              [4, 7],
+              [4, 6],
               [5, 7],
-              [6, 7],
+              [6, 6],
             ],
             action: { type: "wait" },
           },
           {
             unitId: "P-spear-1",
             path: [
-              [6, 7],
+              [6, 6],
               [5, 7],
-              [4, 7],
+              [4, 6],
             ],
             action: { type: "wait" },
           },
@@ -686,8 +686,8 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
   it("victory short-circuit: wiping the last enemy → won; no end-turn, no forfeit", async () => {
     const { cookie, userId } = await registerUser("won");
     const gameId = await insertPlayerTurnGame(userId, [
-      ["P-sword-1", "sword", "player", 4, 7],
-      ["E-archer-1", "archer", "enemy", 5, 7, 1],
+      ["P-sword-1", "sword", "player", 4, 6],
+      ["E-archer-1", "archer", "enemy", 5, 6, 1],
     ]);
     const res = await request(app)
       .post(`/api/games/${gameId}/moves`)
@@ -696,7 +696,7 @@ describe("POST /api/games/:id/moves (docs/06 endpoint 13)", () => {
         moves: [
           {
             unitId: "P-sword-1",
-            path: [[4, 7]],
+            path: [[4, 6]],
             action: { type: "attack", targetId: "E-archer-1" },
           },
         ],
@@ -732,14 +732,14 @@ describe("POST /api/games/:id/end-turn (docs/06 endpoint 14)", () => {
     const { cookie, userId } = await registerUser("endturn");
     const gameId = await insertPlayerTurnGame(userId, [
       ["E-sword-1", "sword", "enemy", 5, 1],
-      ["P-sword-1", "sword", "player", 4, 13],
+      ["P-sword-1", "sword", "player", 4, 6],
     ]);
 
     // A prior submission marked the player's unit acted; the round was locked.
     await request(app)
       .post(`/api/games/${gameId}/moves`)
       .set("Cookie", cookie)
-      .send({ moves: [{ unitId: "P-sword-1", path: [[4, 13]], action: { type: "wait" } }] })
+      .send({ moves: [{ unitId: "P-sword-1", path: [[4, 6]], action: { type: "wait" } }] })
       .expect(200);
 
     const res = await request(app).post(`/api/games/${gameId}/end-turn`).set("Cookie", cookie);
@@ -780,7 +780,7 @@ describe("POST /api/games/:id/end-turn (docs/06 endpoint 14)", () => {
     const { cookie, userId } = await registerUser("race");
     const gameId = await insertPlayerTurnGame(userId, [
       ["E-sword-1", "sword", "enemy", 5, 1],
-      ["P-sword-1", "sword", "player", 4, 13],
+      ["P-sword-1", "sword", "player", 4, 6],
     ]);
     await request(app).post(`/api/games/${gameId}/end-turn`).set("Cookie", cookie).expect(200);
     const forfeit = await request(app).post(`/api/games/${gameId}/forfeit`).set("Cookie", cookie);
@@ -810,7 +810,7 @@ describe("POST /api/games/:id/forfeit (docs/06 endpoint 15)", () => {
 
   it("forfeits an active player_turn game; a repeat is rejected (no idempotent success)", async () => {
     const { cookie, userId } = await registerUser("forfeit");
-    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 7]]);
+    const gameId = await insertPlayerTurnGame(userId, [["P-sword-1", "sword", "player", 4, 6]]);
     const res = await request(app).post(`/api/games/${gameId}/forfeit`).set("Cookie", cookie);
     expect(res.status).toBe(200);
     expect(res.body.game.status).toBe("lost");

@@ -127,7 +127,7 @@ describe("POST /api/games (docs/06 endpoint 10)", () => {
       for (const tile of tiles[y]) expect(tile).toBe("plain");
     }
 
-    // Armies per docs/03: 10 per side, 8x2 block (columns 4-11), front row =
+    // Armies per docs/03: 10 per side in 2 full-width spawn rows; front row =
     // 2 swords + 2 axes + 1 spear, back row = spear + 2 archers + mage +
     // healer, healer NEVER front, freshly spawned.
     const units = game.units as Array<{
@@ -161,8 +161,8 @@ describe("POST /api/games (docs/06 endpoint 10)", () => {
           .join(),
       ).toBe("archer,archer,healer,mage,spear");
       for (const unit of sideUnits) {
-        expect(unit.x).toBeGreaterThanOrEqual(4);
-        expect(unit.x).toBeLessThanOrEqual(11);
+        expect(unit.x).toBeGreaterThanOrEqual(0);
+        expect(unit.x).toBeLessThanOrEqual(size - 1);
         expect(unit.id).toMatch(new RegExp(`^${side === "player" ? "P" : "E"}-`));
         expect(unit.hp).toBe(unit.maxHp);
         expect(unit.acted).toBe(false);

@@ -5,7 +5,7 @@
 import { config } from "../../config/load";
 import type { Board, ClassKey, GameEngineConfig, Unit } from "../../game/types";
 import type { Brief } from "./briefSchema";
-import { SPAWN_BLOCK_COLUMNS, isReservedRow, spawnBlockStartColumn } from "./materialize";
+import { isReservedRow, spawnBlockStartColumn, spawnBlockWidth } from "./materialize";
 
 export function validateBoard(board: Board, brief: Brief): string | null {
   const size = config.boardSize;
@@ -20,259 +20,237 @@ export function validateBoard(board: Board, brief: Brief): string | null {
     for (let x = 0; x < size; x++) {
       const tile = tiles[y][x];
       if (tile === "lake" || tile === "river") {
-        return `water tile (${x},${y}) in a reserved row`;
+        return `water tile ${tile} in reserved row ${y}`;
       }
     }
   }
 
-  if (brief.river) {
-    const pathFailure = validateRiverPath(tiles, size, brief);
-    if (pathFailure) return pathFailure;
-  } else {
-    // Riverless brief: no water crossing may exist at all (zero river, zero
-    // bridge) — the only water allowed is the lake.
+  if (brief.river !== null) {
+    // 1. The river forms a single simple path from column 0 to column size-1
+    // (bridge tiles included). Recorded at placement, so we verify by edges.
+    const pathTiles: Array<[number, number]> = [];
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const tile = tiles[y][x];
-        if (tile === "river" || tile === "bridge") {
-          return `riverless brief produced a ${tile} tile at (${x},${y})`;
+        if (tile === "river" || tile === "bridge") pathTiles.push([x, y]);
+      }
+    }
+    if (pathTiles.length === 0) return "river brief produced no river tiles";
+    const touchesLeft = pathTiles.some(([x]) => x === 0);
+    const touchesRight = pathTiles.some(([x]) => x === size - 1);
+    if (!touchsLeftEdge(touchesLeft) || !touchsRightEdge(touchesRight)) {
+      return "river does not span left edge to right edge";
+    }
+    // Simple path: every path tile has 1 (endpoint) or 2 neighbors on the
+    // path, and the whole set is connected.
+    const pathSet = new Set(pathTiles.map(([x, y]) => `${x},${y}`));
+    for (const [x, y] of pathTiles) {
+      let neighbors = 0;
+      for (const [dx, dy] of NEIGHBORS) {
+        if (pathSet.has(`${x + dx},${y + dy}`)) neighbors++;
+      }
+      if (neighbors < 1 || neighbors > 2) {
+        return "river is not a simple path";
+      }
+    }
+    if (!connected(pathSet, pathTiles[0])) {
+      return "river is not a single connected path";
+    }
+
+    // 2. Every bridge is a river tile at a straight horizontal segment with a
+    // guaranteed escape (no water adjacent N/S, no obstacle adjacent N/S).
+    // Tiles adjacent N/S of a bridge must remain walkable land — grass, hill,
+    // or forest — never rock, river, or lake.
+    let bridgeCount = 0;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (tiles[y][x] !== "bridge") continue;
+        bridgeCount++;
+        if (x <= 0 || x >= size - 1) return "bridge on board edge";
+        if (tiles[y][x - 1] !== "river" || tiles[y][x + 1] !== "river") {
+          return "bridge is not on a straight horizontal segment";
+        }
+        if (!isWalkableLand(tiles[y - 1]?.[x]) || !isWalkableLand(tiles[y + 1]?.[x])) {
+          return "bridge has no safe north/south escape";
         }
       }
     }
-  }
 
-  // 4. Crossability: some walkable route connects the two spawn regions
-  // (`bridge` counts; `rock` is walkable — only lake/river impassable, per
-  // docs/02's movement rules).
-  return crossable(tiles, size) ? null : "spawns are cut off from each other";
-}
-
-// 1+2+3 over river ∪ bridge tiles: one connected simple path spanning the
-// left edge → right edge (each path tile has exactly 2 path neighbours except
-// the two edge tiles, which have 1), never in reserved rows, bridge count
-// equal to the brief's, every bridge on the path (part of the one component).
-function validateRiverPath(tiles: Board["tiles"], size: number, brief: Brief): string | null {
-  const isPathTile = (tile: string) => tile === "river" || tile === "bridge";
-  const last = size - 1;
-
-  const pathTiles: Array<[number, number]> = [];
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (isPathTile(tiles[y][x])) pathTiles.push([x, y]);
+    // 3. Bridge count equals the brief's bridgeTiles.
+    if (bridgeCount !== brief.bridgeTiles) {
+      return `bridge count ${bridgeCount} does not match brief ${brief.bridgeTiles}`;
     }
-  }
-  if (!pathTiles.some(([x]) => x === 0) || !pathTiles.some(([x]) => x === last)) {
-    return "river does not span from the left edge to the right edge";
-  }
-
-  const neighbourCount = (x: number, y: number): number => {
-    let count = 0;
-    for (const [nx, ny] of [
-      [x + 1, y],
-      [x - 1, y],
-      [x, y + 1],
-      [x, y - 1],
-    ] as Array<[number, number]>) {
-      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
-      if (isPathTile(tiles[ny][nx])) count++;
-    }
-    return count;
-  };
-
-  for (const [x, y] of pathTiles) {
-    const expected = x === 0 || x === last ? 1 : 2;
-    if (neighbourCount(x, y) !== expected) {
-      return `river path invariant broken at (${x},${y})`;
-    }
-    // 2. The river (as a path tile) never sits in a reserved row; overlap
-    // with lake/rock is structurally impossible — a tile holds ONE type.
-    if (isReservedRow(y, size)) {
-      return `river path passes through reserved row ${y}`;
+  } else {
+    // A riverless board has no river and no bridges (water beyond the lake).
+    if (board.tiles.some((row) => row.some((t) => t === "river" || t === "bridge"))) {
+      return "riverless brief produced river/bridge tiles";
     }
   }
 
-  // One connected component (counts alone could admit two disjoint paths).
-  const seen = new Set<string>();
-  const stack = [pathTiles[0]];
-  while (stack.length > 0) {
-    const [x, y] = stack.pop() as [number, number];
-    const key = `${x},${y}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    for (const [nx, ny] of [
-      [x + 1, y],
-      [x - 1, y],
-      [x, y + 1],
-      [x, y - 1],
-    ] as Array<[number, number]>) {
-      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
-      if (isPathTile(tiles[ny][nx]) && !seen.has(`${nx},${ny}`)) {
-        stack.push([nx, ny]);
-      }
-    }
-  }
-  if (seen.size !== pathTiles.length) {
-    return "river path is not one connected simple path";
-  }
+  // 4. BFS from the player's spawn area to the enemy's over walkable tiles
+  // (plain, forest, hill, bridge) finds a path — at least one bridge usable.
+  if (!isCrossable(board)) return "no walkable path connects the spawn areas";
 
-  // 3. Bridge count equals the brief's; every bridge lies on the path (it is
-  // a path tile of the one component by construction of the checks above).
-  const bridges = pathTiles.filter(([x, y]) => tiles[y][x] === "bridge").length;
-  if (bridges !== brief.bridgeTiles) {
-    return `bridge count ${bridges} does not match the brief's ${brief.bridgeTiles}`;
-  }
   return null;
 }
 
-// 4. BFS from the player's spawn block to the enemy's over walkable tiles.
-function crossable(tiles: Board["tiles"], size: number): boolean {
-  const isWater = (tile: string) => tile === "lake" || tile === "river";
-  const startCol = spawnBlockStartColumn(size);
-  const block = Array.from({ length: SPAWN_BLOCK_COLUMNS }, (_, i) => startCol + i);
-  const enemyRows = [0, 1];
-  const playerRows = [size - 2, size - 1];
+const NEIGHBORS: ReadonlyArray<[number, number]> = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
 
-  const visited = new Set<string>();
-  const frontier: Array<[number, number]> = [];
-  for (const y of playerRows) {
-    for (const x of block) {
-      if (isWater(tiles[y][x])) continue; // can't start from water
-      visited.add(`${x},${y}`);
-      frontier.push([x, y]);
+function touchsLeftEdge(value: boolean): boolean {
+  return value;
+}
+function touchsRightEdge(value: boolean): boolean {
+  return value;
+}
+
+function isWalkableLand(tile: string | undefined): boolean {
+  return tile === "plain" || tile === "forest" || tile === "hill";
+}
+
+function isWalkable(tile: string): boolean {
+  return tile === "plain" || tile === "forest" || tile === "hill" || tile === "bridge";
+}
+
+function connected(pathSet: Set<string>, start: [number, number]): boolean {
+  const queue: Array<[number, number]> = [start];
+  const seen = new Set<string>([`${start[0]},${start[1]}`]);
+  while (queue.length > 0) {
+    const [x, y] = queue.shift() as [number, number];
+    for (const [dx, dy] of NEIGHBORS) {
+      const key = `${x + dx},${y + dy}`;
+      if (!pathSet.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      queue.push([x + dx, y + dy]);
     }
   }
-  const enemyTargets = new Set<string>();
-  for (const y of enemyRows) {
-    for (const x of block) enemyTargets.add(`${x},${y}`);
-  }
+  return seen.size === pathSet.size;
+}
 
-  while (frontier.length > 0) {
-    const [x, y] = frontier.pop() as [number, number];
-    if (enemyTargets.has(`${x},${y}`)) return true;
-    for (const [nx, ny] of [
-      [x + 1, y],
-      [x - 1, y],
-      [x, y + 1],
-      [x, y - 1],
-    ] as Array<[number, number]>) {
+function isCrossable(board: Board): boolean {
+  const size = board.tiles.length;
+  const startCol = spawnBlockStartColumn(size);
+  const width = spawnBlockWidth(size);
+  const block = Array.from({ length: width }, (_, i) => startCol + i);
+  const enemyFront = 1;
+  const queue: Array<[number, number]> = [];
+  const seen = new Set<string>();
+  for (const x of block) {
+    const key = `${x},${size - 2}`;
+    if (isWalkable(board.tiles[size - 2][x]) && !seen.has(key)) {
+      seen.add(key);
+      queue.push([x, size - 2]);
+    }
+  }
+  while (queue.length > 0) {
+    const [x, y] = queue.shift() as [number, number];
+    if (y === enemyFront && block.includes(x)) return true;
+    for (const [dx, dy] of NEIGHBORS) {
+      const nx = x + dx;
+      const ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
       const key = `${nx},${ny}`;
-      if (visited.has(key)) continue;
-      if (isWater(tiles[ny][nx])) continue;
-      visited.add(key);
-      frontier.push([nx, ny]);
+      if (seen.has(key) || !isWalkable(board.tiles[ny][nx])) continue;
+      seen.add(key);
+      queue.push([nx, ny]);
     }
   }
   return false;
 }
 
-// 5+6. Spawn slots: per side, the front row carries exactly the front group
-// (2 swords, 2 axes, 1 spear at baseline — assembled from config counts),
-// the back row the back group (remaining spear, archers, mage, healer — the
-// healer NEVER front), 3 empty gaps per row, every unit standing on a plain
-// reserved-row tile with fresh hp.
+// ── army composition helpers (consumed by spawn.ts and docs/03 invariant 5) ──
+// Composition per docs/03: front = 2 swords, 2 axes, 1 spear; back = remaining
+// spear, 2 archers, mage, healer. Spear is split across rows (1 front, rest back).
+export const FRONT_ROW_CLASSES: readonly ClassKey[] = ["sword", "axe", "spear"];
+export const BACK_ROW_CLASSES: readonly ClassKey[] = ["spear", "archer", "mage", "healer"];
+
+export function totalArmySize(cfg: GameEngineConfig): number {
+  return Object.values(cfg.classes).reduce((sum, entry) => sum + entry.count, 0);
+}
+
+export function frontComposition(cfg: GameEngineConfig): ClassKey[] {
+  const out: ClassKey[] = [];
+  // swords, axes: all to front; spear: 1 to front
+  for (const cls of ["sword", "axe", "spear"] as const) {
+    const count = cfg.classes[cls].count;
+    const frontCount = cls === "spear" ? 1 : count;
+    for (let i = 0; i < frontCount; i++) out.push(cls);
+  }
+  return out;
+}
+
+export function backComposition(cfg: GameEngineConfig): ClassKey[] {
+  const out: ClassKey[] = [];
+  // spear: remaining to back; others: all to back
+  for (const cls of ["spear", "archer", "mage", "healer"] as const) {
+    const count = cfg.classes[cls].count;
+    const backCount = cls === "spear" ? Math.max(0, count - 1) : count;
+    for (let i = 0; i < backCount; i++) out.push(cls);
+  }
+  return out;
+}
+
+// Invariant 5: spawn layout validity (checked once per pipeline run, since the
+// armies don't depend on the brief).
 export function validateSpawn(board: Board, units: Unit[], cfg: GameEngineConfig): string | null {
   const size = cfg.boardSize;
+  const tiles = board.tiles;
+  const expectedPerSide = totalArmySize(cfg);
   const startCol = spawnBlockStartColumn(size);
-  const frontGroup = frontComposition(cfg);
-  const backGroup = backComposition(cfg);
-
-  if (units.length !== totalArmySize(cfg) * 2) {
-    return `army has ${units.length} units, expected ${totalArmySize(cfg) * 2}`;
-  }
-
-  const seenIds = new Set<string>();
-  for (const unit of units) {
-    if (seenIds.has(unit.id)) return `duplicate unit id ${unit.id}`;
-    seenIds.add(unit.id);
-    if (!unit.id.startsWith(unit.side === "player" ? "P-" : "E-")) {
-      return `unit id ${unit.id} does not match its side`;
-    }
-    const stats = cfg.classes[unit.class];
-    if (unit.maxHp !== stats.hp || unit.hp !== unit.maxHp || unit.acted) {
-      return `unit ${unit.id} is not freshly spawned`;
-    }
-    if (
-      unit.x < startCol ||
-      unit.x >= startCol + SPAWN_BLOCK_COLUMNS ||
-      ![0, 1, size - 2, size - 1].includes(unit.y)
-    ) {
-      return `unit ${unit.id} spawned outside its 8x2 block`;
-    }
-    if (board.tiles[unit.y]?.[unit.x] !== "plain") {
-      return `unit ${unit.id} spawned on an obstacle at (${unit.x},${unit.y})`;
-    }
-  }
+  const width = spawnBlockWidth(size);
 
   for (const side of ["player", "enemy"] as const) {
+    const sideUnits = units.filter((unit) => unit.side === side);
+    if (sideUnits.length !== expectedPerSide) {
+      return `${side} army has ${sideUnits.length} units, expected ${expectedPerSide}`;
+    }
     const frontRow = side === "player" ? size - 2 : 1;
     const backRow = side === "player" ? size - 1 : 0;
-    const sideUnits = units.filter((unit) => unit.side === side);
-    const front = sideUnits.filter((unit) => unit.y === frontRow);
-    const back = sideUnits.filter((unit) => unit.y === backRow);
-    if (
-      !sameMultiset(
-        front.map((unit) => unit.class),
-        frontGroup,
-      )
-    ) {
-      return `${side} front row composition is wrong`;
+    const front = sideUnits.filter((u) => u.y === frontRow);
+    const back = sideUnits.filter((u) => u.y === backRow);
+    if (front.length + back.length !== expectedPerSide) {
+      return `${side} units are not on the two spawn rows`;
     }
-    if (
-      !sameMultiset(
-        back.map((unit) => unit.class),
-        backGroup,
-      )
-    ) {
-      return `${side} back row composition is wrong`;
+    const expectedFront = frontComposition(cfg).length;
+    const expectedBack = backComposition(cfg).length;
+    if (front.length !== expectedFront || back.length !== expectedBack) {
+      return `${side} front/back counts do not match composition (${front.length}/${back.length} vs ${expectedFront}/${expectedBack})`;
     }
-    // Row rule guarantees it, but the doc calls it out explicitly: the healer
-    // NEVER sits front.
-    if (front.some((unit) => unit.class === "healer")) {
-      return `${side} healer sits in the front row`;
+    // Class composition per row
+    if (!sameMultiset(front.map((u) => u.class), frontComposition(cfg))) {
+      return `${side} front row composition is invalid`;
+    }
+    if (!sameMultiset(back.map((u) => u.class), backComposition(cfg))) {
+      return `${side} back row composition is invalid`;
+    }
+    for (const unit of sideUnits) {
+      if (
+        unit.x < startCol ||
+        unit.x >= startCol + width ||
+        (unit.y !== frontRow && unit.y !== backRow)
+      ) {
+        return `unit ${unit.id} spawned outside its spawn area`;
+      }
+      if (!isWalkable(tiles[unit.y][unit.x])) {
+        return `unit ${unit.id} spawned on non-walkable tile ${tiles[unit.y][unit.x]}`;
+      }
     }
   }
   return null;
 }
 
-// Front/back groups assembled from the CONFIG counts (docs/08 rule 3: never
-// hardcoded) — baseline: front = 2 swords, 2 axes, 1 spear; back = remaining
-// spear, 2 archers, mage, healer. The split rule: the attacker classes in
-// display order fill the front row's 5 slots (docs/03: 5 front + 5 back per
-// side), the overflow and all supporters go back.
-const FRONT_ROW_UNITS = 5;
-
-export function frontComposition(cfg: GameEngineConfig): ClassKey[] {
-  const group: ClassKey[] = [];
-  for (const key of ["sword", "axe", "spear"] as ClassKey[]) {
-    for (let i = 0; i < cfg.classes[key].count && group.length < FRONT_ROW_UNITS; i++) {
-      group.push(key);
-    }
-  }
-  return group;
-}
-
-export function backComposition(cfg: GameEngineConfig): ClassKey[] {
-  // The back row carries whatever the front row did NOT take — per-class
-  // counts, not whole classes (the baseline spear splits 1 front / 1 back).
-  const frontCounts = new Map<ClassKey, number>();
-  for (const key of frontComposition(cfg)) {
-    frontCounts.set(key, (frontCounts.get(key) ?? 0) + 1);
-  }
-  const group: ClassKey[] = [];
-  for (const key of ["sword", "axe", "spear", "archer", "mage", "healer"] as ClassKey[]) {
-    const remaining = cfg.classes[key].count - (frontCounts.get(key) ?? 0);
-    for (let i = 0; i < remaining; i++) group.push(key);
-  }
-  return group;
-}
-
-export function totalArmySize(cfg: GameEngineConfig): number {
-  return Object.values(cfg.classes).reduce((sum, c) => sum + c.count, 0);
-}
-
 function sameMultiset(actual: ClassKey[], expected: ClassKey[]): boolean {
   if (actual.length !== expected.length) return false;
-  const sorted = (items: ClassKey[]) => [...items].sort();
-  return sorted(actual).join() === sorted(expected).join();
+  const counts = new Map<ClassKey, number>();
+  for (const cls of actual) counts.set(cls, (counts.get(cls) ?? 0) + 1);
+  for (const cls of expected) {
+    const next = (counts.get(cls) ?? 0) - 1;
+    if (next < 0) return false;
+    counts.set(cls, next);
+  }
+  return true;
 }

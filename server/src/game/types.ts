@@ -2,7 +2,7 @@
 // PURE rules engine: zero I/O, no imports from features/ — features import from
 // here, never the reverse (docs/01 layout rules).
 
-export const SIZE = 15; // hardcoded ONLY as a fixture default for tests — production code derives
+export const SIZE = 8; // hardcoded ONLY as a fixture default for tests — production code derives
 // the grid size from GameEngineConfig.boardSize. Never read SIZE in engine math.
 
 export type Tile = "plain" | "forest" | "hill" | "lake" | "rock" | "river" | "bridge";

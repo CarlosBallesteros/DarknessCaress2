@@ -134,7 +134,7 @@
 /* card mini-map: the previewBoard's tile grid (05) */
 .minimap {
   display: grid;
-  grid-template-columns: repeat(var(--map-size, 15), 1fr);
+  grid-template-columns: repeat(var(--map-size, 8), 1fr);
   aspect-ratio: 1;
   width: min(100%, 140px);
   max-width: 140px;
@@ -151,11 +151,11 @@
    never class-specific — positioned over the tile grid */
 .minimap-dot {
   position: absolute;
-  left: calc((100% / var(--map-size, 15)) * (var(--dot-x) + 0.5));
-  top: calc((100% / var(--map-size, 15)) * (var(--dot-y) + 0.5));
-  width: 55%;
+  left: calc((100% / var(--map-size, 8)) * (var(--dot-x) + 0.5));
+  top: calc((100% / var(--map-size, 8)) * (var(--dot-y) + 0.5));
+  width: 38%;
   aspect-ratio: 1;
-  max-width: 12px;
+  max-width: 7px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);

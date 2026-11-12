@@ -19,7 +19,7 @@
 interface User { id: string; email: string; username: string; theme: string; createdAt: string }
 
 // board
-interface Board { tiles: string[][] }        // 15x15, tile codes: "plain" | "forest" | "hill" | "lake" | "rock" | "river" | "bridge"
+interface Board { tiles: string[][] }        // boardSize×boardSize (8×8 baseline), tile codes: "plain" | "forest" | "hill" | "lake" | "rock" | "river" | "bridge"
 
 // unit
 interface Unit {
@@ -107,7 +107,7 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
 
 ```json
 {
-  "boardSize": 15,
+  "boardSize": 8,
   "maxActiveGames": 5,
   "classes": {
     "sword": { "label": "Swordsman", "hp": 20, "atk": 7, "def": 5, "mov": 3, "range": [1], "role": "attacker", "count": 2 },

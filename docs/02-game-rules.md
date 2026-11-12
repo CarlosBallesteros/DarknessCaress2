@@ -5,8 +5,8 @@
 ## Types (canonical — `src/game/types.ts`)
 
 ```ts
-export const SIZE = 15; // hardcoded ONLY as a fixture default for tests — production code derives
-                        // the grid size from GameEngineConfig.boardSize. Never read SIZE in engine math.
+export const SIZE = 8; // hardcoded ONLY as a fixture default for tests — production code derives
+                       // the grid size from GameEngineConfig.boardSize. Never read SIZE in engine math.
 
 export type Tile = "plain" | "forest" | "hill" | "lake" | "rock" | "river" | "bridge";
 export type ClassKey = "sword" | "axe" | "spear" | "archer" | "mage" | "healer";

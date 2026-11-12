@@ -7,16 +7,21 @@ import type { Board, Tile } from "../../game/types";
 import type { Brief } from "./briefSchema";
 import { mulberry32 } from "./prng";
 
-// Spawn-block width (docs/03): each army occupies an 8×2 block. Structural
-// spec constant, not a balance stat.
-export const SPAWN_BLOCK_COLUMNS = 8;
+// Spawn area (docs/03): each army occupies 2 full rows of all columns
+// (player bottom, enemy top). Derived from board size.
+export const SPAWN_BLOCK_COLUMNS = 8; // legacy export kept for compatibility in some tests; spawn uses full width
 
 export function isReservedRow(y: number, size: number): boolean {
   return y <= 1 || y >= size - 2;
 }
 
 export function spawnBlockStartColumn(size: number): number {
-  return Math.ceil((size - SPAWN_BLOCK_COLUMNS) / 2); // 4 at the 15×15 baseline
+  void size;
+  return 0;
+}
+
+export function spawnBlockWidth(size: number): number {
+  return size;
 }
 
 export function materialize(brief: Brief, seed: number): Board {

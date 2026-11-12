@@ -1,22 +1,21 @@
 // Stage 1 contract tests (docs/03): the brief schema rejects extras and
 // out-of-range values; the prompt template renders every board-size-derived
-// number from config at build time (docs/04 prompt hygiene — mutate nothing
-// by hand).
+// number from config at build time (docs/04 prompt hygiene).
 import { describe, expect, it } from "vitest";
 import { config } from "../../config/load";
 import { briefJsonSchema, briefSchema, type Brief } from "./briefSchema";
 import { briefPrompt } from "./briefPrompt";
 
 const validBrief: Brief = {
-  river: { startRow: 7, endRow: 6, bends: 2 },
-  bridgeTiles: 2,
-  forestZones: [{ centerX: 5, centerY: 4, radius: 2 }],
-  hillZones: [{ centerX: 10, centerY: 3, radius: 1 }],
-  lake: { centerX: 7, centerY: 7, radius: 1 },
+  river: { startRow: 3, endRow: 4, bends: 2 },
+  bridgeTiles: 1,
+  forestZones: [{ centerX: 2, centerY: 2, radius: 1 }],
+  hillZones: [{ centerX: 5, centerY: 3, radius: 1 }],
+  lake: { centerX: 3, centerY: 3, radius: 1 },
 };
 
 describe("briefSchema", () => {
-  it("accepts the documented example", () => {
+  it("accepts a valid example", () => {
     expect(briefSchema.safeParse(validBrief).success).toBe(true);
   });
 
@@ -24,19 +23,20 @@ describe("briefSchema", () => {
     expect(briefSchema.safeParse({ ...validBrief, surprise: 1 }).success).toBe(false);
   });
 
-  it("enforces the documented ranges (baseline bounds)", () => {
+  it("enforces the documented ranges", () => {
+    const size = config.boardSize;
     const outOfRange: Brief = {
       ...validBrief,
-      river: { startRow: 13, endRow: 6, bends: 2 }, // startRow must be 2-12
+      river: { startRow: size, endRow: 3, bends: 2 },
     };
     expect(briefSchema.safeParse(outOfRange).success).toBe(false);
 
-    const badBends: Brief = { ...validBrief, river: { startRow: 7, endRow: 6, bends: 4 } };
+    const badBends: Brief = { ...validBrief, river: { startRow: 3, endRow: 4, bends: 4 } };
     expect(briefSchema.safeParse(badBends).success).toBe(false);
 
     const badRadius: Brief = {
       ...validBrief,
-      lake: { centerX: 7, centerY: 7, radius: 3 },
+      lake: { centerX: 3, centerY: 3, radius: 3 },
     };
     expect(briefSchema.safeParse(badRadius).success).toBe(false);
 
@@ -46,9 +46,9 @@ describe("briefSchema", () => {
     const threeHills: Brief = {
       ...validBrief,
       hillZones: [
+        { centerX: 2, centerY: 2, radius: 1 },
         { centerX: 3, centerY: 3, radius: 1 },
-        { centerX: 5, centerY: 5, radius: 1 },
-        { centerX: 7, centerY: 7, radius: 1 },
+        { centerX: 4, centerY: 4, radius: 1 },
       ],
     };
     expect(briefSchema.safeParse(threeHills).success).toBe(false);

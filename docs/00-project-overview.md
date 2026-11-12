@@ -29,7 +29,7 @@ The specs are written to be **as specific as possible while staying as simple as
 | Landing page | Title: **"Darkness Caress II"** (final, gothic blackletter display font). Tagline: **"The long-awaited sequel to the legendary game"** (final). One `To Battle!` button. |
 | Auth | Email + password registration, unique display username. Login with email. No email verification, no password recovery, no 2FA (see Later hooks). Full mechanics — bcrypt, JWT cookie, rate limit — in `01-architecture.md`. |
 | Tabs (top menu) | **Games**, **Statistics**, **Champions**, **Store**, **Profile**. |
-| Game tab | The **Games strip** — two scroll-snap rows (`Active battles` / `Past battles`, creation order in each; finished games dimmed) + a separate always-visible **New battle** action (exactly ONE control per page, ever). Cards carry mini board maps with unit dots. Opening a game shows the 15×15 board and the two armies. |
+| Game tab | The **Games strip** — two scroll-snap rows (`Active battles` / `Past battles`, creation order in each; finished games dimmed) + a separate always-visible **New battle** action (exactly ONE control per page, ever). Cards carry mini board maps with unit dots. Opening a game shows the 8×8 board and the two armies. |
 | Store tab | Flavor page: "Coming soon…" over dark-fantasy dressing. Placeholder for a future real store (later hooks: where new themes and cosmetics would be sold). No functionality in MVP. |
 | Statistics tab | Games played, wins, losses, win rate, and wins/losses per AI difficulty — computed from **finished game rows** (there is no separate history table). |
 | Champions tab | A grid of the 6 unit classes: role badge (attacker/supporter), portrait **both sides** (two artworks), stat block, and a short lore paragraph — all served via `GET /api/meta` from the config. Sprites appear on the game board, not here. Static content, no interactivity beyond viewing. |
@@ -69,9 +69,10 @@ Starting values (chosen for readability of the config, details in `02-game-rules
 - **Victory condition:** kill **all 10** enemy units. (The defeat is symmetric: if all YOUR units die, you lose — both outcomes are recorded in stats.)
 
 ### Board generation
-- 15×15 grid, always.
+- 8×8 grid, always.
 - Terrain palette: plain, forest, hill, lake, river, bridge (+ decorative rocks). Terrain types are cosmetic.
 - **Zero or one** river line per board. A river is a connected path across the board with a few **turns** (never a straight canal, never spiraling into a flooded board). Only crossing points are the 1–2 bridges lying on it — riverless boards are possible (the designer may omit the river; then there are no bridges either).
+- Spawn areas are **2 full rows of all 8 columns** on each side: player bottom (rows 6–7), enemy top (rows 0–1). Front rows face the middle.
 - The river (when present), its bends, bridges and terrain zones come from a hybrid pipeline detailed in `03-board-generation.md`: the **LLM decides** the layout brief (river start/end and bends, bridge tiles, forest/hill/lake zones and their placements — the zones' radii ARE the density knob), **deterministic code materializes** the grid, then validates. No board is playable that violates the constraints.
 
 ### AI gaming (the meat)

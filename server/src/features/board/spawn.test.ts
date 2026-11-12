@@ -1,12 +1,14 @@
-// Spawn scatter tests (docs/03 test 6): same seed ⇒ identical arrangement
-// twice; across ≥ 40 seeds the column sets/orders vary (gaps included) and
-// the healer is ALWAYS in the back row.
+// Spawn scatter tests (docs/03): same seed ⇒ identical arrangement twice;
+// across ≥ 40 seeds the column sets/orders vary (gaps included) and the healer
+// is ALWAYS in the back row.
 import { describe, expect, it } from "vitest";
+import { config } from "../../config/load";
 import { engineConfig } from "../../config/engine";
 import { assembleArmies } from "./spawn";
 
-const playerFrontRow = 13;
-const playerBackRow = 14;
+const size = config.boardSize;
+const playerFrontRow = size - 2;
+const playerBackRow = size - 1;
 const enemyFrontRow = 1;
 const enemyBackRow = 0;
 
@@ -37,7 +39,7 @@ describe("spawn scatter", () => {
     }
   });
 
-  it("places exactly 5 units + 3 gaps per row, inside the 8x2 block, ids unique", () => {
+  it("places units in 2 full-width spawn rows per side, ids unique", () => {
     const units = assembleArmies(20261108, engineConfig);
     expect(units).toHaveLength(20);
     const ids = new Set(units.map((unit) => unit.id));
@@ -55,11 +57,10 @@ describe("spawn scatter", () => {
         const columns = new Set(inRow.map((unit) => unit.x));
         expect(columns.size).toBe(5);
         for (const x of columns) {
-          expect(x).toBeGreaterThanOrEqual(4);
-          expect(x).toBeLessThanOrEqual(11);
+          expect(x).toBeGreaterThanOrEqual(0);
+          expect(x).toBeLessThanOrEqual(size - 1);
         }
       }
-      // Freshly spawned: hp = maxHp, never acted.
       for (const unit of sideUnits) {
         expect(unit.hp).toBe(unit.maxHp);
         expect(unit.acted).toBe(false);

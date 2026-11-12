@@ -30,12 +30,12 @@ vi.mock("./materialize", async (importOriginal) => {
 
 import { generateBoard } from "./generate";
 
-const alwaysSameBrief = () => async () => ({
-  river: { startRow: 7, endRow: 6, bends: 2 },
-  bridgeTiles: 2,
-  forestZones: [{ centerX: 5, centerY: 4, radius: 2 }],
-  hillZones: [],
-  lake: null,
+const validBrief = () => async () => ({
+  river: null,
+  bridgeTiles: 1,
+  forestZones: [{ centerX: 2, centerY: 2, radius: 1 }],
+  hillZones: [{ centerX: 5, centerY: 4, radius: 1 }],
+  lake: { centerX: 4, centerY: 3, radius: 1 },
 });
 
 beforeEach(() => {
@@ -45,7 +45,7 @@ beforeEach(() => {
 
 describe("board retry policy", () => {
   it("honors materializations: 1 — one attempt per brief, then regenerate, then fallback", async () => {
-    const briefSource = vi.fn(alwaysSameBrief());
+    const briefSource = vi.fn(validBrief());
     const result = await generateBoard(12345, {
       briefSource,
       retries: { materializations: 1, briefs: 2 },
@@ -53,11 +53,10 @@ describe("board retry policy", () => {
     expect(briefSource).toHaveBeenCalledTimes(2); // ≤ briefs total
     expect(sabotagedSeeds).toHaveLength(2); // exactly ONE materialization per brief
     expect(result.usedFallback).toBe(true);
-    expect(result.brief.river).not.toBeNull(); // result is the fallback brief
   });
 
   it("honors materializations: 3 with briefs: 1 — three attempts on the single brief", async () => {
-    const briefSource = vi.fn(alwaysSameBrief());
+    const briefSource = vi.fn(validBrief());
     const result = await generateBoard(12345, {
       briefSource,
       retries: { materializations: 3, briefs: 1 },
@@ -69,7 +68,7 @@ describe("board retry policy", () => {
 
   it("accepts the first valid materialization without burning the budget", async () => {
     sabotageEnabled.value = false;
-    const briefSource = vi.fn(alwaysSameBrief());
+    const briefSource = vi.fn(validBrief());
     const result = await generateBoard(12345, {
       briefSource,
       retries: { materializations: 3, briefs: 3 },
@@ -111,7 +110,7 @@ describe("board retry policy", () => {
 
   it("the pipeline result carries both armies, freshly spawned", async () => {
     sabotageEnabled.value = false;
-    const result = await generateBoard(12345, { briefSource: alwaysSameBrief() });
+    const result = await generateBoard(12345, { briefSource: validBrief() });
     expect(result.units).toHaveLength(20);
     for (const unit of result.units) {
       expect(unit.hp).toBe(unit.maxHp);

@@ -5,14 +5,11 @@
 import type { Brief } from "./briefSchema";
 
 export const FALLBACK_BRIEF: Brief = {
-  river: { startRow: 7, endRow: 7, bends: 2 },
-  bridgeTiles: 2,
-  forestZones: [
-    { centerX: 4, centerY: 3, radius: 2 },
-    { centerX: 10, centerY: 10, radius: 2 },
-  ],
-  hillZones: [{ centerX: 11, centerY: 2, radius: 1 }],
-  lake: null,
+  river: null,
+  bridgeTiles: 1,
+  forestZones: [{ centerX: 2, centerY: 2, radius: 1 }],
+  hillZones: [{ centerX: 5, centerY: 4, radius: 1 }],
+  lake: { centerX: 4, centerY: 3, radius: 1 },
 };
 
-export const FALLBACK_SEED = 20261108;
+export const FALLBACK_SEED = 20261112;

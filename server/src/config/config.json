@@ -1,5 +1,5 @@
 {
-  "boardSize": 15,
+  "boardSize": 8,
   "maxActiveGames": 5,
   "classes": {
     "sword": {
