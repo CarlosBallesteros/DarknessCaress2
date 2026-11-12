@@ -108,9 +108,12 @@
   cursor: zoom-out;
 }
 .lightbox-img {
-  width: min(80vw, 512px);
-  aspect-ratio: 1;
-  object-fit: cover;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(90vw, 512px);
+  max-height: 80vh;
+  object-fit: contain;
   border-radius: 12px;
   box-shadow: 0 0 0 3px var(--gold);
 }
