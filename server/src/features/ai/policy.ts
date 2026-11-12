@@ -58,6 +58,43 @@ function nearestPlayerDistance(x: number, y: number, players: Unit[]): number {
   return best;
 }
 
+function terrainPathDistances(board: Board, players: Unit[]): Map<string, number> {
+  const size = board.tiles.length;
+  const dist = new Map<string, number>();
+  const queue: Array<[number, number]> = [];
+  const water = new Set(["lake", "river"]);
+
+  for (const p of players) {
+    const k = keyOf(p.x, p.y);
+    if (!dist.has(k)) {
+      dist.set(k, 0);
+      queue.push([p.x, p.y]);
+    }
+  }
+
+  let head = 0;
+  while (head < queue.length) {
+    const [x, y] = queue[head++];
+    const nd = dist.get(keyOf(x, y))! + 1;
+    const deltas: Array<[number, number]> = [
+      [x + 1, y],
+      [x - 1, y],
+      [x, y + 1],
+      [x, y - 1],
+    ];
+    for (const [nx, ny] of deltas) {
+      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+      const nk = keyOf(nx, ny);
+      if (dist.has(nk)) continue;
+      const tile = board.tiles[ny]?.[nx];
+      if (tile !== undefined && water.has(tile)) continue;
+      dist.set(nk, nd);
+      queue.push([nx, ny]);
+    }
+  }
+  return dist;
+}
+
 function computeOptions(
   board: Board,
   units: Unit[],
@@ -149,7 +186,7 @@ function pickAggressive(
   }
 
   // No attack pairs: advance toward nearest surviving player unit.
-  const move = pickAdvanceMove(unit, opts.moves, players);
+  const move = pickAdvanceMove(board, unit, opts.moves, players);
   return move
     ? { unitId: unit.id, to: move, action: { type: "wait" } }
     : { unitId: unit.id, action: { type: "wait" } };
@@ -249,19 +286,25 @@ function pickErratic(
 }
 
 function pickAdvanceMove(
+  board: Board,
   unit: Unit,
   moves: [number, number][],
   players: Unit[],
 ): [number, number] | undefined {
   if (moves.length === 0) return undefined;
+  const dists = terrainPathDistances(board, players);
   const sorted = [...moves].sort((a, b) => {
-    const da = nearestPlayerDistance(a[0], a[1], players);
-    const db = nearestPlayerDistance(b[0], b[1], players);
-    if (da !== db) return da - db; // closer to nearest player
+    const da = dists.get(keyOf(a[0], a[1])) ?? nearestPlayerDistance(a[0], a[1], players) + 1000;
+    const db = dists.get(keyOf(b[0], b[1])) ?? nearestPlayerDistance(b[0], b[1], players) + 1000;
+    if (da !== db) return da - db; // closer to nearest player by walkable path (bridge-aware)
     // tie-break: prefer actually moving over staying if distances equal
     const aStay = a[0] === unit.x && a[1] === unit.y ? 1 : 0;
     const bStay = b[0] === unit.x && b[1] === unit.y ? 1 : 0;
     if (aStay !== bStay) return aStay - bStay;
+    // secondary: straight-line progress
+    const ma = nearestPlayerDistance(a[0], a[1], players);
+    const mb = nearestPlayerDistance(b[0], b[1], players);
+    if (ma !== mb) return ma - mb;
     return keyOf(a[0], a[1]).localeCompare(keyOf(b[0], b[1]));
   });
   return sorted[0];

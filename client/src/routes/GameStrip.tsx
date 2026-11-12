@@ -72,6 +72,18 @@ export function GameStrip(): React.JSX.Element {
     games?.some((g) => g.status === "ai_turn" || g.status === "generating_board") ?? false,
   );
 
+  // Close the per-card action menu when clicking outside it.
+  useEffect(() => {
+    if (menuFor === null) return;
+    const onPointerDown = (event: MouseEvent): void => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".card-menu") || target?.closest(".card-menu-list")) return;
+      setMenuFor(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [menuFor]);
+
   if (games === null || meta === null) {
     return (
       <div className="page-loading">
@@ -255,7 +267,14 @@ export function GameStrip(): React.JSX.Element {
     <section className="strip-page">
       <div className="strip-header">
         <h1 className="display">Your battles</h1>
-        {newBattleButton("strip-new-battle")}
+        <div className="strip-new-battle-wrap">
+          {newBattleButton("strip-new-battle")}
+          {atCap && (
+            <p className="strip-caption strip-cap-note" role="status">
+              Limit of {cap} active battles reached. Finish or forfeit a battle to create another.
+            </p>
+          )}
+        </div>
       </div>
       {games.length === 0 ? (
         <div className="strip-empty">

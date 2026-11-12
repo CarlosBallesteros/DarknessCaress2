@@ -15,8 +15,20 @@
 .strip-header h1 {
   margin: 0;
 }
+.strip-new-battle-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
 .strip-new-battle {
   font-size: 15px;
+}
+.strip-cap-note {
+  margin: 0;
+  font-size: 13px;
+  text-align: right;
+  max-width: 28rem;
 }
 
 .strip-row-block {
@@ -124,7 +136,9 @@
   display: grid;
   grid-template-columns: repeat(var(--map-size, 15), 1fr);
   aspect-ratio: 1;
-  width: 100%;
+  width: min(100%, 140px);
+  max-width: 140px;
+  align-self: center;
   border: 1px solid var(--ink-border);
   border-radius: 4px;
   overflow: hidden;
