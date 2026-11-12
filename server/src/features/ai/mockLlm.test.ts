@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { engineConfig } from "../../config/engine";
 import { applyMoves } from "../../game/apply";
+import { pathTo } from "../../game/reach";
 import type { Board, ClassKey, Move, Side, Tile, Unit } from "../../game/types";
 import { turnUserMessage } from "./turnPrompt";
 import { env } from "../../env";
@@ -45,7 +46,7 @@ describe("mock LlmClient", () => {
       moves: Move[];
     };
     expect(result).toEqual({
-      moves: [{ unitId: "E-sword-1", path: [[5, 1]], action: { type: "wait" } }],
+      moves: [{ unitId: "E-sword-1", to: [4, 1], action: { type: "wait" } }],
     });
   });
 
@@ -68,20 +69,28 @@ describe("mock LlmClient", () => {
     expect(second).toEqual(first); // deterministic given the state
 
     // One entry for the id-sorted first unit; (5,1) is ally-occupied so the
-    // first free adjacent tile in compass order is east, (7,1).
+    // first free adjacent tile in compass order is east, (7,1). Destination-
+    // only shape (docs/04 menu amendment): `to`, no path.
     expect(first.moves).toEqual([
       {
         unitId: "E-axe-1",
-        path: [
-          [6, 1],
-          [7, 1],
-        ],
+        to: [7, 1],
         action: { type: "wait" },
       },
     ]);
 
-    // The engine re-validates everything — the minimal turn must be legal.
-    const applied = applyMoves({ board, units }, first.moves, "enemy", engineConfig);
+    // The engine re-validates everything — expand the destination like the
+    // job does (docs/04 step 2b), then the minimal turn must apply legally.
+    const order = first.moves[0];
+    const axe = units.find((u) => u.id === "E-axe-1");
+    const path = pathTo(board, units, axe!, order.to!, engineConfig);
+    expect(path).not.toBeNull();
+    const applied = applyMoves(
+      { board, units },
+      [{ unitId: order.unitId, path: path!, action: order.action }],
+      "enemy",
+      engineConfig,
+    );
     expect(applied.ok).toBe(true);
   });
 
@@ -96,7 +105,7 @@ describe("mock LlmClient", () => {
     ];
     const messages = [{ role: "user" as const, content: turnUserMessage(board, units) }];
     const result = (await mockLlm.turn({ messages, temperature: 0.5 })) as { moves: Move[] };
-    expect(result.moves).toEqual([{ unitId: "E-axe-1", path: [[5, 1]], action: { type: "wait" } }]);
+    expect(result.moves).toEqual([{ unitId: "E-axe-1", action: { type: "wait" } }]);
   });
 
   it("the real client fails loudly without a serialized state (schema bounds)", async () => {

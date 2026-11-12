@@ -2,7 +2,7 @@
   "moves": [
     {
       "unitId": "E-archer-1",
-      "path": [[6, 0]],
+      "to": [6, 0],
       "action": { "type": "attack", "targetId": "P-sword-1" }
     }
   ]

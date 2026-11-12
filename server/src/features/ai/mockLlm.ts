@@ -17,7 +17,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { engineConfig } from "../../config/engine";
 import { reachableTiles, tileKey } from "../../game/reach";
-import type { Move } from "../../game/types";
 import type { ChatMessage, LlmClient } from "./llmClient";
 import { LlmError } from "./llmClient";
 import { parseSerializedState } from "./serialize";
@@ -90,9 +89,12 @@ function standaloneTurn(messages: ChatMessage[]): unknown {
     ] as Array<[number, number]>
   ).filter(([x, y]) => x >= 0 && y >= 0 && x < size && y < size && reach.has(tileKey(x, y)));
   const target = candidates[0];
-  const path: Array<[number, number]> =
-    target === undefined ? [[unit.x, unit.y]] : [[unit.x, unit.y], target];
-  const moves: Move[] = [{ unitId: unit.id, path, action: { type: "wait" } }];
+  // Destination-only (docs/04 menu amendment): the job expands `to` into the
+  // full path; a surround case stays in place by omitting `to`.
+  const moves =
+    target === undefined
+      ? [{ unitId: unit.id, action: { type: "wait" } }]
+      : [{ unitId: unit.id, to: target, action: { type: "wait" } }];
   return { moves };
 }
 

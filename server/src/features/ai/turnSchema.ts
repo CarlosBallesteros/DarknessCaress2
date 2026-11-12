@@ -19,13 +19,13 @@ const turnActionSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("wait") }),
 ]);
 
-export function turnMovesSchema(maxMoves: number, maxPathEntries: number) {
+export function turnMovesSchema(maxMoves: number) {
   return z.object({
     moves: z
       .array(
         z.object({
           unitId: z.string(),
-          path: z.array(coordinateSchema).max(maxPathEntries),
+          to: coordinateSchema.optional(), // omitted = stay in place
           action: turnActionSchema,
         }),
       )
@@ -45,7 +45,7 @@ export type TurnMoves = z.infer<ReturnType<typeof turnMovesSchema>>["moves"];
 // discriminated union) compiles to a grammar that enforces every required
 // field — verified: identical prompt+model, anyOf → path missing; oneOf →
 // complete legal moves.
-export function turnJsonSchema(maxMoves: number, maxPathEntries: number): object {
+export function turnJsonSchema(maxMoves: number): object {
   return {
     type: "object",
     additionalProperties: false,
@@ -57,14 +57,10 @@ export function turnJsonSchema(maxMoves: number, maxPathEntries: number): object
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["unitId", "path", "action"],
+          required: ["unitId", "action"],
           properties: {
             unitId: { type: "string" },
-            path: {
-              type: "array",
-              maxItems: maxPathEntries,
-              items: { type: "array", minItems: 2, maxItems: 2, items: { type: "integer" } },
-            },
+            to: { type: "array", minItems: 2, maxItems: 2, items: { type: "integer" } },
             action: {
               oneOf: [
                 {

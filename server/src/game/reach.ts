@@ -72,6 +72,71 @@ export function reachableTiles(
   return reach;
 }
 
+// AI-job helper (docs/02, v3 menu amendment): the deterministic BFS shortest
+// legal route from the unit's tile to `dest` — same traversal rules as
+// reachableTiles. Returns origin→dest inclusive, or null when `dest` is not
+// standable/reachable in this snapshot. Used ONLY to expand destination-only
+// AI orders (docs/04); the player contract never reconstructs paths.
+export function pathTo(
+  board: Board,
+  units: Unit[],
+  unit: Unit,
+  dest: [number, number],
+  cfg: GameEngineConfig,
+): Array<[number, number]> | null {
+  const size = cfg.boardSize;
+  const [dx, dy] = dest;
+  if (!isInside(size, dx, dy)) return null;
+  const startKey = tileKey(unit.x, unit.y);
+  const destKey = tileKey(dx, dy);
+  const reach = reachableTiles(board, units, unit, cfg);
+  if (!reach.has(destKey)) return null;
+  if (destKey === startKey) return [[unit.x, unit.y]];
+
+  const parent = new Map<string, string>(); // child key → parent key
+  const visited = new Set<string>([startKey]);
+  let frontier: Array<[number, number]> = [[unit.x, unit.y]];
+  const mov = cfg.classes[unit.class].mov;
+  let step = 0;
+  let found = false;
+  while (frontier.length > 0 && step < mov && !found) {
+    step++;
+    const next: Array<[number, number]> = [];
+    for (const [x, y] of frontier) {
+      for (const [nx, ny] of neighbors(x, y)) {
+        if (!isInside(size, nx, ny)) continue;
+        const key = tileKey(nx, ny);
+        if (visited.has(key)) continue;
+        const tile = tileAt(board, nx, ny);
+        if (tile !== undefined && WATER.has(tile)) continue;
+        const occupant = unitAt(units, nx, ny);
+        if (occupant && occupant.side !== unit.side) continue; // enemies block
+        visited.add(key);
+        parent.set(key, tileKey(x, y));
+        if (key === destKey) {
+          found = true;
+          break;
+        }
+        next.push([nx, ny]);
+      }
+      if (found) break;
+    }
+    if (found) break;
+    frontier = next;
+  }
+  if (!found) return null; // reachable but not on this BFS tree (cannot happen
+  // for a standable dest within mov, but the guard keeps the contract honest)
+
+  const path: Array<[number, number]> = [];
+  let key: string | undefined = destKey;
+  while (key !== undefined) {
+    path.unshift(parseTileKey(key));
+    if (key === startKey) break;
+    key = parent.get(key);
+  }
+  return path;
+}
+
 // null when legal, otherwise a precise rejection message (docs/02 catalogue).
 // "path length" = the number of EDGES stepped = path.length − 1.
 export function isPathLegal(

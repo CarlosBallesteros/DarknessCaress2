@@ -57,7 +57,29 @@ export function isPathLegal(board: Board, units: Unit[], unit: Unit, path: [numb
 // 4-entry array with "path length 3 exceeds movement 2". The message's N = edges, M = Mov.
 ```
 
-No path reconstruction, no ranged movement points, no diagonal — nothing else exists.
+No path reconstruction for the PLAYER contract — nothing else exists. (The ONE
+pure exception, added by the v3 AI-menu amendment: `pathTo` below — used ONLY by
+the AI job to expand destination-only AI orders into full legal paths; the player
+contract always requires the full walked route and never uses it.)
+
+```ts
+// AI-job helper (docs/04 menu amendment): the deterministic BFS shortest legal
+// route from the unit's tile to `dest` — same traversal rules as
+// reachableTiles (4-neighborhood, water impassable outside bridges, allies
+// pass-through, dest must be STANDABLE in the given snapshot). Returns the
+// full tile list origin→dest inclusive, or null when `dest` is not reachable
+// in this snapshot. Deterministic given the inputs; the caller then submits
+// the expanded path through the normal applyMoves machinery, where the
+// EVOLVING landing rule still governs (a menu tile claimed by an earlier
+// bundle entry is rejected exactly like any other landing clash).
+export function pathTo(
+  board: Board,
+  units: Unit[],
+  unit: Unit,
+  dest: [number, number],
+  cfg: GameEngineConfig,
+): Array<[number, number]> | null;
+```
 
 ## Turn execution (`src/game/apply.ts`)
 

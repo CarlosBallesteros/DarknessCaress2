@@ -111,13 +111,21 @@ describe("runAiTurn — the validation loop (docs/04)", () => {
     expect(row.turn_number).toBe(2);
     expect(row.ai_last_error).toBeNull();
     expect(row.last_ai_actions).toEqual([
-      { unitId: "E-sword-1", path: [[5, 1]], action: { type: "wait" }, outcome: null },
+      {
+        unitId: "E-sword-1",
+        path: [
+          [5, 1],
+          [4, 1],
+        ],
+        action: { type: "wait" },
+        outcome: null,
+      },
     ]);
-    // acted was set on the entry's unit only; positions untouched by a wait.
+    // acted was set on the entry's unit only; the unit moved to its `to`.
     const units = row.units;
     expect(units.find((u) => u.id === "E-sword-1")?.acted).toBe(true);
     expect(units.find((u) => u.id === "E-axe-1")?.acted).toBe(false);
-    expect(units.find((u) => u.id === "E-sword-1")?.x).toBe(5);
+    expect(units.find((u) => u.id === "E-sword-1")?.x).toBe(4);
   });
 
   it("the conversation carries the system prompt and the serialized state", async () => {

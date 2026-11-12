@@ -196,7 +196,8 @@ describe("GET /api/games (docs/06 endpoint 9)", () => {
         expect(row.last_ai_actions).toHaveLength(1);
         break;
       }
-      if (Date.now() > deadline) throw new Error(`game ${gameId} never resumed without any client request`);
+      if (Date.now() > deadline)
+        throw new Error(`game ${gameId} never resumed without any client request`);
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
   });
