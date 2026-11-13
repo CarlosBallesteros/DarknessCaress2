@@ -768,10 +768,7 @@ export function GameBoard() {
                       Wait in place
                     </button>
                     <button type="button" onClick={() => dispatch({ type: "backToSelected" })}>
-                      Back
-                    </button>
-                    <button type="button" onClick={() => dispatch({ type: "clearMode" })}>
-                      Cancel staged
+                      Cancel
                     </button>
                   </div>
                 ) : null}

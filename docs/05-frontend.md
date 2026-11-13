@@ -56,8 +56,8 @@ BoardScreen
 │                     # click = select (equivalent to clicking sprite)
 ├── ActionPanel       # contextual: header = selected unit's PORTRAIT (larger, assetPath
 │                     # portrait-player) + class label + hp/atk/def mini-stats from GET /api/meta,
-│                     # then the staged move summary + buttons (Cancel staged / Attack <target> /
-│                     # Heal <target> / Wait) OR prompts to click the board
+│                     # then contextual buttons/prompts (e.g. movePicked: Wait, Cancel; action targets
+│                     # Attack <target> / Heal <target> when available) OR prompts to click the board
 ├── StagedMovesBar    # chips: "Archer #1 → (7,9) attack Mage"; click chip = unstage it
 └── TurnFooter        # [End turn] (primary; ALWAYS enabled — semantics in Notes) , [Forfeit]
 ```
@@ -96,7 +96,7 @@ movePicked → staged            (click enemy unit in red overlay → stage a wh
                                 click [Wait in place] → stage wait for same tile)
 movePicked → enemyInspect      (click an ENEMY unit that is NOT an actionable attack/heal target from the
                                 picked destination → inspect it read-only)
-movePicked → unitSelected      ([Back] or Esc → re-select)
+movePicked → unitSelected      ([Cancel] or Esc → re-select)
 staged → staged                (more units staged; unstage via chip click cancels ONLY that staged move)
 staged → playerTurnSubmitted   ([End turn] → POST /moves (staged list) → POST /end-turn → status ai_turn)
 playerTurnSubmitted → staged   (POST /moves returned 400 → error banner with the exact engine message;
