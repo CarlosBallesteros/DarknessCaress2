@@ -48,6 +48,8 @@ export function GameStrip() {
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
   const [forfeitId, setForfeitId] = useState<string | null>(null);
   const [forfeiting, setForfeiting] = useState(false);
+  const [activeStart, setActiveStart] = useState(0);
+  const [pastStart, setPastStart] = useState(0);
   const navigate = useNavigate();
 
   const load = useCallback(async () => {
@@ -87,6 +89,13 @@ export function GameStrip() {
 
   const cap = meta?.maxActiveGames ?? 5;
   const atCap = active.length >= cap;
+
+  useEffect(() => {
+    setActiveStart((s) => Math.min(s, Math.max(0, active.length - 3)));
+  }, [active.length]);
+  useEffect(() => {
+    setPastStart((s) => Math.min(s, Math.max(0, past.length - 3)));
+  }, [past.length]);
 
   const onCreate = async (difficulty: string) => {
     setCreating(true);
@@ -149,62 +158,88 @@ export function GameStrip() {
           <>
             <h2 className="strip-row-title">Active battles</h2>
             {active.length > 0 ? (
-              <div className="strip-row">
-                {active.map((g) => {
-                  const badge = statusBadge(g.status);
-                  const personaLabel = meta?.personalities[g.difficulty]?.label ?? g.difficulty;
-                  return (
-                    <article
-                      key={g.id}
-                      className={`game-card active persona-${g.difficulty}`}
-                      data-testid={`game-card-${g.id}`}
-                    >
-                      <button
-                        type="button"
-                        className="card-focus"
-                        onClick={() => navigate(`/play/${g.id}`)}
+              <div className="strip-window">
+                {activeStart > 0 ? (
+                  <button
+                    type="button"
+                    className="strip-arrow left"
+                    aria-label="Show previous active battles"
+                    onClick={() => setActiveStart((s) => Math.max(0, s - 1))}
+                  >
+                    ‹
+                  </button>
+                ) : (
+                  <span className="strip-arrow-spacer" aria-hidden="true" />
+                )}
+                <div className="strip-row">
+                  {active.slice(activeStart, activeStart + 3).map((g) => {
+                    const badge = statusBadge(g.status);
+                    const personaLabel = meta?.personalities[g.difficulty]?.label ?? g.difficulty;
+                    return (
+                      <article
+                        key={g.id}
+                        className={`game-card active persona-${g.difficulty}`}
+                        data-testid={`game-card-${g.id}`}
                       >
-                        <MiniMap game={g} />
-                      </button>
-                      <div className="card-meta">
-                        <span className={`persona-badge persona-${g.difficulty}`}>
-                          {personaLabel}
-                        </span>
-                        <span className={badge.className}>{badge.text}</span>
-                        <span className="turn-label">Turn {g.turnNumber}</span>
-                        <span className="updated-label">{relativeTime(g.updatedAt)}</span>
-                      </div>
-                      <div className="card-menu-wrap">
                         <button
                           type="button"
-                          className="card-menu-btn"
-                          aria-label="Game actions"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMenuOpenFor(menuOpenFor === g.id ? null : g.id);
-                          }}
+                          className="card-focus"
+                          onClick={() => navigate(`/play/${g.id}`)}
                         >
-                          ⋮
+                          <MiniMap game={g} />
                         </button>
-                        {menuOpenFor === g.id ? (
-                          <div className="card-menu">
-                            <button
-                              type="button"
-                              data-testid="forfeit"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                requestForfeit(g.id);
-                              }}
-                            >
-                              Forfeit
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </article>
-                  );
-                })}
+                        <div className="card-meta">
+                          <span className={`persona-badge persona-${g.difficulty}`}>
+                            {personaLabel}
+                          </span>
+                          <span className={badge.className}>{badge.text}</span>
+                          <span className="turn-label">Turn {g.turnNumber}</span>
+                          <span className="updated-label">{relativeTime(g.updatedAt)}</span>
+                        </div>
+                        <div className="card-menu-wrap">
+                          <button
+                            type="button"
+                            className="card-menu-btn"
+                            aria-label="Game actions"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuOpenFor(menuOpenFor === g.id ? null : g.id);
+                            }}
+                          >
+                            ⋮
+                          </button>
+                          {menuOpenFor === g.id ? (
+                            <div className="card-menu">
+                              <button
+                                type="button"
+                                data-testid="forfeit"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  requestForfeit(g.id);
+                                }}
+                              >
+                                Forfeit
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                {activeStart + 3 < active.length ? (
+                  <button
+                    type="button"
+                    className="strip-arrow right"
+                    aria-label="Show next active battles"
+                    onClick={() => setActiveStart((s) => Math.min(active.length - 3, s + 1))}
+                  >
+                    ›
+                  </button>
+                ) : (
+                  <span className="strip-arrow-spacer" aria-hidden="true" />
+                )}
               </div>
             ) : (
               <p className="strip-empty">No active battles</p>
@@ -212,34 +247,60 @@ export function GameStrip() {
 
             <h2 className="strip-row-title">Past battles</h2>
             {past.length > 0 ? (
-              <div className="strip-row past">
-                {past.map((g) => {
-                  const badge = statusBadge(g.status);
-                  const personaLabel = meta?.personalities[g.difficulty]?.label ?? g.difficulty;
-                  return (
-                    <article
-                      key={g.id}
-                      className={`game-card past persona-${g.difficulty}`}
-                      data-testid={`game-card-${g.id}`}
-                    >
-                      <button
-                        type="button"
-                        className="card-focus"
-                        onClick={() => navigate(`/play/${g.id}`)}
+              <div className="strip-window">
+                {pastStart > 0 ? (
+                  <button
+                    type="button"
+                    className="strip-arrow left"
+                    aria-label="Show previous past battles"
+                    onClick={() => setPastStart((s) => Math.max(0, s - 1))}
+                  >
+                    ‹
+                  </button>
+                ) : (
+                  <span className="strip-arrow-spacer" aria-hidden="true" />
+                )}
+                <div className="strip-row past">
+                  {past.slice(pastStart, pastStart + 3).map((g) => {
+                    const badge = statusBadge(g.status);
+                    const personaLabel = meta?.personalities[g.difficulty]?.label ?? g.difficulty;
+                    return (
+                      <article
+                        key={g.id}
+                        className={`game-card past persona-${g.difficulty}`}
+                        data-testid={`game-card-${g.id}`}
                       >
-                        <MiniMap game={g} />
-                      </button>
-                      <div className="card-meta">
-                        <span className={`persona-badge persona-${g.difficulty}`}>
-                          {personaLabel}
-                        </span>
-                        <span className={badge.className}>{badge.text}</span>
-                        <span className="turn-label">Turn {g.turnNumber}</span>
-                        <span className="updated-label">{relativeTime(g.updatedAt)}</span>
-                      </div>
-                    </article>
-                  );
-                })}
+                        <button
+                          type="button"
+                          className="card-focus"
+                          onClick={() => navigate(`/play/${g.id}`)}
+                        >
+                          <MiniMap game={g} />
+                        </button>
+                        <div className="card-meta">
+                          <span className={`persona-badge persona-${g.difficulty}`}>
+                            {personaLabel}
+                          </span>
+                          <span className={badge.className}>{badge.text}</span>
+                          <span className="turn-label">Turn {g.turnNumber}</span>
+                          <span className="updated-label">{relativeTime(g.updatedAt)}</span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                {pastStart + 3 < past.length ? (
+                  <button
+                    type="button"
+                    className="strip-arrow right"
+                    aria-label="Show next past battles"
+                    onClick={() => setPastStart((s) => Math.min(past.length - 3, s + 1))}
+                  >
+                    ›
+                  </button>
+                ) : (
+                  <span className="strip-arrow-spacer" aria-hidden="true" />
+                )}
               </div>
             ) : (
               <p className="strip-empty">No past battles</p>
