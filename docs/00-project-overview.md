@@ -26,7 +26,7 @@ The specs are written to be **as specific as possible while staying as simple as
 
 | Piece | Decided |
 |---|---|
-| Landing page | Title: **"Darkness Caress II"** (final, gothic blackletter display font). Tagline: **"The long-awaited sequel to the legendary game"** (final). One `To Battle!` button. |
+| Landing page | Title: **"Darkness Caress II"** (final, gothic display font, OldLondon). Tagline: **"The long-awaited sequel to the legendary game"** (final). One `To Battle!` button. |
 | Auth | Email + password registration, unique display username. Login with email. No email verification, no password recovery, no 2FA (see Later hooks). Full mechanics — bcrypt, JWT cookie, rate limit — in `01-architecture.md`. |
 | Tabs (top menu) | **Games**, **Statistics**, **Champions**, **Store**, **Profile**. |
 | Game tab | The **Games strip** — two scroll-snap rows (`Active battles` / `Past battles`, creation order in each; finished games dimmed) + a separate always-visible **New battle** action (exactly ONE control per page, ever). Cards carry mini board maps with unit dots. Opening a game shows the 8×8 board and the two armies. |

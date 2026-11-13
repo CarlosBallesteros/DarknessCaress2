@@ -21,14 +21,12 @@ client/public/assets/
 │   │                            # they never chose. The landing shows THE GAME's face.
 │   └── landscape.png            # 1920x1080 max
 ├── fonts/                       # OWNER-supplied display fonts (UI-wide, universal)
-│   │                            # LICENSE — SAFE TO SHIP, no agent action needed: the family is
-│   │                            # "Blackletter" by Dieter Steffmann, sourced from dafont (Gothic >
-│   │                            # Medieval) with dafont's "100% Free" license tag = unrestricted use,
-│   │                            # commercial included. Not "free for personal use". Full provenance
-│   │                            # is recorded in the staging table below. Agents: use these files
-│   │                            # as-is; never substitute a CDN font, never regenerate them.
-│   ├── Blackletter-ExtraBold.woff2   # THE game-title font: wordmark (top menu) + landing h1
-│   └── Blackletter-Shadow.woff2      # secondary display font: section headings, panel headers
+│   │                            # Self-hosted woff2 files provided in-repo; agents use them
+│   │                            # as-is (no CDN loads, never regenerate).
+│   ├── OldLondon.woff2               # THE game-title font: wordmark (top menu) + landing h1
+│   ├── OldLondonAlternate.woff2      # secondary display font: section headings, panel headers
+│   ├── Olondon_.woff2                # display fallback
+│   └── Olondona.woff2                # secondary display fallback
 ├── warriors-europe/             # theme id = directory name (config.themes) — ARMY cosmetics only
 │   └── <class>/                 # one directory per class key present in config.classes
 │       ├── portrait-player.png        # 512x512 SQUARE, player-side artwork (white/gold)
@@ -48,7 +46,7 @@ Side sprites: the two sprite files MUST be the same design/silhouette with diffe
 ## Rules the pipeline enforces (`client/src/components/` + loader)
 
 - All access via **one helper** `assetPath(kind, classKey?, side?, tileType?)`: kinds = `portrait` | `portrait-full` | `sprite` | `hero` | `terrain`. `portrait`/`portrait-full`/`sprite` take the USER'S theme + class + side (`portrait` returns `/assets/{themeId}/{classKey}/portrait-{side}.png` — the SQUARE, used everywhere in UI; `portrait-full` returns the same with the `-full` suffix — the RECTANGULAR full-art, used ONLY by the Champions-tab lightbox); `hero` takes neither — and deliberately NO theme (returns `/assets/hero/landscape.png`, the universal backdrop); `terrain` also takes neither (returns `/assets/terrain/{tileType}.png`). No component ever hardcodes `/assets/…` with a theme or class name pasted in — theme/class always come from config/api state.
-- Format: PNG with alpha (RGBA) always, whatever the tool exports (owner converts if needed). Filenames lower-case, exact, never renamed. TERRAIN and FONT files are universal asset-level art — see the tree above; the OWNER also supplies the display fonts (self-hosted woff2 — the Blackletter pair by Dieter Steffmann, dafont "100% Free"; no CDN loads, provenance recorded in the staging table).
+- Format: PNG with alpha (RGBA) always, whatever the tool exports (owner converts if needed). Filenames lower-case, exact, never renamed. TERRAIN and FONT files are universal asset-level art — see the tree above; the OWNER also supplies the display fonts (self-hosted OldLondon woff2 files in `assets/fonts/`; no CDN loads).
 - If an expected file is missing at runtime, the component renders its **placeholder fallback**: a flat colored rectangle — gray base `#8d8d8d` with the class's first letter printed in the tile text color, and the side tint ring applied for sprites — plus exactly one `console.warn`. Never a broken image icon, never a crash. TERRAIN fallback = the CSS tile colors from `05`'s tokens (the sprite versions replace them one type at a time). (Fallback colors are client-side UI tokens, not config — they exist purely until real art arrives.)
 - Landing hero uses `object-fit: cover`; sprites render at ~40 px inside tiles (`image-rendering: pixelated` NOT used — sprites are painterly, not pixel-art).
 
@@ -81,7 +79,7 @@ Final/working art lives **inside the repo** at `art/` (relative to the repo root
 | `unit_images_cropped/{side}_{class}_cropped.png` | `warriors-europe/{class}/portrait-{side}.png` | the SQUARE, used everywhere in UI |
 | `unit_images_full/{side}_{class}.png` (preferred) or `.jpg` | `warriors-europe/{class}/portrait-{side}-full.png` | RECTANGULAR lightbox art; prefer storing a real PNG in `art/`. Non-PNG sources are not copied over an existing `.png` destination to avoid mislabeled files. |
 | `unit_images_sprites/{side}_{class}_sprite.png` | `warriors-europe/{class}/sprite-{side}.png` | in-game board sprites (player/enemy), referenced by `assetPath("sprite", ...)` |
-| `font/*.woff2` | `fonts/*.woff2` | all in-repo woff2 fonts are synced (available to the build); the UI's configured display fonts are the Blackletter pair per this doc when present |
+| `font/*.woff2` | `fonts/*.woff2` | all in-repo woff2 fonts are synced (available to the build); the UI's configured display fonts are the OldLondon set per this doc when present |
 
 Filename transforms: `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{side}_{class}.{png|jpg}` → `portrait-{side}-full.png`; `{side}_{class}_sprite.png` → `sprite-{side}.png` (side = `player`/`enemy`, class keys per `config.classes`). Still optional/missing until supplied: `terrain/` (7 files) — placeholders cover them.
 

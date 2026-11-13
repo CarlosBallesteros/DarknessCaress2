@@ -1,7 +1,6 @@
 @font-face {
-  font-family: "Blackletter";
+  font-family: "OldLondon";
   src:
-    url("/assets/fonts/Blackletter-ExtraBold.woff2") format("woff2"),
     url("/assets/fonts/OldLondon.woff2") format("woff2"),
     url("/assets/fonts/Olondon_.woff2") format("woff2");
   font-weight: 700;
@@ -10,9 +9,8 @@
 }
 
 @font-face {
-  font-family: "Blackletter-Shadow";
+  font-family: "OldLondonAlternate";
   src:
-    url("/assets/fonts/Blackletter-Shadow.woff2") format("woff2"),
     url("/assets/fonts/OldLondonAlternate.woff2") format("woff2"),
     url("/assets/fonts/Olondona.woff2") format("woff2");
   font-weight: 400;
@@ -51,8 +49,8 @@
   --persona-defensive: #4b7ec2;
   --persona-erratic: #8a6fa8;
 
-  --font-display: "Blackletter", Georgia, "Times New Roman", serif;
-  --font-display-soft: "Blackletter-Shadow", Georgia, "Times New Roman", serif;
+  --font-display: "OldLondon", Georgia, "Times New Roman", serif;
+  --font-display-soft: "OldLondonAlternate", Georgia, "Times New Roman", serif;
 
   --radius-sm: 4px;
   --radius-md: 8px;
