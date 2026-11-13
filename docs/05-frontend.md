@@ -36,7 +36,7 @@
 
 ## Board screen (`/play/:id`)
 
-The richest screen; decomposed into the components below. Board = CSS grid, `boardSize × boardSize` from `GET /api/meta` (8×8 baseline), tile size scales via `min(40px, (100vw−32px)/boardSize)`. Units are absolutely-positioned images over the grid (one layer, transform positions — no re-mount on move).
+The richest screen; decomposed into the components below. On wide screens the layout is split into **two halves**: the **board occupies the left half** and **all controls/UI** (ActionPanel, StagedMovesBar, UnitTray, TurnFooter) occupy the **right half**; on narrow screens it stacks vertically (board above controls). Board = CSS grid, `boardSize × boardSize` from `GET /api/meta` (8×8 baseline), tile size scales responsively to fit the board area (larger on the left-half layout). Units are absolutely-positioned images over the grid (one layer, transform positions — no re-mount on move).
 
 ### Board components
 

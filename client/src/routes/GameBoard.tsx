@@ -635,7 +635,7 @@ export function GameBoard() {
             style={{
               gridTemplateColumns: `repeat(${boardSize}, var(--tile-size))`,
               gridTemplateRows: `repeat(${boardSize}, var(--tile-size))`,
-              ["--tile-size" as string]: `clamp(28px, calc((min(100vw, 720px) - 2rem) / ${boardSize}), 44px)`,
+              ["--tile-size" as string]: `clamp(32px, calc((min(100vw, 1400px) / var(--board-split, 2) - 3rem) / ${boardSize}), 64px)`,
             }}
           >
             {tiles.map((row, y) =>
@@ -800,8 +800,6 @@ export function GameBoard() {
               ))}
             </div>
           </div>
-        </aside>
-      </div>
 
       <div className="unit-tray">
         {trayUnits.map((u) => (
@@ -818,6 +816,7 @@ export function GameBoard() {
           </button>
         ))}
       </div>
+
 
       <footer className="turn-footer">
         <button
@@ -838,6 +837,9 @@ export function GameBoard() {
           Forfeit
         </button>
       </footer>
+        </aside>
+      </div>
+
 
       {overlay === "victory" || overlay === "defeat" ? (
         <div className="result-overlay">
