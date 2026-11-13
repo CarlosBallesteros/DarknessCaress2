@@ -9,7 +9,7 @@
 | Frontend | React 18 + Vite + TypeScript (strict), React Router 6, plain CSS (no Tailwind), `fetch` + `setInterval` (no data-fetching library) |
 | Backend | Node 22 (LTS, alpine), **Express 4**, TypeScript (strict), `cookie-parser`, `jsonwebtoken`, `bcrypt`, `pg` (node-postgres), `zod`, `express-rate-limit` |
 | Database | PostgreSQL 16 (alpine), plain SQL migrations, no ORM |
-| AI | Ollama (`ollama/ollama` image), model `qwen2.5:7b-instruct-q4_K_M` via `OLLAMA_MODEL` env |
+| AI | Ollama (`ollama/ollama` image), model `qwen3.5:4b-q4_K_M` via `OLLAMA_MODEL` env |
 | Tests | Vitest (unit, both sides), `supertest` + `@types/supertest` (server endpoint/integration tests, devDependencies), Playwright (E2E, top-level `/e2e`) |
 | Quality | ESLint 9 (flat config) + Prettier |
 | Deploy | docker-compose, 3 services, single VM (Oracle Always Free ARM, aarch64) — deploys on ANY Docker host; the free-tier A1 shape (1 OCPU / 6 GB) runs the full MVP (4/24 is optional growth, see `00` later hooks) |
@@ -152,7 +152,7 @@ The server loads it once and serves the public subset via `GET /api/meta` — an
 DATABASE_URL=postgres://dc:dc@db:5432/darknesscaress
 JWT_SECRET=change-me-64-characters
 OLLAMA_URL=http://ollama:11434
-OLLAMA_MODEL=qwen2.5:7b-instruct-q4_K_M
+OLLAMA_MODEL=qwen3.5:4b-q4_K_M
 # LLM_MOCK=1                      # OPTIONAL, local dev only: selects the fixture AI client
                                   # instead of Ollama (04). Tests set it automatically.
                                   # NEVER set it on the deployed VM. In prod it's real.
