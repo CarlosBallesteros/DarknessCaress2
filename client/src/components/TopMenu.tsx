@@ -20,7 +20,7 @@ export function TopMenu() {
   return (
     <header className="top-menu">
       <div className="top-menu-left">
-        <Link to="/play" className="wordmark" aria-label="Darkness Caress II home">
+        <Link to="/" className="wordmark" aria-label="Darkness Caress II home">
           Darkness Caress II
         </Link>
       </div>
@@ -58,7 +58,7 @@ export function TopMenu() {
           aria-label={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
-          {mode === "dark" ? "â˜€" : "â˜¾"}
+          {mode === "dark" ? "☀" : "☾"}
         </button>
         {user ? (
           <Link to="/profile" className="username-link">

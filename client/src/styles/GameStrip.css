@@ -30,6 +30,10 @@
   margin: 0.5rem 0 0;
   color: var(--text-dim);
 }
+.strip-empty {
+  margin: 0.25rem 0 0.75rem;
+  color: var(--text-dim);
+}
 .strip-row-title {
   margin: 1.1rem 0 0.5rem;
   font-size: 1.1rem;
@@ -174,8 +178,8 @@
 }
 .mini-dot {
   position: absolute;
-  width: 18%;
-  height: 18%;
+  width: 10%;
+  height: 10%;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -227,6 +231,30 @@
   color: var(--text);
   border-radius: var(--radius-md);
   font-weight: 600;
+}
+.persona-choice.persona-aggressive {
+  background: var(--persona-aggressive);
+  border-color: var(--persona-aggressive);
+  color: #fff;
+}
+.persona-choice.persona-aggressive:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.persona-choice.persona-defensive {
+  background: var(--persona-defensive);
+  border-color: var(--persona-defensive);
+  color: #fff;
+}
+.persona-choice.persona-defensive:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.persona-choice.persona-erratic {
+  background: var(--persona-erratic);
+  border-color: var(--persona-erratic);
+  color: #fff;
+}
+.persona-choice.persona-erratic:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 @keyframes pulse {
   0%,

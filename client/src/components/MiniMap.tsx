@@ -13,6 +13,7 @@ const TILE_COLOR: Record<string, string> = {
 export function MiniMap({ game }: { game: GameSummary }) {
   const tiles = game.previewBoard.tiles;
   const size = tiles.length || 8;
+  const dotSizePct = (100 / size) * 0.8;
   return (
     <div
       className="mini-map"
@@ -36,6 +37,8 @@ export function MiniMap({ game }: { game: GameSummary }) {
           key={`${u.x}-${u.y}-${u.side}-${idx}`}
           className={`mini-dot ${u.side}`}
           style={{
+            width: `${dotSizePct}%`,
+            height: `${dotSizePct}%`,
             left: `${((u.x + 0.5) / size) * 100}%`,
             top: `${((u.y + 0.5) / size) * 100}%`,
           }}

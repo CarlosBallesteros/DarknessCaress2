@@ -65,6 +65,9 @@ export function GameBoard() {
   const [inspectedPreview, setInspectedPreview] = useState<PreviewResponse | null>(null);
   const [overlay, setOverlay] = useState<"none" | "victory" | "defeat">("none");
   const [animatingAi, setAnimatingAi] = useState(false);
+  const [showForfeitConfirm, setShowForfeitConfirm] = useState(false);
+  const [forfeiting, setForfeiting] = useState(false);
+  const [endTurnConfirmCount, setEndTurnConfirmCount] = useState<number | null>(null);
   const animatingRef = useRef(false);
   const prevStatusRef = useRef<GameState["status"] | null>(null);
   const lastAnimatedTurnRef = useRef<number | null>(null);
@@ -381,17 +384,8 @@ export function GameBoard() {
     });
   };
 
-  const onEndTurn = async () => {
+  const performEndTurn = async () => {
     if (!game || !id) return;
-    const unacted = game.units.filter(
-      (u) => u.side === "player" && !u.acted && !stagedUnitIds.has(u.id),
-    );
-    if (unacted.length > 0) {
-      const ok = window.confirm(
-        `${unacted.length} unit(s) have not acted\n\nEnd the turn anyway? The un-acted units simply skip this turn.`,
-      );
-      if (!ok) return;
-    }
     setSubmitting(true);
     setBannerError(null);
     try {
@@ -434,16 +428,40 @@ export function GameBoard() {
     }
   };
 
-  const onForfeit = async () => {
+  const requestEndTurn = () => {
+    if (!game || !id) return;
+    const unacted = game.units.filter(
+      (u) => u.side === "player" && !u.acted && !stagedUnitIds.has(u.id),
+    );
+    if (unacted.length > 0) {
+      setEndTurnConfirmCount(unacted.length);
+      return;
+    }
+    void performEndTurn();
+  };
+
+  const confirmEndTurn = async () => {
+    setEndTurnConfirmCount(null);
+    await performEndTurn();
+  };
+
+  const requestForfeit = () => {
+    setShowForfeitConfirm(true);
+  };
+
+  const confirmForfeit = async () => {
     if (!id) return;
-    const ok = window.confirm("Forfeit this battle?");
-    if (!ok) return;
+    setForfeiting(true);
+    setBannerError(null);
     try {
       const res = await forfeitGame(id);
       setGame(res.game);
       setOverlay("defeat");
+      setShowForfeitConfirm(false);
     } catch (e) {
       setBannerError(e instanceof ApiError ? e.message : "Failed to forfeit");
+    } finally {
+      setForfeiting(false);
     }
   };
 
@@ -670,7 +688,7 @@ export function GameBoard() {
                   </div>
                 </div>
                 {mode.kind === "enemyInspect" ? (
-                  <p className="panel-hint">Inspecting enemy unit (read-only).</p>
+                  <p className="panel-hint">Inspecting enemy unit.</p>
                 ) : null}
                 {mode.kind === "unitSelected" ? (
                   <div className="panel-actions">
@@ -757,7 +775,7 @@ export function GameBoard() {
           type="button"
           className="primary"
           data-testid="end-turn"
-          onClick={() => void onEndTurn()}
+          onClick={requestEndTurn}
           disabled={game.status !== "player_turn" || submitting || animatingAi}
         >
           End turn
@@ -765,8 +783,8 @@ export function GameBoard() {
         <button
           type="button"
           data-testid="forfeit"
-          onClick={() => void onForfeit()}
-          disabled={submitting}
+          onClick={requestForfeit}
+          disabled={submitting || forfeiting}
         >
           Forfeit
         </button>
@@ -779,6 +797,90 @@ export function GameBoard() {
             <button type="button" onClick={() => navigate("/play")}>
               Back to games
             </button>
+          </div>
+        </div>
+      ) : null}
+      {showForfeitConfirm ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !forfeiting) {
+              setShowForfeitConfirm(false);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !forfeiting) {
+              setShowForfeitConfirm(false);
+            }
+          }}
+          tabIndex={-1}
+        >
+          <div className="modal">
+            <h2>Forfeit battle?</h2>
+            <p>This battle will be counted as a loss.</p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowForfeitConfirm(false)}
+                disabled={forfeiting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                data-testid="forfeit-confirm"
+                onClick={() => void confirmForfeit()}
+                disabled={forfeiting}
+              >
+                Forfeit
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {endTurnConfirmCount !== null ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !submitting) {
+              setEndTurnConfirmCount(null);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !submitting) {
+              setEndTurnConfirmCount(null);
+            }
+          }}
+          tabIndex={-1}
+        >
+          <div className="modal">
+            <h2>{`${endTurnConfirmCount} unit(s) have not acted`}</h2>
+            <p>End the turn anyway? The un-acted units simply skip this turn.</p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setEndTurnConfirmCount(null)}
+                disabled={submitting}
+              >
+                Keep acting
+              </button>
+              <button
+                type="button"
+                className="primary"
+                data-testid="end-turn-confirm"
+                onClick={() => void confirmEndTurn()}
+                disabled={submitting}
+              >
+                End turn
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -1,3 +1,25 @@
+@font-face {
+  font-family: "Blackletter";
+  src:
+    url("/assets/fonts/Blackletter-ExtraBold.woff2") format("woff2"),
+    url("/assets/fonts/OldLondon.woff2") format("woff2"),
+    url("/assets/fonts/Olondon_.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Blackletter-Shadow";
+  src:
+    url("/assets/fonts/Blackletter-Shadow.woff2") format("woff2"),
+    url("/assets/fonts/OldLondonAlternate.woff2") format("woff2"),
+    url("/assets/fonts/Olondona.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* sides & UI accents (mode-independent) */
   --gold: #c9a227;

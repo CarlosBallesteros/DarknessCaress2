@@ -46,6 +46,8 @@ export function GameStrip() {
   const [modalOpen, setModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
+  const [forfeitId, setForfeitId] = useState<string | null>(null);
+  const [forfeiting, setForfeiting] = useState(false);
   const navigate = useNavigate();
 
   const load = useCallback(async () => {
@@ -100,15 +102,23 @@ export function GameStrip() {
     }
   };
 
-  const onForfeit = async (id: string) => {
-    const ok = window.confirm("Forfeit this battle?");
-    if (!ok) return;
+  const requestForfeit = (id: string) => {
+    setMenuOpenFor(null);
+    setForfeitId(id);
+  };
+
+  const confirmForfeit = async () => {
+    if (!forfeitId) return;
+    setForfeiting(true);
+    setError(null);
     try {
-      await forfeitGame(id);
-      setMenuOpenFor(null);
+      await forfeitGame(forfeitId);
+      setForfeitId(null);
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to forfeit");
+    } finally {
+      setForfeiting(false);
     }
   };
 
@@ -132,96 +142,108 @@ export function GameStrip() {
             >
               New battle
             </button>
-            {!loading && games.length === 0 ? (
-              <p className="empty-caption">No battles yet</p>
-            ) : null}
           </div>
         </div>
 
-        {!loading && games.length > 0 ? (
+        {!loading ? (
           <>
             <h2 className="strip-row-title">Active battles</h2>
-            <div className="strip-row">
-              {active.map((g) => {
-                const badge = statusBadge(g.status);
-                const personaLabel = meta?.personalities[g.difficulty]?.label ?? g.difficulty;
-                return (
-                  <article
-                    key={g.id}
-                    className={`game-card active persona-${g.difficulty}`}
-                    data-testid={`game-card-${g.id}`}
-                  >
-                    <button
-                      type="button"
-                      className="card-focus"
-                      onClick={() => navigate(`/play/${g.id}`)}
+            {active.length > 0 ? (
+              <div className="strip-row">
+                {active.map((g) => {
+                  const badge = statusBadge(g.status);
+                  const personaLabel = meta?.personalities[g.difficulty]?.label ?? g.difficulty;
+                  return (
+                    <article
+                      key={g.id}
+                      className={`game-card active persona-${g.difficulty}`}
+                      data-testid={`game-card-${g.id}`}
                     >
-                      <MiniMap game={g} />
-                    </button>
-                    <div className="card-meta">
-                      <span className={`persona-badge persona-${g.difficulty}`}>
-                        {personaLabel}
-                      </span>
-                      <span className={badge.className}>{badge.text}</span>
-                      <span className="turn-label">Turn {g.turnNumber}</span>
-                      <span className="updated-label">{relativeTime(g.updatedAt)}</span>
-                    </div>
-                    <div className="card-menu-wrap">
                       <button
                         type="button"
-                        className="card-menu-btn"
-                        aria-label="Game actions"
-                        onClick={() => setMenuOpenFor(menuOpenFor === g.id ? null : g.id)}
+                        className="card-focus"
+                        onClick={() => navigate(`/play/${g.id}`)}
                       >
-                        ⋮
+                        <MiniMap game={g} />
                       </button>
-                      {menuOpenFor === g.id ? (
-                        <div className="card-menu">
-                          <button
-                            type="button"
-                            data-testid="forfeit"
-                            onClick={() => void onForfeit(g.id)}
-                          >
-                            Forfeit
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                      <div className="card-meta">
+                        <span className={`persona-badge persona-${g.difficulty}`}>
+                          {personaLabel}
+                        </span>
+                        <span className={badge.className}>{badge.text}</span>
+                        <span className="turn-label">Turn {g.turnNumber}</span>
+                        <span className="updated-label">{relativeTime(g.updatedAt)}</span>
+                      </div>
+                      <div className="card-menu-wrap">
+                        <button
+                          type="button"
+                          className="card-menu-btn"
+                          aria-label="Game actions"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenFor(menuOpenFor === g.id ? null : g.id);
+                          }}
+                        >
+                          ⋮
+                        </button>
+                        {menuOpenFor === g.id ? (
+                          <div className="card-menu">
+                            <button
+                              type="button"
+                              data-testid="forfeit"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                requestForfeit(g.id);
+                              }}
+                            >
+                              Forfeit
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="strip-empty">No active battles</p>
+            )}
 
             <h2 className="strip-row-title">Past battles</h2>
-            <div className="strip-row past">
-              {past.map((g) => {
-                const badge = statusBadge(g.status);
-                const personaLabel = meta?.personalities[g.difficulty]?.label ?? g.difficulty;
-                return (
-                  <article
-                    key={g.id}
-                    className={`game-card past persona-${g.difficulty}`}
-                    data-testid={`game-card-${g.id}`}
-                  >
-                    <button
-                      type="button"
-                      className="card-focus"
-                      onClick={() => navigate(`/play/${g.id}`)}
+            {past.length > 0 ? (
+              <div className="strip-row past">
+                {past.map((g) => {
+                  const badge = statusBadge(g.status);
+                  const personaLabel = meta?.personalities[g.difficulty]?.label ?? g.difficulty;
+                  return (
+                    <article
+                      key={g.id}
+                      className={`game-card past persona-${g.difficulty}`}
+                      data-testid={`game-card-${g.id}`}
                     >
-                      <MiniMap game={g} />
-                    </button>
-                    <div className="card-meta">
-                      <span className={`persona-badge persona-${g.difficulty}`}>
-                        {personaLabel}
-                      </span>
-                      <span className={badge.className}>{badge.text}</span>
-                      <span className="turn-label">Turn {g.turnNumber}</span>
-                      <span className="updated-label">{relativeTime(g.updatedAt)}</span>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                      <button
+                        type="button"
+                        className="card-focus"
+                        onClick={() => navigate(`/play/${g.id}`)}
+                      >
+                        <MiniMap game={g} />
+                      </button>
+                      <div className="card-meta">
+                        <span className={`persona-badge persona-${g.difficulty}`}>
+                          {personaLabel}
+                        </span>
+                        <span className={badge.className}>{badge.text}</span>
+                        <span className="turn-label">Turn {g.turnNumber}</span>
+                        <span className="updated-label">{relativeTime(g.updatedAt)}</span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="strip-empty">No past battles</p>
+            )}
           </>
         ) : null}
       </section>
@@ -268,6 +290,48 @@ export function GameStrip() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      ) : null}
+      {forfeitId ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !forfeiting) {
+              setForfeitId(null);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !forfeiting) {
+              setForfeitId(null);
+            }
+          }}
+          tabIndex={-1}
+        >
+          <div className="modal">
+            <h2>Forfeit battle?</h2>
+            <p>This battle will be counted as a loss.</p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setForfeitId(null)}
+                disabled={forfeiting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                data-testid="forfeit-confirm"
+                onClick={() => void confirmForfeit()}
+                disabled={forfeiting}
+              >
+                Forfeit
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

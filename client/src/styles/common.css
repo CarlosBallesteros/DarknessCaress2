@@ -210,6 +210,63 @@ select {
   margin: 0;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 30;
+}
+
+.modal {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.1rem;
+  box-shadow: var(--shadow-card);
+}
+
+.modal h2 {
+  margin-top: 0;
+  font-family: var(--font-display-soft);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+}
+
+button.secondary:hover:not(:disabled) {
+  border-color: var(--gold-soft);
+}
+
+button.danger,
+.danger {
+  background: var(--blood);
+  border-color: var(--blood-soft);
+  color: #fff;
+}
+
+button.danger:hover:not(:disabled),
+.danger:hover:not(:disabled) {
+  background: var(--blood-soft);
+  border-color: var(--blood-soft);
+}
+
 @media (max-width: 700px) {
   .top-menu {
     justify-content: center;
