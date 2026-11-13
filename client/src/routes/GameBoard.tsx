@@ -244,7 +244,40 @@ export function GameBoard() {
       return;
     }
 
-    // own unit
+    // own unit: in movePicked, allow healer to heal a valid adjacent wounded ally by clicking it
+    if (mode.kind === "movePicked") {
+      const own = game.units.find((u) => u.id === mode.unitId);
+      const cls = own && meta ? meta.classes[own.class] : undefined;
+      if (own && cls?.healAmount !== undefined && unit.side === "player" && unit.hp < unit.maxHp) {
+        const healTargets = (mode.preview.healTiles as Point[]).filter(
+          ([hx, hy]) => Math.abs(hx - mode.destination[0]) + Math.abs(hy - mode.destination[1]) === 1,
+        );
+        const isHealTarget = healTargets.some(([hx, hy]) => hx === unit.x && hy === unit.y);
+        if (isHealTarget) {
+          dispatch({
+            type: "stageMove",
+            move: {
+              unitId: own.id,
+              path: mode.path,
+              action: { type: "heal", targetId: unit.id },
+            },
+          });
+          return;
+        }
+      }
+      // clicking another own selectable unit in movePicked should reselect (consistent with tile handler)
+      if (unit.side === "player" && selectableUnit(unit)) {
+        try {
+          const preview = await previewUnit(id, unit.id);
+          dispatch({ type: "selectUnit", unitId: unit.id, preview });
+          setInspectedPreview(null);
+        } catch (e) {
+          setBannerError(e instanceof ApiError ? e.message : "Preview failed");
+        }
+        return;
+      }
+    }
+
     if (!selectableUnit(unit)) return;
     try {
       const preview = await previewUnit(id, unit.id);
