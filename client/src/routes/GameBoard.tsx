@@ -116,7 +116,7 @@ export function GameBoard() {
       lastAnimatedTurnRef.current = game.turnNumber;
       animatingRef.current = true;
       setAnimatingAi(true);
-      const total = game.lastAiActions.length * 400;
+      const total = game.lastAiActions.length * 120;
       const t = window.setTimeout(() => {
         animatingRef.current = false;
         setAnimatingAi(false);
