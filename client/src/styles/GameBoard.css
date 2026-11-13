@@ -83,22 +83,22 @@
   z-index: 2;
 }
 .tile.ov-move::after {
-  background: rgba(var(--overlay-move), 0.35);
+  background: rgb(var(--overlay-move) / 0.35);
 }
 .tile.ov-attack::after {
-  background: rgba(var(--overlay-attack), 0.28);
+  background: rgb(var(--overlay-attack) / 0.28);
 }
 .tile.ov-heal::after {
-  background: rgba(var(--overlay-heal), 0.28);
+  background: rgb(var(--overlay-heal) / 0.28);
 }
 .tile.ov-inspect::after {
-  background: rgba(var(--overlay-inspect), 0.28);
+  background: rgb(var(--overlay-inspect) / 0.28);
 }
 .tile.selected {
-  box-shadow: inset 0 0 0 2px rgba(var(--overlay-select), 0.98);
+  box-shadow: inset 0 0 0 2px rgb(var(--overlay-select) / 0.98);
 }
 .tile.inspected {
-  box-shadow: inset 0 0 0 2px rgba(var(--overlay-inspect), 0.98);
+  box-shadow: inset 0 0 0 2px rgb(var(--overlay-inspect) / 0.98);
 }
 .tile.staged-origin {
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.32);
