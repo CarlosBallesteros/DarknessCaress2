@@ -6,7 +6,11 @@ import type { AppliedTurn } from "../../game/apply.js";
 import type { Board, GameEngineConfig, Move, Unit } from "../../game/types.js";
 import type { AppConfig } from "../../config/index.js";
 import type { GameRow } from "../games/dto.js";
-import { computeEnemyOrders, type DestinationOrder, type Difficulty } from "./policy.js";
+import {
+  computeSingleEnemyOrder,
+  type DestinationOrder,
+  type Difficulty,
+} from "./policy.js";
 
 export interface AiActionDto {
   unitId: string;
@@ -161,6 +165,10 @@ export interface AiTurnResult {
   status?: "player_turn" | "lost";
 }
 
+function cloneUnits(units: Unit[]): Unit[] {
+  return units.map((u) => ({ ...u }));
+}
+
 export async function runAiTurn(
   pool: Pool,
   config: AppConfig,
@@ -173,30 +181,74 @@ export async function runAiTurn(
   }
 
   const board = row.board as Board;
-  const units = (row.units as Unit[]).map((u) => ({ ...u }));
+  let currentUnits = (row.units as Unit[]).map((u) => ({ ...u }));
   const engineConfig = projectEngineConfig(
     config as unknown as Parameters<typeof projectEngineConfig>[0],
   );
+  const difficulty = row.difficulty as Difficulty;
 
   try {
-    const orders = computeEnemyOrders(board, units, row.difficulty as Difficulty, engineConfig);
-    const moves = expandOrdersToMoves(board, units, orders, engineConfig);
+    const claimed = new Set<string>();
+    const moves: Move[] = [];
+    const allEvents: AppliedTurn["events"] = [];
 
-    const applied = applyMoves({ board, units }, moves, "enemy", engineConfig);
-    if (!applied.ok) {
-      // Defensive: should not occur; degrade by leaving ai_turn with error
-      await pool.query(
-        `UPDATE games SET ai_last_error = $2, updated_at = now() WHERE id = $1 AND status = 'ai_turn'`,
-        [gameId, applied.error],
+    const enemies = currentUnits
+      .filter((u) => u.side === "enemy" && u.hp > 0)
+      .map((u) => u.id)
+      .sort((a, b) => a.localeCompare(b));
+
+    for (const enemyId of enemies) {
+      const unit = findUnit(currentUnits, enemyId);
+      if (!unit || unit.side !== "enemy" || unit.hp <= 0) {
+        continue;
+      }
+
+      const order = computeSingleEnemyOrder(
+        board,
+        currentUnits,
+        unit,
+        difficulty,
+        engineConfig,
+        claimed,
       );
-      return { applied: false };
+
+      let move = expandOrdersToMoves(board, currentUnits, [order], engineConfig)[0];
+      if (!move) {
+        move = { unitId: unit.id, path: [[unit.x, unit.y]], action: { type: "wait" } };
+      }
+
+      let applied = applyMoves({ board, units: currentUnits }, [move], "enemy", engineConfig);
+      if (!applied.ok) {
+        const waitMove: Move = {
+          unitId: unit.id,
+          path: [[unit.x, unit.y]],
+          action: { type: "wait" },
+        };
+        applied = applyMoves({ board, units: currentUnits }, [waitMove], "enemy", engineConfig);
+        if (!applied.ok) {
+          await pool.query(
+            `UPDATE games SET ai_last_error = $2, updated_at = now() WHERE id = $1 AND status = 'ai_turn'`,
+            [gameId, applied.error],
+          );
+          return { applied: false };
+        }
+        move = waitMove;
+      }
+
+      moves.push(move);
+      allEvents.push(...applied.result.events);
+      currentUnits = cloneUnits(applied.result.state.units);
+
+      const after = findUnit(currentUnits, enemyId);
+      if (after && after.hp > 0) {
+        claimed.add(`${after.x},${after.y}`);
+      }
     }
 
-    const victory = checkVictory(applied.result.state.units);
+    const victory = checkVictory(currentUnits);
     const nextStatus: "player_turn" | "lost" = victory === "enemy" ? "lost" : "player_turn";
-    const lastAiActions = toAiActions(moves, applied.result.events, applied.result.state.units);
+    const lastAiActions = toAiActions(moves, allEvents, currentUnits);
 
-    // turn advances only on a successful AI turn
     const updateRes = await pool.query(
       `UPDATE games
        SET status = $2,
@@ -211,14 +263,13 @@ export async function runAiTurn(
       [
         gameId,
         nextStatus,
-        JSON.stringify(applied.result.state.units),
-        JSON.stringify(applied.result.state.board),
+        JSON.stringify(currentUnits),
+        JSON.stringify(board),
         JSON.stringify(lastAiActions),
       ],
     );
 
     if ((updateRes.rowCount ?? 0) === 0) {
-      // forfeited mid-job or otherwise left ai_turn; discard
       return { applied: false };
     }
 

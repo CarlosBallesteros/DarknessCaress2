@@ -466,6 +466,26 @@ function toOrder(unitId: string, opt: LegalOption): DestinationOrder {
   return { unitId, to: opt.to, action: { type: "wait" } };
 }
 
+export function computeSingleEnemyOrder(
+  board: Board,
+  units: Unit[],
+  unit: Unit,
+  difficulty: Difficulty,
+  cfg: GameEngineConfig,
+  claimed: Set<string>,
+  rng: () => number = Math.random,
+): DestinationOrder {
+  let order: DestinationOrder;
+  if (difficulty === "aggressive") {
+    order = chooseAggressive(board, units, unit, cfg, claimed);
+  } else if (difficulty === "defensive") {
+    order = chooseDefensive(board, units, unit, cfg, claimed);
+  } else {
+    order = chooseErratic(board, units, unit, cfg, claimed, rng);
+  }
+  return resolveOrderWithFallback(board, units, unit, cfg, claimed, order);
+}
+
 export function computeEnemyOrders(
   board: Board,
   units: Unit[],
@@ -487,17 +507,7 @@ export function computeEnemyOrders(
     const current = findUnit(working, enemy.id);
     if (!current) continue;
 
-    let order: DestinationOrder;
-    if (difficulty === "aggressive") {
-      order = chooseAggressive(board, working, current, cfg, claimed);
-    } else if (difficulty === "defensive") {
-      order = chooseDefensive(board, working, current, cfg, claimed);
-    } else {
-      order = chooseErratic(board, working, current, cfg, claimed, rng);
-    }
-
-    // Ensure chosen `to` is not claimed and is legal in current snapshot; fallback if needed
-    const resolved = resolveOrderWithFallback(board, working, current, cfg, claimed, order);
+    const resolved = computeSingleEnemyOrder(board, working, current, difficulty, cfg, claimed, rng);
     orders.push(resolved);
 
     const to = resolved.to ?? [current.x, current.y];
