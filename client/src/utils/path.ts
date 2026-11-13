@@ -65,6 +65,65 @@ export function shortestPath(start: Point, destination: Point, moveTiles: Point[
   return null;
 }
 
+/**
+ * Fallback pathfinding over passable terrain (non-water). Allows traversal through
+ * any passable tile except those blocked (e.g. enemies, occupied claims as needed).
+ * Used when reconstruction over moveTiles fails (e.g. pass-through intermediates).
+ */
+export function shortestPathOverPassable(
+  boardTiles: string[][],
+  boardSize: number,
+  start: Point,
+  destination: Point,
+  blocked: Set<string>,
+  maxSteps: number,
+): Point[] | null {
+  if (start[0] === destination[0] && start[1] === destination[1]) {
+    return [start];
+  }
+  const startK = key(start[0], start[1]);
+  const destK = key(destination[0], destination[1]);
+  if (blocked.has(destK)) return null;
+
+  const queue: Point[] = [start];
+  const prev = new Map<string, Point | null>();
+  const dist = new Map<string, number>();
+  prev.set(startK, null);
+  dist.set(startK, 0);
+
+  for (let qi = 0; qi < queue.length; qi += 1) {
+    const cur = queue[qi]!;
+    const curK = key(cur[0], cur[1]);
+    const d = dist.get(curK) ?? 0;
+    if (d >= maxSteps) continue;
+    for (const [dx, dy] of DIRS) {
+      const nx = cur[0] + dx;
+      const ny = cur[1] + dy;
+      const nk = key(nx, ny);
+      if (!inBounds(nx, ny, boardSize)) continue;
+      if (prev.has(nk)) continue;
+      const tile = boardTiles[ny]?.[nx] ?? "plain";
+      if (!isPassableTerrain(tile)) continue;
+      // can traverse unless blocked (e.g. enemy); destination blocked handled above
+      if (blocked.has(nk) && nk !== destK) continue;
+      prev.set(nk, cur);
+      dist.set(nk, d + 1);
+      if (nx === destination[0] && ny === destination[1]) {
+        const out: Point[] = [[nx, ny]];
+        let p: Point | null = cur;
+        while (p) {
+          out.push(p);
+          p = prev.get(key(p[0], p[1])) ?? null;
+        }
+        out.reverse();
+        return out;
+      }
+      queue.push([nx, ny]);
+    }
+  }
+  return null;
+}
+
 export interface OccupancyState {
   // unit id -> current position considering staged ghosts
   positions: Map<string, Point>;

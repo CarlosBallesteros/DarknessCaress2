@@ -12,6 +12,7 @@ import {
   computeLocalMoveTiles,
   filterAttackTilesFromDestination,
   shortestPath,
+  shortestPathOverPassable,
 } from "../utils/path";
 import "../styles/GameBoard.css";
 
@@ -280,7 +281,18 @@ export function GameBoard() {
                 return g ? ([g.x, g.y] as Point) : ([own.x, own.y] as Point);
               })()
             : [own.x, own.y];
-        const path = shortestPath(start, [x, y], moveTiles);
+        let path = shortestPath(start, [x, y], moveTiles);
+        if (!path) {
+          const blocked = new Set<string>();
+          // Treat enemy-occupied tiles as blocked for traversal; allies/others handled permissively in fallback.
+          for (const u of game.units) {
+            if (u.side !== own.side && u.hp > 0) blocked.add(`${u.x},${u.y}`);
+          }
+          // Don't block destination if it's the clicked tile (must be in moveTiles)
+          blocked.delete(`${x},${y}`);
+          const mov = meta.classes[own.class]?.mov ?? 0;
+          path = shortestPathOverPassable(game.board.tiles, boardSize, start, [x, y], blocked, mov);
+        }
         if (!path) {
           setBannerError("Could not compute a valid path to that tile.");
           return;
