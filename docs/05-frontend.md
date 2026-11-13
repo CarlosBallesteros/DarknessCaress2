@@ -119,7 +119,7 @@ Notes:
 
 | Overlay | Token | Meaning |
 |---|---|---|
-| moveTiles | `--overlay-move` (gold, 25% alpha) | reachable destinations |
+| moveTiles | `--overlay-move` (gold, ~35% alpha tint via `.tile.ov-move::after`, rendered above terrain art) | reachable destinations |
 | attackTiles | `--overlay-attack` (red, 25%) | enemies attackable this turn |
 | healTiles | `--overlay-heal` (green, 25%) | allies healable this turn |
 | selected unit ring | `--overlay-select` (white) | currently selected unit |

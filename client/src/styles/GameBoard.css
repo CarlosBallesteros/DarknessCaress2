@@ -83,7 +83,7 @@
   z-index: 2;
 }
 .tile.ov-move::after {
-  background: rgba(var(--overlay-move), 0.28);
+  background: rgba(var(--overlay-move), 0.35);
 }
 .tile.ov-attack::after {
   background: rgba(var(--overlay-attack), 0.28);
