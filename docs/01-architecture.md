@@ -113,12 +113,12 @@ No move-history table in MVP (stats are computed from `games`). Replay/audit is 
   "boardSize": 8,
   "maxActiveGames": 5,
   "classes": {
-    "sword":  { "count": 2, "hp": 20, "atk": 7,  "def": 5, "mov": 3, "range": [1],    "role": "attacker",  "label": "Swordsman" },
-    "axe":    { "count": 2, "hp": 25, "atk": 10, "def": 3, "mov": 2, "range": [1],    "role": "attacker",  "label": "Axeman" },
-    "spear":  { "count": 2, "hp": 18, "atk": 6,  "def": 3, "mov": 5, "range": [1],    "role": "attacker",  "label": "Spearman" },
-    "archer": { "count": 2, "hp": 16, "atk": 6,  "def": 2, "mov": 4, "range": [2],    "role": "supporter", "label": "Archer" },
-    "mage":   { "count": 1, "hp": 15, "atk": 8,  "def": 1, "mov": 3, "range": [1,2,3],"role": "supporter", "label": "Mage" },
-    "healer": { "count": 1, "hp": 18, "atk": 0,  "def": 2, "mov": 2, "range": [],     "healAmount": 8, "role": "supporter", "label": "Healer" }
+    "sword":  { "count": 2, "hp": 15, "atk": 8,  "def": 3, "mov": 3, "range": [1],    "role": "attacker",  "label": "Swordsman" },
+    "axe":    { "count": 2, "hp": 13, "atk": 10, "def": 2, "mov": 2, "range": [1],    "role": "attacker",  "label": "Axeman" },
+    "spear":  { "count": 2, "hp": 10, "atk": 7,  "def": 2, "mov": 5, "range": [1],    "role": "attacker",  "label": "Spearman" },
+    "archer": { "count": 2, "hp": 9,  "atk": 7,  "def": 1, "mov": 4, "range": [2],    "role": "supporter", "label": "Archer" },
+    "mage":   { "count": 1, "hp": 9,  "atk": 9,  "def": 1, "mov": 3, "range": [1,2,3],"role": "supporter", "label": "Mage" },
+    "healer": { "count": 1, "hp": 10, "atk": 0,  "def": 1, "mov": 2, "range": [],     "healAmount": 6, "role": "supporter", "label": "Healer" }
   },
   "personalities": {
     "aggressive": { "label": "Aggressive", "temperature": 0.7 },

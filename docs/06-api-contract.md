@@ -110,8 +110,8 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
   "boardSize": 8,
   "maxActiveGames": 5,
   "classes": {
-    "sword": { "label": "Swordsman", "hp": 20, "atk": 7, "def": 5, "mov": 3, "range": [1], "role": "attacker", "count": 2 },
-    "healer": { "label": "Healer", "hp": 18, "atk": 0, "def": 2, "mov": 2, "range": [], "role": "supporter", "count": 1, "healAmount": 8 }
+    "sword": { "label": "Swordsman", "hp": 15, "atk": 8, "def": 3, "mov": 3, "range": [1], "role": "attacker", "count": 2 },
+    "healer": { "label": "Healer", "hp": 10, "atk": 0, "def": 1, "mov": 2, "range": [], "role": "supporter", "count": 1, "healAmount": 6 }
   },
   "personalities": { "aggressive": { "label": "Aggressive" }, "defensive": { "label": "Defensive" }, "erratic": { "label": "Erratic" } },
   "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],

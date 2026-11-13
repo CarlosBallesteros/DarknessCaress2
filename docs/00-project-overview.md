@@ -52,12 +52,12 @@ Starting values (chosen for readability of the config, details in `02-game-rules
 
 | Class | Count | HP | Atk | Def | Mov | Attack range |
 |---|---|---|---|---|---|---|
-| Sword | 2 | 20 | 7 | 5 | 3 | 1 |
-| Axe | 2 | 25 | 10 | 3 | 2 | 1 |
-| Spear | 2 | 18 | 6 | 3 | 5 | 1 |
-| Archer | 2 | 16 | 6 | 2 | 4 | exactly 2 |
-| Mage | 1 | 15 | 8 | 1 | 3 | 1, 2 or 3 |
-| Healer | 1 | 18 | — | 2 | 2 | heal 8, adjacent only |
+| Sword | 2 | 15 | 8 | 3 | 3 | 1 |
+| Axe | 2 | 13 | 10 | 2 | 2 | 1 |
+| Spear | 2 | 10 | 7 | 2 | 5 | 1 |
+| Archer | 2 | 9 | 7 | 1 | 4 | exactly 2 |
+| Mage | 1 | 9 | 9 | 1 | 3 | 1, 2 or 3 |
+| Healer | 1 | 10 | — | 1 | 2 | heal 6, adjacent only |
 
 ### Rules of play
 - **Turn flow:** your whole army acts per turn → the AI's whole army acts (async) → repeat. Per unit per turn: **move (up to Mov), then one action** — attack, heal (healer), or wait. Any unit order; the UI lists units in this default display order: Swords, Axes, Spears, Archers, Mage, Healer.

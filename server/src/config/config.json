@@ -4,9 +4,9 @@
   "classes": {
     "sword": {
       "count": 2,
-      "hp": 20,
-      "atk": 7,
-      "def": 5,
+      "hp": 15,
+      "atk": 8,
+      "def": 3,
       "mov": 3,
       "range": [1],
       "role": "attacker",
@@ -14,9 +14,9 @@
     },
     "axe": {
       "count": 2,
-      "hp": 25,
+      "hp": 13,
       "atk": 10,
-      "def": 3,
+      "def": 2,
       "mov": 2,
       "range": [1],
       "role": "attacker",
@@ -24,9 +24,9 @@
     },
     "spear": {
       "count": 2,
-      "hp": 18,
-      "atk": 6,
-      "def": 3,
+      "hp": 10,
+      "atk": 7,
+      "def": 2,
       "mov": 5,
       "range": [1],
       "role": "attacker",
@@ -34,9 +34,9 @@
     },
     "archer": {
       "count": 2,
-      "hp": 16,
-      "atk": 6,
-      "def": 2,
+      "hp": 9,
+      "atk": 7,
+      "def": 1,
       "mov": 4,
       "range": [2],
       "role": "supporter",
@@ -44,8 +44,8 @@
     },
     "mage": {
       "count": 1,
-      "hp": 15,
-      "atk": 8,
+      "hp": 9,
+      "atk": 9,
       "def": 1,
       "mov": 3,
       "range": [1, 2, 3],
@@ -54,12 +54,12 @@
     },
     "healer": {
       "count": 1,
-      "hp": 18,
+      "hp": 10,
       "atk": 0,
-      "def": 2,
+      "def": 1,
       "mov": 2,
       "range": [],
-      "healAmount": 8,
+      "healAmount": 6,
       "role": "supporter",
       "label": "Healer"
     }
