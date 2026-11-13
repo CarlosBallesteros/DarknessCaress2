@@ -765,7 +765,7 @@ export function GameBoard() {
                       Choose an action from the destination: attack, heal, or wait.
                     </p>
                     <button type="button" onClick={waitInPlace}>
-                      Wait in place
+                      Wait
                     </button>
                     <button type="button" onClick={() => dispatch({ type: "backToSelected" })}>
                       Cancel

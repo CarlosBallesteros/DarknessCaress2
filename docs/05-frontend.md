@@ -93,7 +93,7 @@ movePicked → staged            (click enemy unit in red overlay → stage a wh
                                 `02`/`06` define it: {unitId, path, action:{type:"attack",targetId}} —
                                 same shape for heal (targetId = own unit) and for wait ({type:"wait"}));
                                 click own wounded unit in green overlay (healer) → stage heal;
-                                click [Wait in place] → stage wait for same tile)
+                                click [Wait] → stage wait for same tile)
 movePicked → enemyInspect      (click an ENEMY unit that is NOT an actionable attack/heal target from the
                                 picked destination → inspect it read-only)
 movePicked → unitSelected      ([Cancel] or Esc → re-select)
