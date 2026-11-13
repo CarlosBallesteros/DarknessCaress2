@@ -9,7 +9,7 @@
 | `/` | Landing | public | Title `"Darkness Caress II"` (h1, **large display font**, styled tagline) `The long-awaited sequel to the legendary game`, one button `To Battle!` (→ `/play` when authenticated; → `/login` otherwise). **Ambient dressing:** full-viewport hero (art via `assetPath("hero")` — the UNIVERSAL `assets/hero/landscape.png`, NO theme involved: the landing is pre-login and PRE-theme-choice) with CSS-only vignette + slow hero zoom over a dark overlay (placeholder ships with it — see `07`). |
 | `/login` | Login | public | Email + password form, error banner on 401/429. Link to `/register`. |
 | `/register` | Register | public | Email, username, password, password-again. Client checks length/format per `01`. Link to `/login`. |
-| `/play` | Games strip | yes | "Games" tab home: scroll-snap strip in creation order. See below. |
+| `/play` | Games strip | yes | "Games" tab home: windowed strip (3 cards visible per row with arrows; Active oldest→newest, Past newest→oldest). See below. |
 | `/play/:id` | Board | yes | The battle screen. See below. |
 | `/stats` | Statistics | yes | Table from `GET /api/stats`: totals row + per-difficulty table. |
 | `/champions` | Champions | yes | 6 class cards from `GET /api/meta`. See below. |

@@ -30,7 +30,7 @@ DarknessCaress2/
 │   │   │   ├── Landing.tsx
 │   │   │   ├── Login.tsx
 │   │   │   ├── Register.tsx
-│   │   │   ├── GameStrip.tsx     # "Game" tab home: scroll-snap strip (creation order) + New battle tile
+│   │   │   ├── GameStrip.tsx     # "Game" tab home: windowed strip (3 cards/row with arrows) + New battle action
 │   │   │   ├── GameBoard.tsx     # the board UI
 │   │   │   ├── Statistics.tsx
 │   │   │   ├── Champions.tsx

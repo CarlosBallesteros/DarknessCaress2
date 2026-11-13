@@ -34,8 +34,8 @@
 ### 2) Responsive layout and navigation
 
 - **Global shell/top menu:** ensure tabs, wordmark/home link, mode toggle, username/logout wrap and remain usable at narrow widths (≤480 px and intermediate breakpoints); maintain tap targets and avoid overflow/clipping.
-- **Games strip (`/play`):** responsive card sizing and row behavior; preserve creation order, status badges/pulse states, mini-map legibility, and the always-visible separate New battle action with cap-disabled state. Ensure horizontal scroll/snap works well on touch and desktop.
-- **Board screen (`/play/:id`):** responsive composition of `PhaseBanner`, board, `UnitTray`, `ActionPanel`, `StagedMovesBar`, and `TurnFooter` so controls remain accessible without horizontal page scroll where feasible. Board tile sizing should adapt to viewport while keeping overlays/units/popups aligned and readable.
+- **Games strip (`/play`):** responsive card sizing and row behavior; preserve windowed presentation (3 visible cards per row with left/right arrows, no horizontal scrollbar), status badges/pulse states, mini-map legibility, and the always-visible separate New battle action with cap-disabled state. Keep Active battles in creation order and Past battles newest-first per `05`.
+- **Board screen (`/play/:id`):** responsive composition of `PhaseBanner`, board, and controls (`ActionPanel`, `StagedMovesBar`, `UnitTray`, `TurnFooter`) so controls remain accessible without horizontal page scroll where feasible. On wide screens the board occupies the left half and controls/UI the right half; on narrow screens they stack. Board tile sizing should adapt to viewport while keeping overlays/units/popups aligned and readable.
 - **Stats/Champions/Profile/Store/Auth/Landing:** refine grids, cards, forms, and hero/sections for small and large screens; keep content centered/readable and actions easy to reach.
 - **Dialogs/lightbox/modals:** ensure they fit viewports, scroll internally when needed, and remain dismissible/accessible (Esc/click where specified).
 
@@ -68,7 +68,7 @@
 [ ] npm -w client test                                           → green (existing suites; update/add only for UI logic if needed, behavior-preserving)
 [ ] npm -w server run lint && npm -w server run build            → still clean (no unintended backend drift)
 [ ] Responsive checks: key screens usable at narrow (~360px), tablet, and desktop widths without broken layout/overlap/unreachable controls
-[ ] Games strip: snap/scroll, card content, mini-map, badges/pulses, New battle control/cap state behave as specified
+[ ] Games strip: windowing/arrows, card content, mini-map, badges/pulses, ordering, and New battle control/cap state behave as specified
 [ ] Board screen: board/overlays/units/tray/panel/staged bar/footer usable and aligned across breakpoints; enemy inspect and staging rules preserved
 [ ] Light and dark UI modes visually consistent; focus/hover/disabled states clear
 [ ] No data-testid regressions; no API contract or gameplay behavior changes

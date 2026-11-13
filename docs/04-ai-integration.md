@@ -57,14 +57,14 @@ Policies emit **destination-only** orders (the AI's internal format):
 { unitId: string, to?: [x, y], action: { type: "attack", targetId: string } | { type: "heal", targetId: string } | { type: "wait" } }
 ```
 
-`to` omitted ⇒ stay in place. For each order, `aiTurn` expands `to` to the full walked path via `pathTo(board, units, unit, to, engineConfig)` (`src/game/reach.ts`, docs/02), then submits the expanded `Move[]` bundle to `applyMoves` — the **player contract (endpoint 13) remains unchanged** (players always submit full paths). Expansion and the bundle go through the same engine machinery as player moves: evolving landing rule, exclusive claims, and every legality rule apply.
+`to` omitted -> stay in place. For each order, `aiTurn` expands `to` to the full walked path via `pathTo(board, units, unit, to, engineConfig)` (`src/game/reach.ts`, docs/02), producing a standard `Move` (same shape as player moves). The **player contract (endpoint 13) remains unchanged** (players always submit full paths). Expansion and execution go through the same engine machinery as player moves: path/landing legality, counters, deaths, and all other rules are enforced by `src/game/`.
 
 ### Persona policies (menu-choice)
 
 Each persona is a choice policy over the same engine-generated options. Behavior is code (not prompt text); `config.personalities` carries label/temperature metadata but **temperature does not affect moves**.
 
 - **Aggressive (`aggressive`)**
-  - If the unit has attack pairs: attack a priority target — prefer **supporter**-role player units (config `role`), then lowest `hp`, then smallest Manhattan distance from the unit; choose the paired `to` that minimizes distance to that target (tie-break stable/deterministic). Units with no attack pairs advance: pick a reachable/move `to` that minimizes distance to the nearest surviving player unit.
+  - If the unit has attack pairs: attack a priority target - prefer **supporter**-role player units (config `role`), then lowest `hp`, then smallest Manhattan distance from the unit; choose the paired `to` that minimizes distance to that target (tie-break stable/deterministic). Units with no attack pairs advance: pick a reachable/move `to` that minimizes distance to the nearest surviving player unit.
   - The healer prefers heal pairs for the most wounded eligible ally; if none, stays safe/back (does not rush the front) and does not attack.
 
 - **Defensive (`defensive`)**
@@ -74,30 +74,30 @@ Each persona is a choice policy over the same engine-generated options. Behavior
 - **Erratic (`erratic`)**
   - Pick uniformly at random among each unit's legal options (any valid attack pair, heal pair, or move/wait). Randomness is the persona's "chaos"; legality is never compromised. Selection is per-decision from the currently-legal set.
 
-*(Policies are specified at this intent level; tie-breakers must be deterministic for aggressive/defensive given the same snapshot and claim state. Erratic is intentionally stochastic but always legal.)*
+*(Policies are specified at this intent level; tie-breakers must be deterministic for aggressive/defensive given the same state/order context and claim state. Erratic is intentionally stochastic but always legal.)*
 
-### Claiming and bundle ordering
+### Sequential simulation, claiming, and bundle ordering
 
-Orders are produced in a stable unit order (enemy units by id). The policy tracks **claimed destination tiles**: a `to` chosen by an earlier order cannot be chosen by a later one in the same bundle. If a unit's preferred option conflicts with a claimed tile, the policy falls back to the next-best legal option for that unit (or wait-in-place) so the final expanded bundle applies cleanly under `applyMoves`'s evolving rules.
+Enemy units act in a stable unit order (by id). For each unit, `aiTurn` computes a legal destination/order against the **current simulated state**, expands it to a path, and applies that single move via the engine before choosing for the next unit. This means combat outcomes (damage, counters, deaths/removals, HP changes) from earlier actions are reflected in later decisions and later legality checks, preventing illegal targets (e.g. attacking a unit killed earlier in the same turn).
+
+The policy tracks **claimed destination tiles** for enemy units that have already completed an action and remain alive on their destination, so later choices in the same turn do not select a tile already occupied/claimed by a prior enemy action. If a preferred option becomes invalid in the current context, the policy falls back to the next-best legal option (or wait-in-place). If a resolved move cannot be applied, it is degraded to a legal wait-in-place for that unit.
 
 ### Execution (`runAiTurn`)
 
 ```
-1. Load row; require status === "ai_turn" (else return — idempotent/guarded).
-2. Compute destination-only orders via policy(row.board, row.units, row.difficulty).
-3. Expand each order with pathTo; (defensive check) if expansion/legality cannot be satisfied,
-   degrade that unit to a legal wait-in-place rather than inventing moves — the bundle must remain valid.
-4. applyMoves(state, expanded, "enemy", engineConfig).
-5. On success: persist conditionally (UPDATE WHERE status='ai_turn') — if forfeited mid-job, discard.
-   status = "lost" if enemy wiped the player army, else "player_turn"; turnNumber+1; lastAiActions set;
-   ai_last_error cleared.
-6. On unexpected failure (should not occur for a valid snapshot): write ai_last_error, leave ai_turn,
-   turn_number unchanged, updated_at = now() (fresh sweep timer). The stale sweep may re-trigger; the
-   policy is deterministic/idempotent for the same snapshot, so re-runs are safe.
+1. Load row; require status === "ai_turn" (else return - idempotent/guarded).
+2. In stable enemy id order, for each living enemy unit against the current simulated state:
+   - compute a destination-only order via policy,
+   - expand to a full path with pathTo (fallback: wait-in-place),
+   - apply the single move via applyMoves("enemy", ...) to obtain the next state/events
+     (on unexpected apply failure, degrade to wait-in-place and apply),
+   - accumulate the move/events and continue with the resulting state.
+3. Derive victory from the final state (enemy wipes player army -> "lost", else "player_turn").
+4. On success: persist conditionally (UPDATE WHERE status='ai_turn') - if forfeited mid-job, discard.
+   status, units/board state, turnNumber+1, lastAiActions, ai_last_error cleared.
+5. On unexpected failure: write ai_last_error, leave ai_turn, turn_number unchanged, updated_at = now()
+   (fresh sweep timer). The stale sweep may re-trigger.
 ```
-
-- `ai_turn` never transitions to `won` (docs/06). `lastAiActions` is the engine event stream mapped to DTO form (`toAiActions`).
-- No move retries, no LLM error messages, no `moveRetries` loop. `config.ai.moveRetries` is legacy for turns and not consulted by the policy path.
 
 ### Stale recovery
 
