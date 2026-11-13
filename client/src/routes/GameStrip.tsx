@@ -83,7 +83,11 @@ export function GameStrip() {
     [games],
   );
   const past = useMemo(
-    () => games.filter((g) => g.status === "won" || g.status === "lost"),
+    () =>
+      games
+        .filter((g) => g.status === "won" || g.status === "lost")
+        .slice()
+        .reverse(),
     [games],
   );
 
