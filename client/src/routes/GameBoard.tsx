@@ -280,7 +280,11 @@ export function GameBoard() {
                 return g ? ([g.x, g.y] as Point) : ([own.x, own.y] as Point);
               })()
             : [own.x, own.y];
-        const path = shortestPath(start, [x, y], moveTiles) ?? [start, [x, y]];
+        const path = shortestPath(start, [x, y], moveTiles);
+        if (!path) {
+          setBannerError("Could not compute a valid path to that tile.");
+          return;
+        }
         dispatch({ type: "pickDestination", destination: [x, y], path });
         return;
       }
