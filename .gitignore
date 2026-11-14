@@ -10,5 +10,6 @@ coverage/
 playwright-report/
 test-results/
 client/public/assets/
+*.tsbuildinfo
 *.log
 .DS_Store
