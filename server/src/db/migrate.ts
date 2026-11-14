@@ -1,6 +1,19 @@
-﻿import { readFileSync } from "node:fs";
+﻿import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
+
+function resolveSchemaPath(): string {
+  const candidates = [
+    path.resolve(__dirname, "schema.sql"),
+    // when running compiled output from dist/db, schema.sql lives in src/db
+    path.resolve(__dirname, "../../../src/db/schema.sql"),
+    path.resolve(__dirname, "../../src/db/schema.sql"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(`schema.sql not found (tried: ${candidates.join(", ")})`);
+}
 
 export async function runMigrations(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
@@ -8,7 +21,7 @@ export async function runMigrations(): Promise<void> {
     throw new Error("DATABASE_URL is required to run migrations");
   }
 
-  const schemaPath = path.resolve(__dirname, "schema.sql");
+  const schemaPath = resolveSchemaPath();
   const sql = readFileSync(schemaPath, "utf8");
   const pool = new Pool({ connectionString: databaseUrl });
 
