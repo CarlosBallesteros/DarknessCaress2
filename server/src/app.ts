@@ -4,25 +4,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config/index.js";
 import { loadEnv } from "./env.js";
-import { createPool, getPool, setPool } from "./db/pool.js";
+import { createPool, setPool } from "./db/pool.js";
 import { runMigrations } from "./db/migrate.js";
 import { createAuthRouter } from "./features/auth/routes.js";
 import { usersRouter } from "./features/users/routes.js";
 import { metaRouter } from "./features/meta/routes.js";
 import { wrapAsync } from "./features/wrapAsync.js";
 
-function ensurePool(): void {
-  try {
-    getPool();
-  } catch {
-    const env = loadEnv();
-    setPool(createPool(env.DATABASE_URL));
-  }
-}
-
 export async function createServer(): Promise<Express> {
   await loadConfig();
-  ensurePool();
   const app = express();
   app.use(express.json());
   app.use(cookieParser());
@@ -52,6 +42,7 @@ export async function createServer(): Promise<Express> {
 
 async function main(): Promise<void> {
   const env = loadEnv();
+  setPool(createPool(env.DATABASE_URL));
   await runMigrations(env.DATABASE_URL);
   const app = await createServer();
   app.listen(env.PORT, () => {

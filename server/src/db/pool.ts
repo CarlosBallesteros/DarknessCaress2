@@ -1,4 +1,5 @@
 ﻿import pg from "pg";
+import { loadEnv } from "../env.js";
 
 const { Pool } = pg;
 
@@ -14,7 +15,8 @@ export function setPool(nextPool: pg.Pool): void {
 
 export function getPool(): pg.Pool {
   if (!pool) {
-    throw new Error("Database pool not initialized");
+    const env = loadEnv();
+    pool = createPool(env.DATABASE_URL);
   }
   return pool;
 }
