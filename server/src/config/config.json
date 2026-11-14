@@ -71,12 +71,12 @@
   },
   "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],
   "lore": {
-    "sword": "Placeholder lore.",
-    "axe": "Placeholder lore.",
-    "spear": "Placeholder lore.",
-    "archer": "Placeholder lore.",
-    "mage": "Placeholder lore.",
-    "healer": "Placeholder lore."
+    "sword": "Tempered in the press of shield walls, the swordsman stands where the line must not break. Blade and courage answer as one, buying ground with each measured, unyielding step.",
+    "axe": "The axeman carries the fury of the charge, a storm of iron meant to split armor and doubt alike. In the roar of close battle, every swing is a vow that no foe will pass unscarred.",
+    "spear": "With spear leveled and formation unbroken, these soldiers hold the space between hope and ruin. Their reach turns the tide before steel meets flesh, steadfast as a wall of thorns in the morning light.",
+    "archer": "From the ridges and the rear ranks, archers trace the battle in whispering flights of feather and ash. Patient eyes and steady hands rain quiet judgment on those who would overrun the field.",
+    "mage": "Wreathed in arcane fire and old war-words, the mage bends the unseen currents of the battlefield. Power answers their call like distant thunder, striking where shields and courage alone cannot reach.",
+    "healer": "Amid smoke and fallen banners, the healer keeps the ember of life burning against the dark. Gentle hands and iron resolve mend shattered ranks, returning breath and strength to those who would fight on."
   },
   "ai": {
     "moveRetries": 3,

@@ -38,7 +38,7 @@ export function createApp(): Express {
     const clientDist = path.resolve(__dirname, "../../client/dist");
     if (fs.existsSync(clientDist)) {
       app.use(express.static(clientDist));
-      app.get("*", (_req, res) => {
+      app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => {
         res.sendFile(path.join(clientDist, "index.html"));
       });
     }

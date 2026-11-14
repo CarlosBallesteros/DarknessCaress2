@@ -1,3 +1,249 @@
-main {
-  padding: 2rem;
+.games-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.games-layout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1rem;
+  align-items: start;
+}
+
+.games-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.strip-section h2 {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display-soft);
+}
+
+.windowed-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.window-arrow {
+  border: 1px solid var(--ink-border);
+  background: var(--ink-raised);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0 0.5rem;
+  cursor: pointer;
+}
+
+.window-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.game-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.game-card.dimmed {
+  opacity: 0.55;
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.persona-badge,
+.status-badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--ink-border);
+}
+
+.persona-aggressive {
+  color: #fff;
+  background: color-mix(in srgb, var(--persona-aggressive) 70%, transparent);
+}
+.persona-defensive {
+  color: #fff;
+  background: color-mix(in srgb, var(--persona-defensive) 70%, transparent);
+}
+.persona-erratic {
+  color: #fff;
+  background: color-mix(in srgb, var(--persona-erratic) 70%, transparent);
+}
+
+.status-player {
+  color: #1a1406;
+  background: var(--gold-soft);
+}
+.status-ai {
+  color: #fff;
+  background: var(--blood-soft);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.status-gen {
+  color: #1a1406;
+  background: var(--gold);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.status-won {
+  color: #1a1406;
+  background: var(--gold);
+}
+.status-lost {
+  color: #fff;
+  background: var(--blood);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.mini-map {
+  position: relative;
+  display: grid;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  max-width: 220px;
+  border: 1px solid var(--ink-border);
+  border-radius: 4px;
+  overflow: hidden;
+  align-self: center;
+}
+
+.mini-tile {
+  width: 100%;
+  height: 100%;
+}
+
+.mini-dot {
+  position: absolute;
+  border-radius: 999px;
+}
+.mini-dot.player {
+  background: var(--gold-soft);
+}
+.mini-dot.enemy {
+  background: var(--blood-soft);
+}
+
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.card-menu-wrap {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+}
+
+.card-menu-btn {
+  border: 1px solid var(--ink-border);
+  background: var(--ink-raised);
+  color: var(--text);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.card-menu {
+  position: absolute;
+  right: 0;
+  top: 32px;
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: 8px;
+  min-width: 120px;
+  z-index: 5;
+}
+
+.card-menu-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+}
+
+.empty-row {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.new-battle-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.new-battle-btn {
+  white-space: nowrap;
+}
+
+.cap-note {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  max-width: 180px;
+}
+
+.persona-choices {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.persona-choice {
+  border: none;
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: #fff;
+}
+.persona-choice.persona-aggressive {
+  background: var(--persona-aggressive);
+}
+.persona-choice.persona-defensive {
+  background: var(--persona-defensive);
+}
+.persona-choice.persona-erratic {
+  background: var(--persona-erratic);
+}
+
+@media (max-width: 900px) {
+  .games-layout {
+    grid-template-columns: 1fr;
+  }
+  .window-cards {
+    grid-template-columns: 1fr;
+  }
 }

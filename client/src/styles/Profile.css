@@ -1,3 +1,35 @@
-main {
-  padding: 2rem;
+.profile-page {
+  gap: 1rem;
+}
+
+.profile-card {
+  width: min(560px, 100%);
+}
+
+.profile-card h2 {
+  margin-top: 0;
+  font-family: var(--font-display-soft);
+}
+
+.profile-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.profile-form-vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.profile-form input,
+.profile-form select {
+  flex: 1;
+  min-width: 180px;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--ink-border);
+  background: var(--ink);
+  color: var(--text);
 }

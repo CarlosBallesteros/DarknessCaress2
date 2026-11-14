@@ -1,3 +1,42 @@
-main {
-  padding: 2rem;
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.auth-card {
+  width: min(440px, 100%);
+}
+
+.auth-card h1 {
+  font-family: var(--font-display-soft);
+  margin-top: 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-top: 0.75rem;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.auth-form input {
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--ink-border);
+  background: var(--ink);
+  color: var(--text);
+}
+
+.auth-alt {
+  margin-top: 0.9rem;
+  color: var(--text-dim);
 }
