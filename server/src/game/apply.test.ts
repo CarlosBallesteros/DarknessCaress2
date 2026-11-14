@@ -1,6 +1,3 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import rawDefault from "../config/config.json";
 import { projectGameEngineConfig, type RawGameConfig } from "./config";
@@ -50,8 +47,7 @@ describe("apply/checkVictory (default config)", () => {
   runApplySuite(defaultCfg);
 });
 
-describe("apply/checkVictory (mutated config in temp file)", () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dc3-apply-"));
+describe("apply/checkVictory (mutated config)", () => {
   const mutated: RawGameConfig = JSON.parse(JSON.stringify(rawDefault));
   mutated.boardSize = 9;
   for (const k of Object.keys(mutated.classes)) {
@@ -65,10 +61,7 @@ describe("apply/checkVictory (mutated config in temp file)", () => {
     if (k === "mage") c.range = [2, 3];
     if (k === "sword" || k === "axe" || k === "spear") c.range = [1];
   }
-  const file = path.join(tmp, "config.json");
-  fs.writeFileSync(file, JSON.stringify(mutated), "utf8");
-  const loaded = JSON.parse(fs.readFileSync(file, "utf8")) as RawGameConfig;
-  runApplySuite(cfgFrom(loaded));
+  runApplySuite(cfgFrom(mutated));
 });
 
 function runApplySuite(cfg: GameEngineConfig) {

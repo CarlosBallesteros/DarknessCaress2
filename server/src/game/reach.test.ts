@@ -1,6 +1,3 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import rawDefault from "../config/config.json";
 import { projectGameEngineConfig, type RawGameConfig } from "./config";
@@ -41,8 +38,7 @@ describe("reach (default config)", () => {
   runReachSuite(defaultCfg);
 });
 
-describe("reach (mutated config in temp file)", () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dc3-game-"));
+describe("reach (mutated config)", () => {
   const mutated: RawGameConfig = JSON.parse(JSON.stringify(rawDefault));
   // mutate numbers to prove no hardcoded stats
   mutated.boardSize = 9;
@@ -58,11 +54,7 @@ describe("reach (mutated config in temp file)", () => {
     if (k === "mage") c.range = [1, 2];
     if (k === "sword" || k === "axe" || k === "spear") c.range = [1];
   }
-  const file = path.join(tmp, "config.json");
-  fs.writeFileSync(file, JSON.stringify(mutated), "utf8");
-  const loaded = JSON.parse(fs.readFileSync(file, "utf8")) as RawGameConfig;
-  const mutatedCfg = cfgFrom(loaded);
-  runReachSuite(mutatedCfg);
+  runReachSuite(cfgFrom(mutated));
 });
 
 function runReachSuite(cfg: GameEngineConfig) {
