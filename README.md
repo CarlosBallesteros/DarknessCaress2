@@ -2,14 +2,14 @@
 
 *"The long-awaited sequel to the legendary game."*
 
-A fully deployed website with a **1-vs-1 turn-based strategy game** in the spirit of Fire Emblem (but simpler), where the computer opponent is a **local LLM** (Ollama, qwen2.5 7B) — every enemy move, every difficulty persona, even each battlefield's layout comes from AI calls, validated by a deterministic rules engine that guarantees legality. Slow is fine: the game is asynchronous by design — the player takes a turn, the AI thinks in the background, the player keeps up to 5 concurrent games.
+A fully deployed website with a **1-vs-1 turn-based strategy game** in the spirit of Fire Emblem (but simpler). The battlefield/board layout can be generated from AI calls (via a local LLM, Ollama) and is validated by a deterministic rules engine that guarantees legality, while enemy move turns are decided by server-side deterministic policies. Slow is fine: the game is asynchronous by design — the player takes a turn, the AI thinks in the background, the player keeps up to 5 concurrent games.
 
 - **Architecture:** React SPA (Vite) + Express API + PostgreSQL, one VM via docker-compose (Oracle free ARM), AI in Docker via Ollama.
-- **The source of truth:** the `docs/` folder — a complete agent-briefing spec set built to let AI coding agents implement the project phase by phase without inventing anything.
+- **The source of truth:** the `docs/` folder — a complete agent-briefing spec set for implementation and maintenance.
 
 | Doc | What it is |
 |---|---|
-| `docs/00-project-overview.md` | Constitution: all product decisions, rules, deferrals |
+| `docs/00-project-overview.md` | Constitution: product decisions, rules, deferrals |
 | `docs/01-architecture.md` | Stack, repo layout, schema, deployment |
 | `docs/02-game-rules.md` | Combat, movement, turn engine (pure module spec) |
 | `docs/03-board-generation.md` | AI-designed boards, materialized + validated |
@@ -19,9 +19,10 @@ A fully deployed website with a **1-vs-1 turn-based strategy game** in the spiri
 | `docs/07-assets.md` | Art pipeline contract (placeholder → owner art) |
 | `docs/08-agent-rules.md` | What agents may and may not decide |
 | `docs/09-build-order.md` | Phases with acceptance checklists |
-| `../DarknessCaress2_playbook/10-prompts.md` | **The owner's copy-paste prompt playbook** — lives outside the repo on purpose: it contains future-phase prompts that would distract working agents (`docs/00–09` above are the complete agent-facing set) |
+| `docs/11-phase-8-code-refactor.md` | Phase 8 code refactor plan |
+| `docs/12-phase-9-ui-refactor.md` | Phase 9 UI refactor plan |
 
-> **Audit history** (six rounds of external model audits + triage records, ~65 verified fixes) lives **outside this repository**: `../DarknessCaress2_audits/`. It is owner documentation — deliberately not part of the agent-briefing tree so working agents never read stale findings as spec.
+> **External materials:** owner playbook/orchestration prompts and audit history live outside this repository (e.g. `../DarknessCaress2_playbook/`, including `orchestrator-prompt.md`, and `../DarknessCaress2_audits/`) and are intentionally not part of the in-repo agent-briefing set.
 
 ## Dev quickstart
 
@@ -37,4 +38,4 @@ Tests: `npm -w server test`, `npm -w client test`, `npm run e2e` (Playwright). P
 
 ## Status
 
-Docs complete · implementation phase 0 (nothing built yet).
+Phases 1–9 implemented. The app is playable/testable locally; ongoing refinements, bug fixes, and asset completion may continue.

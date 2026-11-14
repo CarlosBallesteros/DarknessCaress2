@@ -1,6 +1,6 @@
-# Build Order — Phases, Acceptance, Prompts
+# Build Order — Phases and Acceptance
 
-> The execution roadmap. For each phase: what to build, which docs the agent reads, and the acceptance checklist THE AGENT must satisfy before claiming done. Prompts to paste live in `10-prompts.md`. **Strictly sequential** — every phase builds on its green predecessor; no phase runs parallel to another.
+> The execution roadmap. For each phase: what to build, which docs the agent reads, and the acceptance checklist THE AGENT must satisfy before claiming done. Phase prompts/orchestration are provided externally (e.g. via the owner's playbook outside this repo). **Strictly sequential** — every phase builds on its green predecessor; no phase runs parallel to another.
 >
 > **Global quality gate (ALL phases):** in addition to each phase's checklist, `npm -w server run build` and `npm -w client run build` must both pass before a phase is claimed done. A phase whose artifact does not compile is NOT green, even where the per-phase list doesn't restate it. Rationale: Vitest/esbuild and ESLint do not type-check, so tsc/vite build failures are invisible to lint/test gates — this bit phases 2–3 (22 tsc errors shipped through two "green" phase verifications).
 
