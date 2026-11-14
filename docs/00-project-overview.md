@@ -77,7 +77,7 @@ Starting values (chosen for readability of the config, details in `02-game-rules
 
 ### AI gaming (the meat)
 - **Opponent moves are server-side policies (not LLM).** Each turn the server computes orders from engine-generated legal menus (paired attack/heal options and reachable moves) via a deterministic persona policy — aggressive/defensive/erratic (`04-ai-integration.md`). Moves are always legal, produced in one shot (no LLM, no move retries, no hallucinated paths). Erratic is stochastic over legal options; the others are deterministic given the snapshot. This is the authoritative move logic, not a fallback.
-- **Difficulty personas** (3, names are placeholders, changeable in config): Aggressive / Defensive / Erratic. Different = different menu-choice policy. `config.personalities` keeps label/temperature metadata; temperature does not affect server-side moves.
+- **Difficulty personas** (3, names are placeholders, changeable in config): Aggressive / Cowardly / Crazy (ids `aggressive` / `defensive` / `erratic`). Different = different menu-choice policy. `config.personalities` keeps label/temperature metadata; temperature does not affect server-side moves.
 - The **map designer** remains LLM-driven: a small structured call generates the layout brief for each new board (`03-board-generation.md`).
 - **Async orientation:** AI turns run as background jobs in the backend (instant compute, persisted asynchronously); the frontend polls. A game whose AI turn stalled (e.g. server restarted) is re-triggered on games-list or game load. The implementation shape — fire-and-forget job + stale-recovery sweep — is defined in `01-architecture.md` Runtime model. No queues, no Redis, no websockets.
 

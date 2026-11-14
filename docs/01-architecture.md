@@ -122,8 +122,8 @@ No move-history table in MVP (stats are computed from `games`). Replay/audit is 
   },
   "personalities": {
     "aggressive": { "label": "Aggressive", "temperature": 0.7 },
-    "defensive":  { "label": "Defensive",  "temperature": 0.4 },
-    "erratic":    { "label": "Erratic",    "temperature": 1.2 }
+    "defensive":  { "label": "Cowardly",   "temperature": 0.4 },
+    "erratic":    { "label": "Crazy",      "temperature": 1.2 }
   },
   "themes": [
     { "id": "warriors-europe", "label": "Champions of Europe" }

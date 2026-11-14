@@ -113,7 +113,7 @@ Request `{"email":"carlos@example.com","password":"correct-horse","username":"Ca
     "sword": { "label": "Swordsman", "hp": 15, "atk": 8, "def": 3, "mov": 3, "range": [1], "role": "attacker", "count": 2 },
     "healer": { "label": "Healer", "hp": 10, "atk": 0, "def": 1, "mov": 2, "range": [], "role": "supporter", "count": 1, "healAmount": 6 }
   },
-  "personalities": { "aggressive": { "label": "Aggressive" }, "defensive": { "label": "Defensive" }, "erratic": { "label": "Erratic" } },
+  "personalities": { "aggressive": { "label": "Aggressive" }, "defensive": { "label": "Cowardly" }, "erratic": { "label": "Crazy" } },
   "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],
   "lore": { "sword": "…", "axe": "…", "spear": "…", "archer": "…", "mage": "…", "healer": "…" }
 }
