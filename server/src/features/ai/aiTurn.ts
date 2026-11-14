@@ -248,6 +248,10 @@ export async function runAiTurn(
     const victory = checkVictory(currentUnits);
     const nextStatus: "player_turn" | "lost" = victory === "enemy" ? "lost" : "player_turn";
     const lastAiActions = toAiActions(moves, allEvents, currentUnits);
+    const unitsForNextState =
+      nextStatus === "player_turn"
+        ? currentUnits.map((u) => ({ ...u, acted: false }))
+        : currentUnits;
 
     const updateRes = await pool.query(
       `UPDATE games
@@ -263,7 +267,7 @@ export async function runAiTurn(
       [
         gameId,
         nextStatus,
-        JSON.stringify(currentUnits),
+        JSON.stringify(unitsForNextState),
         JSON.stringify(board),
         JSON.stringify(lastAiActions),
       ],

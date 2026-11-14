@@ -106,26 +106,27 @@ export function GameBoard() {
     if (!game) return;
     const prev = prevStatusRef.current;
     prevStatusRef.current = game.status;
-    if (
-      prev === "ai_turn" &&
-      game.status === "player_turn" &&
-      game.lastAiActions &&
-      game.lastAiActions.length > 0 &&
-      lastAnimatedTurnRef.current !== game.turnNumber
-    ) {
-      lastAnimatedTurnRef.current = game.turnNumber;
-      animatingRef.current = true;
-      setAnimatingAi(true);
-      const total = game.lastAiActions.length * 120;
-      const t = window.setTimeout(() => {
-        animatingRef.current = false;
-        setAnimatingAi(false);
-      }, total);
-      return () => {
-        window.clearTimeout(t);
-        animatingRef.current = false;
-        setAnimatingAi(false);
-      };
+    if (prev === "ai_turn" && game.status === "player_turn") {
+      dispatch({ type: "reset" });
+      if (
+        game.lastAiActions &&
+        game.lastAiActions.length > 0 &&
+        lastAnimatedTurnRef.current !== game.turnNumber
+      ) {
+        lastAnimatedTurnRef.current = game.turnNumber;
+        animatingRef.current = true;
+        setAnimatingAi(true);
+        const total = game.lastAiActions.length * 120;
+        const t = window.setTimeout(() => {
+          animatingRef.current = false;
+          setAnimatingAi(false);
+        }, total);
+        return () => {
+          window.clearTimeout(t);
+          animatingRef.current = false;
+          setAnimatingAi(false);
+        };
+      }
     }
     // Safety: never leave animation state stuck if conditions no longer apply.
     if (animatingRef.current && game.status !== "player_turn") {
@@ -246,6 +247,32 @@ export function GameBoard() {
         setBannerError(e instanceof ApiError ? e.message : "Preview failed");
       }
       return;
+    }
+
+    // own unit: in unitSelected, allow healer to heal a valid adjacent wounded ally without moving
+    if (mode.kind === "unitSelected") {
+      const own = game.units.find((u) => u.id === mode.unitId);
+      const cls = own && meta ? meta.classes[own.class] : undefined;
+      if (
+        own &&
+        cls?.healAmount !== undefined &&
+        unit.side === "player" &&
+        unit.id !== own.id &&
+        unit.hp < unit.maxHp
+      ) {
+        const adjacent = Math.abs(unit.x - own.x) + Math.abs(unit.y - own.y) === 1;
+        if (adjacent) {
+          dispatch({
+            type: "stageMove",
+            move: {
+              unitId: own.id,
+              path: [[own.x, own.y]],
+              action: { type: "heal", targetId: unit.id },
+            },
+          });
+          return;
+        }
+      }
     }
 
     // own unit: in movePicked, allow healer to heal a valid adjacent wounded ally by clicking it
@@ -584,17 +611,21 @@ export function GameBoard() {
   }
   if (mode.kind === "unitSelected") {
     // show union hints? spec: "overlay draws" and later filters; keep simple: show attack/heal from current reachable union subtly not required explicitly
-    // but action-from-current-tile uses preview.attackTiles; show them for clarity when no dest picked
+    // but action-from-current-tile uses preview.attackTiles/healTiles; show them for clarity when no dest picked
+    const own = game.units.find((u) => u.id === mode.unitId);
+    const ownCls = own && meta ? meta.classes[own.class] : undefined;
     attackOverlay = (mode.preview.attackTiles as Point[]).filter(([ax, ay]) => {
-      const own = game.units.find((u) => u.id === mode.unitId);
-      if (!own) return false;
+      if (!own || !ownCls) return false;
       // reachable from current tile if distance from own position in range? preview is union from any reachable final tile;
       // "attack from where I stand" allowed when target reachable from unit's CURRENT tile
-      const ownCls = meta?.classes[own.class];
-      if (!ownCls) return false;
       const d = Math.abs(ax - own.x) + Math.abs(ay - own.y);
       return ownCls.range.includes(d);
     });
+    if (own && ownCls?.healAmount !== undefined) {
+      healOverlay = (mode.preview.healTiles as Point[]).filter(([hx, hy]) => {
+        return Math.abs(hx - own.x) + Math.abs(hy - own.y) === 1;
+      });
+    }
   }
   if (mode.kind === "enemyInspect") {
     inspectOverlay = (mode.preview.moveTiles ?? []) as Point[];
@@ -643,14 +674,18 @@ export function GameBoard() {
         <div className="error-banner">{boardState.errorMessage ?? bannerError}</div>
       ) : null}
 
-      <div className="board-layout">
+      <div
+        className="board-layout"
+        style={{
+          ["--tile-size" as string]: `clamp(32px, calc((min(100vw, 1400px) / var(--board-split, 2) - 3rem) / ${boardSize}), 64px)`,
+        }}
+      >
         <div className="board-wrap">
           <div
             className="board-grid"
             style={{
               gridTemplateColumns: `repeat(${boardSize}, var(--tile-size))`,
               gridTemplateRows: `repeat(${boardSize}, var(--tile-size))`,
-              ["--tile-size" as string]: `clamp(32px, calc((min(100vw, 1400px) / var(--board-split, 2) - 3rem) / ${boardSize}), 64px)`,
             }}
           >
             {tiles.map((row, y) =>

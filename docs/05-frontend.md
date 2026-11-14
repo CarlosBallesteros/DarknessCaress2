@@ -54,7 +54,7 @@ BoardScreen
 ├── UnitTray          # horizontal list of player units (display order per 00): class icon, hp bar,
 │                     # acted state; SINGLE-LINE, larger chips (labels never wrap);
 │                     # click = select (equivalent to clicking sprite)
-├── ActionPanel       # contextual: header = selected unit's PORTRAIT (larger, assetPath
+├── ActionPanel       # contextual: header = selected unit's PORTRAIT (larger, about 2 board squares wide, assetPath
 │                     # portrait-player) + class label + hp/atk/def mini-stats from GET /api/meta,
 │                     # then contextual buttons/prompts (e.g. movePicked: Wait, Cancel; action targets
 │                     # Attack <target> / Heal <target> when available) OR prompts to click the board
@@ -82,6 +82,11 @@ unitSelected → attackStaged    (click an enemy in attackTiles WHILE no destina
                                 engine-side via the self-tile ownership exception, `06`+`02`. Allowed
                                 even when other units already have staged moves this turn, provided
                                 this unit is selectable/not staged/not acted)
+unitSelected  healStaged      (healer selected, no destination picked: click an adjacent wounded allied
+                                unit shown in healTiles/reachable from the healer's CURRENT tile  stage
+                                a heal in place with a 1-entry path [own-tile] and action heal targetId,
+                                then exit selection; no move destination required, provided healer and
+                                target are valid/not acted/not staged)
 unitSelected → movePicked      (click a moveTile → client computes + displays the shortest legal path
                                 via a tiny client BFS over the preview's reachable tiles — pure UX
                                 sugar whose output is RE-VALIDATED server-side — and the SAME path
@@ -121,7 +126,7 @@ Notes:
 
 | Overlay | Token | Meaning |
 |---|---|---|
-| moveTiles | `--overlay-move` (gold, ~35% alpha tint via `.tile.ov-move::after`, rendered above terrain art) | reachable destinations |
+| moveTiles | `--overlay-move` (gold; tinted fill with subtle diagonal stripes and an inset border via `.tile.ov-move` / `.tile.ov-move::after`, rendered above terrain art) | reachable destinations |
 | attackTiles | `--overlay-attack` (red, 25%) | enemies attackable this turn |
 | healTiles | `--overlay-heal` (green, 25%) | allies healable this turn |
 | selected unit ring | `--overlay-select` (white) | currently selected unit |
