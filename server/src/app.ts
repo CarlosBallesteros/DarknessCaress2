@@ -1,9 +1,12 @@
 import cookieParser from "cookie-parser";
-import express, { type Express } from "express";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { env } from "./env";
 import { config } from "./config";
+import { authRouter } from "./features/auth/routes";
+import { metaRouter } from "./features/meta/routes";
+import { usersRouter } from "./features/users/routes";
 import { wrapAsync } from "./features/wrapAsync";
 
 export function createApp(): Express {
@@ -11,6 +14,7 @@ export function createApp(): Express {
   void config;
 
   const app = express();
+  app.set("trust proxy", 1);
   app.use(express.json());
   app.use(cookieParser());
 
@@ -21,6 +25,10 @@ export function createApp(): Express {
     }),
   );
 
+  app.use(authRouter);
+  app.use(usersRouter);
+  app.use(metaRouter);
+
   if (env.NODE_ENV === "production") {
     const clientDist = path.resolve(__dirname, "../../client/dist");
     if (fs.existsSync(clientDist)) {
@@ -30,6 +38,12 @@ export function createApp(): Express {
       });
     }
   }
+
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    void err;
+    void _next;
+    res.status(500).json({ error: "Internal server error" });
+  });
 
   return app;
 }
