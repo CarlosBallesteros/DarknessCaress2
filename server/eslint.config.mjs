@@ -19,6 +19,22 @@ export default tseslint.config(
     },
   },
   {
+    files: ["src/game/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/features/**", "../features/**", "../../features/**"],
+              message: "Engine module (src/game) must not import from features/.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["**/*.config.{js,mjs,ts}"],
     languageOptions: {
       globals: {
