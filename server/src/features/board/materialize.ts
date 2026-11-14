@@ -144,6 +144,8 @@ function buildRiverPath(
 
       const neighbors = neighbors4(cx, cy).filter(([nx, ny]: [number, number]) => {
         if (nx < 0 || nx >= size || ny < minY || ny > maxY) return false;
+        // keep a single river cell on each edge (start/end only)
+        if (nx === 0) return false;
         const k = key(nx, ny);
         if (occupied.has(k)) return false;
         if (nx < cx) return false;
@@ -172,13 +174,20 @@ function buildRiverPath(
           else score -= 3;
           const distTarget = Math.abs(ny - tgtY) + Math.abs(nx - targetX) * 0.2;
           score -= distTarget * 1.5;
-          score += rng.next() * 1.2;
+          score += rng.next() * 2.4;
           if (nx === cx) score += 0.2;
           return { nx, ny, score };
         })
         .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
 
-      const choice = scored[0]!;
+      // Pick stochastically among near-best moves so the same brief with different seeds
+      // can yield different river shapes (while same brief+seed remains deterministic).
+      const bestScore = scored[0]!.score;
+      let top = scored.filter((s) => s.score >= bestScore - 2.0);
+      if (top.length < 2 && scored.length > 1) {
+        top = scored.slice(0, Math.min(2, scored.length));
+      }
+      const choice = top[rng.int(0, top.length - 1)]!;
       path.push([choice.nx, choice.ny]);
       occupied.add(key(choice.nx, choice.ny));
 
