@@ -1,13 +1,28 @@
-import cookieParser from "cookie-parser";
+﻿import cookieParser from "cookie-parser";
 import express, { type Express } from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config/index.js";
 import { loadEnv } from "./env.js";
+import { createPool, getPool, setPool } from "./db/pool.js";
+import { runMigrations } from "./db/migrate.js";
+import { createAuthRouter } from "./features/auth/routes.js";
+import { usersRouter } from "./features/users/routes.js";
+import { metaRouter } from "./features/meta/routes.js";
 import { wrapAsync } from "./features/wrapAsync.js";
+
+function ensurePool(): void {
+  try {
+    getPool();
+  } catch {
+    const env = loadEnv();
+    setPool(createPool(env.DATABASE_URL));
+  }
+}
 
 export async function createServer(): Promise<Express> {
   await loadConfig();
+  ensurePool();
   const app = express();
   app.use(express.json());
   app.use(cookieParser());
@@ -18,6 +33,10 @@ export async function createServer(): Promise<Express> {
       res.status(200).json({ ok: true });
     }),
   );
+
+  app.use("/api/auth", createAuthRouter());
+  app.use("/api", usersRouter);
+  app.use("/api/meta", metaRouter);
 
   if (process.env.NODE_ENV === "production") {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -33,6 +52,7 @@ export async function createServer(): Promise<Express> {
 
 async function main(): Promise<void> {
   const env = loadEnv();
+  await runMigrations(env.DATABASE_URL);
   const app = await createServer();
   app.listen(env.PORT, () => {
     console.log(`Server listening on port ${env.PORT}`);
