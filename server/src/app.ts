@@ -5,6 +5,7 @@ import path from "node:path";
 import { env } from "./env";
 import { config } from "./config";
 import { authRouter } from "./features/auth/routes";
+import { gamesRouter } from "./features/games/routes";
 import { metaRouter } from "./features/meta/routes";
 import { usersRouter } from "./features/users/routes";
 import { wrapAsync } from "./features/wrapAsync";
@@ -28,6 +29,7 @@ export function createApp(): Express {
   app.use(authRouter);
   app.use(usersRouter);
   app.use(metaRouter);
+  app.use(gamesRouter);
 
   if (env.NODE_ENV === "production") {
     const clientDist = path.resolve(__dirname, "../../client/dist");
