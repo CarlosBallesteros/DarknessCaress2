@@ -337,7 +337,13 @@ export function GameStrip() {
           role="presentation"
           onClick={() => !creating && setNewOpen(false)}
         >
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Choose your opponent"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3>Choose your opponent</h3>
             <div className="persona-choices">
               <button

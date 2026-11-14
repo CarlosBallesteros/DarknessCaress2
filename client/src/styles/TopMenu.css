@@ -2,45 +2,64 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem 1rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--ink-border);
-  background: rgba(20, 18, 26, 0.35);
-  backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--ink-raised) 70%, transparent);
+  backdrop-filter: blur(6px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 :root[data-ui-mode="light"] .top-menu {
-  background: rgba(247, 242, 232, 0.75);
+  background: color-mix(in srgb, var(--ink-raised) 88%, transparent);
 }
 
 .top-menu-left,
 .top-menu-right {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem 0.75rem;
+  flex-wrap: wrap;
+}
+
+.top-menu-left {
+  min-width: 0;
 }
 
 .top-menu-center {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem 0.9rem;
   flex-wrap: wrap;
   justify-content: center;
+  flex: 1 1 320px;
+}
+
+.top-menu-right {
+  justify-content: flex-end;
 }
 
 .wordmark {
   font-family: var(--font-display);
-  font-size: 2rem;
+  font-size: clamp(1.55rem, 2.4vw, 2rem);
   text-decoration: none;
   color: var(--gold-soft);
   line-height: 1;
+  white-space: nowrap;
 }
 
 .tab {
   text-decoration: none;
-  padding: 0.2rem 0.1rem;
+  padding: 0.3rem 0.15rem;
   border-bottom: 2px solid transparent;
   color: var(--text-dim);
+  font-weight: 500;
+}
+
+.tab:hover {
+  color: var(--text);
 }
 
 .tab.active {
@@ -53,18 +72,46 @@
   color: var(--text);
   border: 1px solid var(--ink-border);
   border-radius: 8px;
+  min-width: 2.4rem;
+  min-height: 2.4rem;
   padding: 0.35rem 0.55rem;
   cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--surface-muted);
 }
 
 .username-link {
   text-decoration: none;
   color: var(--text);
+  padding: 0.25rem 0.1rem;
+}
+
+.username-link:hover {
+  color: var(--gold-soft);
+}
+
+@media (max-width: 900px) {
+  .top-menu {
+    flex-wrap: wrap;
+  }
+  .top-menu-left {
+    flex: 1 1 auto;
+  }
+  .top-menu-center {
+    order: 3;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .top-menu-right {
+    flex: 1 1 auto;
+  }
 }
 
 @media (max-width: 480px) {
   .top-menu {
-    flex-wrap: wrap;
+    padding: 0.6rem 0.75rem;
   }
   .top-menu-left,
   .top-menu-center,
@@ -72,7 +119,10 @@
     width: 100%;
     justify-content: center;
   }
+  .top-menu-center {
+    gap: 0.4rem 0.7rem;
+  }
   .wordmark {
-    font-size: 1.7rem;
+    font-size: 1.6rem;
   }
 }

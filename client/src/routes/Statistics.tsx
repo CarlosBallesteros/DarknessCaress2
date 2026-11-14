@@ -56,26 +56,28 @@ export function Statistics() {
             </section>
             <section className="card">
               <h2>By difficulty</h2>
-              <table className="stats-table">
-                <thead>
-                  <tr>
-                    <th>Difficulty</th>
-                    <th>Played</th>
-                    <th>Wins</th>
-                    <th>Losses</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.byDifficulty.map((row) => (
-                    <tr key={row.difficulty}>
-                      <td>{meta?.personalities[row.difficulty]?.label ?? row.difficulty}</td>
-                      <td>{row.played}</td>
-                      <td>{row.wins}</td>
-                      <td>{row.losses}</td>
+              <div className="table-wrap">
+                <table className="stats-table">
+                  <thead>
+                    <tr>
+                      <th>Difficulty</th>
+                      <th>Played</th>
+                      <th>Wins</th>
+                      <th>Losses</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {stats.byDifficulty.map((row) => (
+                      <tr key={row.difficulty}>
+                        <td>{meta?.personalities[row.difficulty]?.label ?? row.difficulty}</td>
+                        <td>{row.played}</td>
+                        <td>{row.wins}</td>
+                        <td>{row.losses}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
           </>
         )}

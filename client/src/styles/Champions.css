@@ -8,12 +8,14 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .role-badge {
   align-self: flex-start;
   font-size: 0.8rem;
-  padding: 0.15rem 0.5rem;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
   border-radius: 999px;
   border: 1px solid var(--ink-border);
 }
@@ -28,6 +30,11 @@
   background: rgba(96, 176, 120, 0.12);
 }
 
+:root[data-ui-mode="light"] .role-badge.supporter {
+  color: #2f6b3a;
+  background: rgba(96, 176, 120, 0.16);
+}
+
 .champion-portraits {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -36,11 +43,16 @@
 
 .portrait-btn {
   border: 1px solid var(--ink-border);
-  background: transparent;
+  background: var(--surface-muted);
   border-radius: 8px;
-  padding: 0.25rem;
+  padding: 0.3rem;
   cursor: pointer;
   color: inherit;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.portrait-btn:hover {
+  border-color: color-mix(in srgb, var(--gold) 35%, var(--ink-border));
 }
 
 .portrait-btn img {
@@ -53,8 +65,9 @@
 
 .portrait-label {
   display: block;
-  margin-top: 0.25rem;
+  margin-top: 0.3rem;
   font-size: 0.85rem;
+  font-weight: 500;
 }
 
 .portrait-label.player {
@@ -65,39 +78,46 @@
   color: var(--blood-soft);
 }
 
-.champion-stats-block {
-  position: relative;
-}
-
 .champion-label {
   margin: 0 0 0.25rem;
   font-family: var(--font-display-soft);
+  font-size: 1.35rem;
 }
 
 .champion-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
+  gap: 0.4rem 0.7rem;
   color: var(--text-dim);
   font-size: 0.9rem;
+}
+
+.champion-stats span {
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+  background: var(--surface-muted);
 }
 
 .champion-lore {
   margin: 0;
   color: var(--text);
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .lightbox {
-  max-width: min(90vw, 520px);
+  max-width: min(92vw, 560px);
+  max-height: calc(100vh - 2rem);
 }
 
 .lightbox img {
   width: 100%;
+  max-height: calc(100vh - 2rem);
   height: auto;
+  object-fit: contain;
   border-radius: 10px;
   border: 1px solid var(--ink-border);
   display: block;
+  background: var(--ink-raised);
 }
 
 @media (max-width: 700px) {
