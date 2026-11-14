@@ -78,7 +78,7 @@
 
 ```
 [ ] server-side move loop: create → POST moves (valid bundle) → end-turn → policy job applies enemy moves → status flips player_turn (or lost), turn advances, lastAiActions populated, ai_last_error cleared
-[ ] policy legality/intent: aggressive/defensive/erratic produce only engine-legal, menu-valid bundles (no conflicts, no out-of-menu attacks); personas behave per 04
+[ ] policy legality/intent: Aggressive/Cowardly/Crazy (`aggressive`/`defensive`/`erratic`) produce only engine-legal, menu-valid bundles (no conflicts, no out-of-menu attacks); personas behave per 04
 [ ] illegal player bundle → 400 with exact message, DB row untouched (atomicity via transaction), the errored move's index exposed in "move N:" prefix; FAILED attempts leave the round unlocked (re-submission allowed); a SECOND applied submission in one round → 409 "Turn moves already submitted"; the lock is `games.moves_applied` — RESTART-PROOF
 [ ] EVOLVING landing validation: chain-follow SUCCESSES, must-fail cases still reject, and swap-by-order works
 [ ] stats endpoint matches seeded outcomes
@@ -113,7 +113,7 @@ Also: Vite dev proxy to server; production static serving works via express.stat
 [ ] e2e/playwright: register flow, login (bad + good), create game (202 → "Being designed…" card/board state when observable under fast/mock generation, otherwise already resolved → resolves to player_turn), select unit, preview overlay, stage a move, end turn, mocked AI turn resolves + board updates, stats reflect win/loss, forfeit path, Store tab renders "Coming soon…", logout/login
 [ ] full quality gate: lint + prettier + vitest + playwright all green
 [ ] deployed on the VM: docker compose up -d; model pulled into ollama volume via 01's one-time command
-[ ] public URL serves landing → register → play a REAL AI turn (Ollama live, persona erratic) — owner-verified
+[ ] public URL serves landing → register → play a REAL AI turn (Ollama live, persona Crazy/`erratic`) - owner-verified
 [ ] final commit "chore(phase-7): ..." pushed; repo main branch = working deployed state
 ```
 

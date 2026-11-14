@@ -67,14 +67,14 @@ Each persona is a choice policy over the same engine-generated options. Behavior
   - If the unit has attack pairs: attack a priority target - prefer **supporter**-role player units (config `role`), then lowest `hp`, then smallest Manhattan distance from the unit; choose the paired `to` that minimizes distance to that target (tie-break stable/deterministic). Units with no attack pairs advance: pick a reachable/move `to` that minimizes distance to the nearest surviving player unit.
   - The healer prefers heal pairs for the most wounded eligible ally; if none, stays safe/back (does not rush the front) and does not attack.
 
-- **Defensive (`defensive`)**
+- **Cowardly (`defensive`)**
   - Prefer holding ground behind own lines: choose `to` that maximizes distance from the nearest player unit while staying on/near the spawn side (top rows); avoid advancing into the open when no safe advantage exists.
   - Attack only when a paired attack option is available without needlessly advancing forward into danger (prefer attacking from a `to` no closer to the nearest player unit than the current position, when such a pair exists); otherwise favor a safe move/wait. Protect the healer (keep it back, heal when a pair exists).
 
-- **Erratic (`erratic`)**
+- **Crazy (`erratic`)**
   - Pick uniformly at random among each unit's legal options (any valid attack pair, heal pair, or move/wait). Randomness is the persona's "chaos"; legality is never compromised. Selection is per-decision from the currently-legal set.
 
-*(Policies are specified at this intent level; tie-breakers must be deterministic for aggressive/defensive given the same state/order context and claim state. Erratic is intentionally stochastic but always legal.)*
+*(Policies are specified at this intent level; tie-breakers must be deterministic for Aggressive/Cowardly given the same state/order context and claim state. Crazy is intentionally stochastic but always legal.)*
 
 ### Sequential simulation, claiming, and bundle ordering
 
@@ -111,7 +111,7 @@ AI turn jobs remain fire-and-forget with the same ACTIVE-JOB set guard and stale
 ### Tests
 
 1. **Policy legality:** for representative snapshots and each difficulty, every produced order expands and the bundle applies via `applyMoves` without error; no unit acts twice, no claimed-tile conflicts, no attacks/heals outside engine-legal pairs.
-2. **Persona intent:** aggressive advances/targets per policy (prefers supporters/wounded), defensive holds ground/avoids reckless advance, erratic chooses only from legal options across varied seeds/snapshots.
+2. **Persona intent:** Aggressive (`aggressive`) advances/targets per policy (prefers supporters/wounded), Cowardly (`defensive`) holds ground/avoids reckless advance, Crazy (`erratic`) chooses only from legal options across varied seeds/snapshots.
 3. **Integration (`runAiTurn`):** valid snapshot ⇒ status flips `player_turn` (or `lost` when player wiped), `turn_number` increments, `lastAiActions` populated, `ai_last_error` cleared. Conditional persist: forfeited-during-run discards results. Unexpected failure path leaves `ai_turn` with `ai_last_error` and unchanged turn.
 4. **Board brief:** `brief()` mock/real behavior and schema validation unchanged (`03`).
 5. **Serializer / STATS kernel:** snapshot serialization and `statsKernel` remain correct/config-driven (shared utilities; not LLM-turn-specific).
