@@ -1,4 +1,4 @@
-import { env } from "../../env";
+﻿import { env } from "../../env";
 import type { LlmClient } from "./llmClient";
 import { MockLlmClient } from "./mockLlm";
 import { RealLlmClient } from "./realLlm";
@@ -14,3 +14,5 @@ export type { LlmClient } from "./llmClient";
 export { LlmError } from "./llmClient";
 export { MockLlmClient } from "./mockLlm";
 export { RealLlmClient } from "./realLlm";
+export { runAiTurnJob, kickOffAiTurn } from "./aiTurn";
+export { chooseOrderForUnit } from "./policy";

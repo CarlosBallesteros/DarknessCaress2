@@ -1,6 +1,6 @@
-import { pool } from "../../db/pool";
+﻿import { pool } from "../../db/pool";
+import type { Board, Unit } from "../../game/types";
 import type { GameRow } from "./dto";
-import type { Board } from "../../game/types";
 
 export async function insertGeneratingGame(args: {
   userId: string;
@@ -39,10 +39,22 @@ export async function findGameById(id: string): Promise<GameRow | null> {
   return result.rows[0] ?? null;
 }
 
+export async function listGamesByUser(userId: string): Promise<GameRow[]> {
+  const result = await pool.query<GameRow>(
+    `SELECT id, user_id, difficulty, status, board, units, turn_number, ai_last_error,
+            used_fallback, moves_applied, last_ai_actions, created_at, updated_at
+     FROM games
+     WHERE user_id = $1
+     ORDER BY created_at ASC`,
+    [userId],
+  );
+  return result.rows;
+}
+
 export async function markBoardReady(args: {
   gameId: string;
   board: Board;
-  units: unknown[];
+  units: Unit[];
   usedFallback: boolean;
 }): Promise<number> {
   const result = await pool.query(

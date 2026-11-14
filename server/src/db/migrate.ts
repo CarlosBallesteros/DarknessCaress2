@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
+﻿import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
 
-async function main(): Promise<void> {
+export async function runMigrations(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error("DATABASE_URL is required to run migrations");
@@ -14,13 +14,19 @@ async function main(): Promise<void> {
 
   try {
     await pool.query(sql);
-    console.log("Migrations applied");
   } finally {
     await pool.end();
   }
 }
 
-void main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+async function main(): Promise<void> {
+  await runMigrations();
+  console.log("Migrations applied");
+}
+
+if (require.main === module) {
+  void main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
