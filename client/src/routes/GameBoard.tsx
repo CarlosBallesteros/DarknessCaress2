@@ -121,10 +121,19 @@ export function GameBoard() {
         animatingRef.current = false;
         setAnimatingAi(false);
       }, total);
-      return () => window.clearTimeout(t);
+      return () => {
+        window.clearTimeout(t);
+        animatingRef.current = false;
+        setAnimatingAi(false);
+      };
+    }
+    // Safety: never leave animation state stuck if conditions no longer apply.
+    if (animatingRef.current && game.status !== "player_turn") {
+      animatingRef.current = false;
+      setAnimatingAi(false);
     }
     return;
-  }, [game]);
+  }, [game?.status, game?.lastAiActions, game?.turnNumber]);
 
   const pollingActive =
     !!game &&
@@ -190,19 +199,16 @@ export function GameBoard() {
     if (game.status !== "player_turn") return;
     if (animatingRef.current) return;
 
-    // enemy inspect
+    // enemy inspect / attack via clicking enemy sprite
     if (unit.side === "enemy") {
       const mode = boardState.mode;
       if (mode.kind === "unitSelected") {
         const own = game.units.find((u) => u.id === mode.unitId);
-        if (own && meta && staged.length === 0) {
+        if (own && meta) {
           const cls = meta.classes[own.class];
           const range = cls?.range ?? [];
           const d = Math.abs(unit.x - own.x) + Math.abs(unit.y - own.y);
-          const inAttack = (mode.preview.attackTiles as Point[]).some(
-            ([x, y]) => x === unit.x && y === unit.y,
-          );
-          if (inAttack && range.includes(d)) {
+          if (range.includes(d)) {
             const move: StagedMove = {
               unitId: own.id,
               path: [[own.x, own.y]],
@@ -218,12 +224,10 @@ export function GameBoard() {
         if (own) {
           const cls = meta?.classes[own.class];
           const range = cls?.range ?? [];
-          const filteredAttacks = filterAttackTilesFromDestination(
-            mode.destination,
-            mode.preview.attackTiles as Point[],
-            range,
-          );
-          if (filteredAttacks.some(([x, y]) => x === unit.x && y === unit.y)) {
+          const d =
+            Math.abs(unit.x - mode.destination[0]) +
+            Math.abs(unit.y - mode.destination[1]);
+          if (range.includes(d)) {
             const move: StagedMove = {
               unitId: own.id,
               path: mode.path,
@@ -249,11 +253,9 @@ export function GameBoard() {
       const own = game.units.find((u) => u.id === mode.unitId);
       const cls = own && meta ? meta.classes[own.class] : undefined;
       if (own && cls?.healAmount !== undefined && unit.side === "player" && unit.hp < unit.maxHp) {
-        const healTargets = (mode.preview.healTiles as Point[]).filter(
-          ([hx, hy]) => Math.abs(hx - mode.destination[0]) + Math.abs(hy - mode.destination[1]) === 1,
-        );
-        const isHealTarget = healTargets.some(([hx, hy]) => hx === unit.x && hy === unit.y);
-        if (isHealTarget) {
+        const adjacent =
+          Math.abs(unit.x - mode.destination[0]) + Math.abs(unit.y - mode.destination[1]) === 1;
+        if (adjacent) {
           dispatch({
             type: "stageMove",
             move: {
@@ -344,58 +346,56 @@ export function GameBoard() {
       if (!own) return;
       const cls = meta.classes[own.class];
       const range = cls?.range ?? [];
-      const clickedUnit = game.units.find((u) => u.x === x && u.y === y && u.hp > 0);
-      const ghostClicked = ghostUnits.find((u) => u.x === x && u.y === y && u.hp > 0);
+      const rangeSet = new Set(range);
+      // Use effective (ghost-aware) positions so targets stay valid after staging earlier moves.
+      const targetAt = ghostUnits.find((u) => u.x === x && u.y === y && u.hp > 0);
 
-      // heal target: own wounded unit in green overlay (adjacent to destination reachable final tile)
+      // heal target: own wounded unit adjacent to destination
       if (cls && cls.healAmount !== undefined) {
-        const healTargets = (mode.preview.healTiles as Point[]).filter(([hx, hy]) => {
-          // filter to those adjacent to picked destination (client-side filter over preview union)
-          return Math.abs(hx - mode.destination[0]) + Math.abs(hy - mode.destination[1]) === 1;
-        });
-        const isHealTile = healTargets.some(([hx, hy]) => hx === x && hy === y);
-        const target = clickedUnit ?? ghostClicked;
-        if (isHealTile && target && target.side === "player" && target.hp < target.maxHp) {
+        const adjacent =
+          Math.abs(x - mode.destination[0]) + Math.abs(y - mode.destination[1]) === 1;
+        if (
+          adjacent &&
+          targetAt &&
+          targetAt.side === "player" &&
+          targetAt.hp < targetAt.maxHp
+        ) {
           dispatch({
             type: "stageMove",
             move: {
               unitId: own.id,
               path: mode.path,
-              action: { type: "heal", targetId: target.id },
+              action: { type: "heal", targetId: targetAt.id },
             },
           });
           return;
         }
       }
 
-      // attack target
-      const filteredAttacks = filterAttackTilesFromDestination(
-        mode.destination,
-        mode.preview.attackTiles as Point[],
-        range,
+      // attack target: enemy within range from destination
+      const inRange = rangeSet.has(
+        Math.abs(x - mode.destination[0]) + Math.abs(y - mode.destination[1]),
       );
-      const isAttackTile = filteredAttacks.some(([ax, ay]) => ax === x && ay === y);
-      const targetEnemy = clickedUnit ?? ghostClicked;
-      if (isAttackTile && targetEnemy && targetEnemy.side === "enemy") {
+      if (inRange && targetAt && targetAt.side === "enemy") {
         dispatch({
           type: "stageMove",
           move: {
             unitId: own.id,
             path: mode.path,
-            action: { type: "attack", targetId: targetEnemy.id },
+            action: { type: "attack", targetId: targetAt.id },
           },
         });
         return;
       }
 
       // clicking another own selectable unit -> reselect
-      if (clickedUnit && clickedUnit.side === "player" && selectableUnit(clickedUnit)) {
-        await onSelectUnit(clickedUnit);
+      if (targetAt && targetAt.side === "player" && selectableUnit(targetAt)) {
+        await onSelectUnit(targetAt);
         return;
       }
       // clicking enemy not actionable -> inspect
-      if (clickedUnit && clickedUnit.side === "enemy") {
-        await onSelectUnit(clickedUnit);
+      if (targetAt && targetAt.side === "enemy") {
+        await onSelectUnit(targetAt);
         return;
       }
       // empty or other -> back/idle
@@ -555,16 +555,31 @@ export function GameBoard() {
   let inspectOverlay: Point[] = [];
   if (mode.kind === "movePicked" && meta) {
     const own = game.units.find((u) => u.id === mode.unitId);
-    const range = own ? (meta.classes[own.class]?.range ?? []) : [];
-    attackOverlay = filterAttackTilesFromDestination(
-      mode.destination,
-      mode.preview.attackTiles as Point[],
-      range,
-    );
-    if (own && meta.classes[own.class]?.healAmount !== undefined) {
-      healOverlay = (mode.preview.healTiles as Point[]).filter(
-        ([hx, hy]) => Math.abs(hx - mode.destination[0]) + Math.abs(hy - mode.destination[1]) === 1,
-      );
+    const cls = own ? meta.classes[own.class] : undefined;
+    const range = cls?.range ?? [];
+    const rangeSet = new Set(range);
+    // Derive action targets from effective board state (includes staged ghosts) so options
+    // remain correct after staging earlier moves in the same turn.
+    attackOverlay = ghostUnits
+      .filter(
+        (u) =>
+          u.hp > 0 &&
+          u.side === "enemy" &&
+          rangeSet.has(
+            Math.abs(u.x - mode.destination[0]) + Math.abs(u.y - mode.destination[1]),
+          ),
+      )
+      .map((u) => [u.x, u.y] as Point);
+    if (cls?.healAmount !== undefined) {
+      healOverlay = ghostUnits
+        .filter(
+          (u) =>
+            u.hp > 0 &&
+            u.side === "player" &&
+            u.hp < u.maxHp &&
+            Math.abs(u.x - mode.destination[0]) + Math.abs(u.y - mode.destination[1]) === 1,
+        )
+        .map((u) => [u.x, u.y] as Point);
     }
   }
   if (mode.kind === "unitSelected") {
@@ -575,10 +590,10 @@ export function GameBoard() {
       if (!own) return false;
       // reachable from current tile if distance from own position in range? preview is union from any reachable final tile;
       // "attack from where I stand" allowed when target reachable from unit's CURRENT tile
-      const cls = meta?.classes[own.class];
-      if (!cls) return false;
+      const ownCls = meta?.classes[own.class];
+      if (!ownCls) return false;
       const d = Math.abs(ax - own.x) + Math.abs(ay - own.y);
-      return cls.range.includes(d);
+      return ownCls.range.includes(d);
     });
   }
   if (mode.kind === "enemyInspect") {
