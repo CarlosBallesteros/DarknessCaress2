@@ -71,12 +71,12 @@
   },
   "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],
   "lore": {
-    "sword": "Tempered in the furnace of endless war, they are the first wall and the last light at the breach. Their steel remembers every vow sworn before the march and every silence left behind on the field.",
-    "axe": "They carry the weight of ruin in each swing, breaking shields and doubts with the same relentless fury. Born to the thunder of close combat, they answer the cry of battle with unshaken, iron resolve.",
-    "spear": "They hold the line where courage meets the storm, turning distance into a promise of safety for those behind them. Patient and unbent, they pierce the dark with discipline learned in a thousand hard-won stands.",
-    "archer": "From the hush before dawn to the smoke of dusk, they send hope and judgment on the wind. Their watchful eyes read the battlefield like a prayer, loosing arrows that carry the memory of home.",
-    "mage": "They weave embers of forgotten lore into weapons against the encroaching night, paying for power with solemn focus. In the roar of war they remain still as a candle, shaping fate with whispered incantations.",
-    "healer": "Amid clashing steel and falling ash, they gather the fragile breath of the living and guard it fiercely. Their mercy is a quiet defiance, mending broken ranks so the long struggle may yet endure."
+    "sword": "A steadfast frontline warrior sworn to hold the line.",
+    "axe": "A fierce breaker of shields who fights with raw strength.",
+    "spear": "A disciplined lancer striking with reach and resolve.",
+    "archer": "A keen-eyed marksman who guards allies from afar.",
+    "mage": "A wielder of arcane force on the battlefield.",
+    "healer": "A devoted guardian who mends wounds amid the clash."
   },
   "ai": {
     "moveRetries": 3,

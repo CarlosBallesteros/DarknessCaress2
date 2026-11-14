@@ -6,8 +6,11 @@ dist
 client/dist
 server/dist
 coverage
+playwright-report
+test-results
 client/public/assets
+art
 package-lock.json
+e2e/package-lock.json
 docs
 README.md
-

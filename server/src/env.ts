@@ -3,7 +3,7 @@ import { z } from "zod";
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(1),
-  OLLAMA_URL: z.string().url(),
+  OLLAMA_URL: z.string().min(1),
   OLLAMA_MODEL: z.string().min(1),
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.string().default("development"),
@@ -12,11 +12,11 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-export function loadEnv(): Env {
-  const parsed = envSchema.safeParse(process.env);
+export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  const parsed = envSchema.safeParse(source);
   if (!parsed.success) {
-    console.error("Invalid environment variables", parsed.error.flatten().fieldErrors);
-    process.exit(1);
+    const issues = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
+    throw new Error(`Invalid environment variables:\n${issues.join("\n")}`);
   }
   return parsed.data;
 }

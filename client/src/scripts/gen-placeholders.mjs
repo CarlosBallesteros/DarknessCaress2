@@ -1,14 +1,12 @@
-import fs from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PNG } from "pngjs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const clientRoot = path.resolve(__dirname, "../..");
-const repoRoot = path.resolve(clientRoot, "..");
-const configPath = path.join(repoRoot, "server/src/config/config.json");
-const assetsRoot = path.join(clientRoot, "public/assets");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, "..", "..", "..");
+const configPath = path.join(repoRoot, "server", "src", "config", "config.json");
+const assetsRoot = path.join(repoRoot, "client", "public", "assets");
 
 const baselinePalette = {
   sword: "#7a86a8",
@@ -38,78 +36,75 @@ function hexToRgb(hex) {
   };
 }
 
-function darken(rgb, factor) {
-  return {
-    r: Math.max(0, Math.min(255, Math.round(rgb.r * factor))),
-    g: Math.max(0, Math.min(255, Math.round(rgb.g * factor))),
-    b: Math.max(0, Math.min(255, Math.round(rgb.b * factor))),
-  };
-}
-
 function hashColor(key) {
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) {
     hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   }
-  const r = 64 + ((hash & 0xff) % 160);
-  const g = 64 + (((hash >> 8) & 0xff) % 160);
-  const b = 64 + (((hash >> 16) & 0xff) % 160);
-  return { r, g, b };
+  const r = (hash & 0xff0000) >> 16;
+  const g = (hash & 0x00ff00) >> 8;
+  const b = hash & 0x0000ff;
+  return `#${[r || 0x55, g || 0x66, b || 0x77]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("")}`;
 }
 
-function classColor(classKey) {
-  const hex = baselinePalette[classKey];
-  return hex ? hexToRgb(hex) : hashColor(classKey);
+function darken(hex, factor = 0.6) {
+  const { r, g, b } = hexToRgb(hex);
+  const toHex = (n) =>
+    Math.max(0, Math.min(255, Math.round(n)))
+      .toString(16)
+      .padStart(2, "0");
+  return `#${toHex(r * factor)}${toHex(g * factor)}${toHex(b * factor)}`;
 }
 
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
+async function ensureDir(dir) {
+  await mkdir(dir, { recursive: true });
 }
 
-function writeSolidPng(filePath, width, height, rgb) {
-  ensureDir(path.dirname(filePath));
+function fillPng(width, height, hex) {
   const png = new PNG({ width, height });
+  const { r, g, b } = hexToRgb(hex);
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const idx = (width * y + x) << 2;
-      png.data[idx] = rgb.r;
-      png.data[idx + 1] = rgb.g;
-      png.data[idx + 2] = rgb.b;
+      png.data[idx] = r;
+      png.data[idx + 1] = g;
+      png.data[idx + 2] = b;
       png.data[idx + 3] = 255;
     }
   }
-  fs.writeFileSync(filePath, PNG.sync.write(png));
+  return PNG.sync.write(png);
 }
 
-function main() {
-  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-  const classes = Object.keys(config.classes ?? {});
-  const themeId = config.themes?.[0]?.id ?? "warriors-europe";
-
-  // Universal terrain (7 files)
-  for (const [tile, hex] of Object.entries(terrainColors)) {
-    writeSolidPng(path.join(assetsRoot, "terrain", `${tile}.png`), 128, 128, hexToRgb(hex));
-  }
-
-  // Universal hero
-  writeSolidPng(path.join(assetsRoot, "hero", "landscape.png"), 1920, 1080, hexToRgb("#201d29"));
-
-  // Theme army files: 6 per class
-  for (const classKey of classes) {
-    const player = classColor(classKey);
-    const enemy = darken(player, 0.6);
-    const dir = path.join(assetsRoot, themeId, classKey);
-    writeSolidPng(path.join(dir, "portrait-player.png"), 512, 512, player);
-    writeSolidPng(path.join(dir, "portrait-enemy.png"), 512, 512, enemy);
-    writeSolidPng(path.join(dir, "portrait-player-full.png"), 512, 768, player);
-    writeSolidPng(path.join(dir, "portrait-enemy-full.png"), 512, 768, enemy);
-    writeSolidPng(path.join(dir, "sprite-player.png"), 128, 128, player);
-    writeSolidPng(path.join(dir, "sprite-enemy.png"), 128, 128, enemy);
-  }
-
-  console.log(
-    `Generated placeholders: ${classes.length * 6} theme files, ${Object.keys(terrainColors).length} terrain files, 1 hero file.`,
-  );
+async function writeImage(filePath, width, height, hex) {
+  await ensureDir(path.dirname(filePath));
+  await writeFile(filePath, fillPng(width, height, hex));
 }
 
-main();
+async function main() {
+  const config = JSON.parse(await readFile(configPath, "utf8"));
+  const classKeys = Object.keys(config.classes);
+  const themeId = config.themes[0]?.id ?? "warriors-europe";
+
+  for (const cls of classKeys) {
+    const base = baselinePalette[cls] ?? hashColor(cls);
+    const playerColor = base;
+    const enemyColor = darken(base, 0.6);
+    const dir = path.join(assetsRoot, themeId, cls);
+    await writeImage(path.join(dir, "portrait-player.png"), 512, 512, playerColor);
+    await writeImage(path.join(dir, "portrait-enemy.png"), 512, 512, enemyColor);
+    await writeImage(path.join(dir, "portrait-player-full.png"), 512, 768, playerColor);
+    await writeImage(path.join(dir, "portrait-enemy-full.png"), 512, 768, enemyColor);
+    await writeImage(path.join(dir, "sprite-player.png"), 128, 128, playerColor);
+    await writeImage(path.join(dir, "sprite-enemy.png"), 128, 128, enemyColor);
+  }
+
+  for (const [terrain, color] of Object.entries(terrainColors)) {
+    await writeImage(path.join(assetsRoot, "terrain", `${terrain}.png`), 128, 128, color);
+  }
+
+  await writeImage(path.join(assetsRoot, "hero", "landscape.png"), 1920, 1080, "#201d29");
+}
+
+await main();

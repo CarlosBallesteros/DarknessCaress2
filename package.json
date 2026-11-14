@@ -7,12 +7,17 @@
   ],
   "scripts": {
     "lint": "npm -w server run lint && npm -w client run lint",
-    "format:check": "prettier --check .",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "npm -w server test && npm -w client test",
-    "build": "npm -w server run build && npm -w client run build"
+    "build": "npm -w server run build && npm -w client run build",
+    "e2e": "npm --prefix e2e test"
   },
   "devDependencies": {
-    "prettier": "^3.3.3"
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0"
   }
 }
