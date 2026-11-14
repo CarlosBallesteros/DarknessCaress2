@@ -3,9 +3,13 @@ import type { Board, Unit } from "../../game/types.js";
 import type { GameRow } from "./dto.js";
 
 export async function countActiveGames(pool: Pool, userId: string): Promise<number> {
-  // 06: counting every game that is not `lost`
+  // 06: active/in-progress games only (generating_board, player_turn, ai_turn).
+  // Finished games (won/lost) do not count against the concurrency cap.
   const res = await pool.query<{ count: string }>(
-    "SELECT COUNT(*)::text AS count FROM games WHERE user_id = $1 AND status <> 'lost'",
+    `SELECT COUNT(*)::text AS count
+     FROM games
+     WHERE user_id = $1
+       AND status IN ('generating_board', 'player_turn', 'ai_turn')`,
     [userId],
   );
   return Number(res.rows[0]?.count ?? "0");
