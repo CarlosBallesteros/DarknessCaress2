@@ -7,4 +7,24 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ["**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        projectService: {
+          allowDefaultProject: ["vitest.config.ts"],
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    files: ["**/*.config.{js,mjs,ts}"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+      },
+    },
+  },
 );

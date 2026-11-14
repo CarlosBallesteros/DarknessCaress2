@@ -1,3 +1,3 @@
 export function TopMenu() {
-  return <nav>TopMenu</nav>;
+  return <nav>Menu</nav>;
 }

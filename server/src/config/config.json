@@ -71,12 +71,12 @@
   },
   "themes": [{ "id": "warriors-europe", "label": "Champions of Europe" }],
   "lore": {
-    "sword": "A steadfast frontline warrior sworn to hold the line.",
-    "axe": "A fierce breaker of shields who fights with raw strength.",
-    "spear": "A disciplined lancer striking with reach and resolve.",
-    "archer": "A keen-eyed marksman who guards allies from afar.",
-    "mage": "A wielder of arcane force on the battlefield.",
-    "healer": "A devoted guardian who mends wounds amid the clash."
+    "sword": "Placeholder lore.",
+    "axe": "Placeholder lore.",
+    "spear": "Placeholder lore.",
+    "archer": "Placeholder lore.",
+    "mage": "Placeholder lore.",
+    "healer": "Placeholder lore."
   },
   "ai": {
     "moveRetries": 3,
