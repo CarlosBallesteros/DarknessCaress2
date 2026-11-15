@@ -140,14 +140,16 @@ button.primary:hover:not(:disabled),
   background: transparent;
 }
 
-.auth-page {
+main.auth-page {
   width: min(440px, 100% - 2rem);
-  margin: 2rem auto;
+  margin: 1.5rem auto;
   padding: 1.25rem;
   background: var(--ink-raised);
   border: 1px solid var(--ink-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
+  min-height: 0;
+  height: auto;
 }
 
 .auth-page h1 {
