@@ -191,7 +191,7 @@ services:
     depends_on:
       db: { condition: service_healthy }
     env_file: .env
-    ports: ["80:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     restart: unless-stopped
 
 volumes: { db_data: {}, ollama_data: {} }
