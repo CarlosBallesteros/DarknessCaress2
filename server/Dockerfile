@@ -1,5 +1,6 @@
 FROM node:22-alpine AS build
 WORKDIR /app
+RUN apk add --no-cache imagemagick
 COPY package.json package-lock.json* ./
 COPY client/package.json ./client/package.json
 COPY server/package.json ./server/package.json

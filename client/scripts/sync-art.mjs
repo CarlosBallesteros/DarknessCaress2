@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,6 +20,44 @@ function copyIfExists(src, dest) {
   ensureDir(path.dirname(dest));
   fs.copyFileSync(src, dest);
   return true;
+}
+
+function convertImageToPng(src, dest) {
+  const attempts = [
+    ["magick", [src, dest]],
+    ["magick", ["convert", src, dest]],
+    ["convert", [src, dest]],
+  ];
+  for (const [cmd, args] of attempts) {
+    const res = spawnSync(cmd, args, { stdio: "ignore" });
+    if (!res.error && res.status === 0 && fs.existsSync(dest)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function readPngSize(filePath) {
+  try {
+    const fd = fs.openSync(filePath, "r");
+    try {
+      const buf = Buffer.alloc(24);
+      const bytes = fs.readSync(fd, buf, 0, 24, 0);
+      if (bytes < 24) return null;
+      if (buf.toString("hex", 0, 8) !== "89504e470d0a1a0a") return null;
+      return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+}
+
+function hasNonPlaceholderFullPortrait(filePath) {
+  const size = readPngSize(filePath);
+  if (!size) return false;
+  return !(size.width === 512 && size.height === 768);
 }
 
 function syncHero() {
@@ -60,6 +99,7 @@ function syncFullPortraits() {
   for (const entry of fs.readdirSync(dir)) {
     const parsed = parseSideClass(entry, /^(player|enemy)_([a-z]+)\.(png|jpg)$/i);
     if (!parsed) continue;
+    const src = path.join(dir, entry);
     const ext = entry.toLowerCase().endsWith(".jpg") ? "jpg" : "png";
     const dest = path.join(
       assetsRoot,
@@ -67,9 +107,20 @@ function syncFullPortraits() {
       parsed.classKey,
       `portrait-${parsed.side}-full.png`,
     );
-    // Non-PNG sources are not copied over an existing .png destination.
-    if (ext === "jpg" && fs.existsSync(dest)) continue;
-    copyIfExists(path.join(dir, entry), dest);
+    ensureDir(path.dirname(dest));
+    if (ext === "jpg") {
+      if (convertImageToPng(src, dest)) continue;
+      if (hasNonPlaceholderFullPortrait(dest)) {
+        console.warn(
+          `sync-art: ImageMagick unavailable, keeping existing full portrait ${dest}`,
+        );
+        continue;
+      }
+      throw new Error(
+        `sync-art: failed to convert ${src} to ${dest}. Install ImageMagick (magick/convert) to convert JPG full portraits to PNG.`,
+      );
+    }
+    copyIfExists(src, dest);
   }
 }
 
