@@ -38,8 +38,9 @@ function tryConvertImageToPng(src, destRel) {
   if (!existsSync(src)) return false;
   const dest = path.join(assetsDir, destRel);
   ensureDir(path.dirname(dest));
-  // Produce a real PNG at the destination (avoid mislabeled jpg-as-png). Windows
-  // hosts can transcode via System.Drawing. Returns true only on a real conversion.
+  // Produce a real PNG at the destination (avoid mislabeled jpg-as-png).
+  // Windows hosts can transcode via System.Drawing; Linux/Docker builds use
+  // ImageMagick (magick/convert) when available.
   if (process.platform === "win32") {
     try {
       const escapePs = (p) => p.replace(/'/g, "''");
@@ -52,9 +53,23 @@ function tryConvertImageToPng(src, destRel) {
           "finally { $img.Dispose() }",
       ];
       execFileSync("powershell.exe", ps, { stdio: "ignore" });
-      return existsSync(dest);
+      if (existsSync(dest)) return true;
     } catch {
-      return false;
+      // fall through to CLI converters
+    }
+  }
+
+  const attempts = [
+    ["magick", [src, dest]],
+    ["magick", ["convert", src, dest]],
+    ["convert", [src, dest]],
+  ];
+  for (const [cmd, args] of attempts) {
+    try {
+      execFileSync(cmd, args, { stdio: "ignore" });
+      if (existsSync(dest)) return true;
+    } catch {
+      // try next
     }
   }
   return false;
