@@ -71,17 +71,18 @@ If more than 3 steps are needed to add a theme, the implementation is WRONG — 
 
 ## In-repo art source & automatic sync
 
-Final/working art lives **inside the repo** at `art/` (relative to the repo root) so builds are portable and can apply art without manual copy steps. `client/scripts/sync-art.mjs` (`npm -w client run sync:art`, and run automatically as part of `npm -w client run build`) copies/transforms the mapped files into `client/public/assets/` when present. The sync is idempotent and skips missing sources (placeholders remain), so terrain and other unmapped assets can stay as placeholders until art arrives. Builds that include `art/` therefore ship the synced assets; builds without it (or run before syncing in isolated rebuild contexts) keep the placeholder baseline.
+Final/working art lives **inside the repo** at `art/` (relative to the repo root) so builds are portable and can apply art without manual copy steps. `client/scripts/sync-art.mjs` (`npm -w client run sync:art`, and run automatically as part of `npm -w client run build`) copies/transforms the mapped files into `client/public/assets/` when present. The sync is idempotent and skips missing sources (placeholders remain), so unmapped assets can stay as placeholders until art arrives. Builds that include `art/` therefore ship the synced assets; builds without it (or run before syncing in isolated rebuild contexts) keep the placeholder baseline.
 
 | Art source (`art/`, in-repo) | Final destination (`client/public/assets/`) | Notes |
 |---|---|---|
 | `landing_background/landing.png` | `hero/landscape.png` | universal, NOT theme-branded |
+| `terrain_sprites/{tile}_sprite.png` | `terrain/{tile}.png` | universal terrain sprites (7 files: `plain`, `forest`, `hill`, `lake`, `river`, `bridge`, `rock`) |
 | `unit_images_cropped/{side}_{class}_cropped.png` | `warriors-europe/{class}/portrait-{side}.png` | the SQUARE, used everywhere in UI |
 | `unit_images_full/{side}_{class}.png` (preferred) or `.jpg` | `warriors-europe/{class}/portrait-{side}-full.png` | RECTANGULAR lightbox art; prefer storing a real PNG in `art/`. Non-PNG sources are not copied over an existing `.png` destination to avoid mislabeled files. |
 | `unit_images_sprites/{side}_{class}_sprite.png` | `warriors-europe/{class}/sprite-{side}.png` | in-game board sprites (player/enemy), referenced by `assetPath("sprite", ...)` |
 | `font/*.woff2` | `fonts/*.woff2` | all in-repo woff2 fonts are synced (available to the build); the UI's configured display fonts are the OldLondon set per this doc when present |
 
-Filename transforms: `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{side}_{class}.{png|jpg}` → `portrait-{side}-full.png`; `{side}_{class}_sprite.png` → `sprite-{side}.png` (side = `player`/`enemy`, class keys per `config.classes`). Still optional/missing until supplied: `terrain/` (7 files) — placeholders cover them.
+Filename transforms: `{tile}_sprite.png` → `terrain/{tile}.png`; `{side}_{class}_cropped.png` → `portrait-{side}.png`; `{side}_{class}.{png|jpg}` → `portrait-{side}-full.png`; `{side}_{class}_sprite.png` → `sprite-{side}.png` (side = `player`/`enemy`, class keys per `config.classes`; tile keys per `02`/`06`).
 
 > **Rebuild rounds:** if a future orchestrator rebuild needs sub-agents isolated from real art, run builds without the `art/` contents or before syncing; the placeholder pipeline (`gen:placeholders`) remains the baseline.
 

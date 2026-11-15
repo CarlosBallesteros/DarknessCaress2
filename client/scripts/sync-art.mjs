@@ -180,6 +180,19 @@ function sync() {
     }
   }
 
+  // Terrain sprites (universal): {tile}_sprite.png -> terrain/{tile}.png
+  const terrainDir = path.join(artDir, "terrain_sprites");
+  if (existsSync(terrainDir)) {
+    for (const file of readdirSync(terrainDir)) {
+      const m = /^([a-z]+)_sprite\.png$/i.exec(file);
+      if (!m) continue;
+      const [, tile] = m;
+      if (copyIfExists(path.join(terrainDir, file), `terrain/${tile.toLowerCase()}.png`)) {
+        copied++;
+      }
+    }
+  }
+
   console.log(
     `sync-art: copied/synced ${copied} art file(s) from art/ into client/public/assets/ (theme: ${themeId}).`,
   );
