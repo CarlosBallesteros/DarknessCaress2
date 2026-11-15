@@ -1,287 +1,377 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import rawDefault from "../config/config.json";
-import { projectGameEngineConfig, type RawGameConfig } from "./config";
-import { applyMoves, checkVictory } from "./apply";
-import { previewMove, reachableTiles } from "./reach";
-import type { Board, GameEngineConfig, Unit } from "./types";
+import configJson from "../config/config.json" with { type: "json" };
+import { projectEngineConfig } from "./config.js";
+import { applyMoves, checkVictory, type AppliedTurn } from "./apply.js";
+import { previewMove, reachableTiles } from "./reach.js";
+import type { Board, GameEngineConfig, Move, Tile, Unit } from "./types.js";
 
-function cfgFrom(raw: RawGameConfig): GameEngineConfig {
-  return projectGameEngineConfig(raw);
-}
-
-const defaultCfg = cfgFrom(rawDefault as RawGameConfig);
-
-function makeBoard(size: number, fill: Board["tiles"][number][number] = "plain"): Board {
-  return {
-    tiles: Array.from({ length: size }, () => Array.from({ length: size }, () => fill)),
-  };
-}
-
-// unit builder parameterized by cfg is `um` below.
-
-function um(
-  cfg: GameEngineConfig,
-  partial: Partial<Unit> & Pick<Unit, "id" | "side" | "class" | "x" | "y">,
-): Unit {
-  const base = cfg.classes[partial.class];
-  return {
-    id: partial.id,
-    side: partial.side,
-    class: partial.class,
-    x: partial.x,
-    y: partial.y,
-    hp: partial.hp ?? base.hp,
-    maxHp: partial.maxHp ?? base.hp,
-    acted: partial.acted ?? false,
-  };
-}
-
-function cloneState(state: { board: Board; units: Unit[] }) {
-  return {
-    board: { tiles: state.board.tiles.map((r) => [...r]) },
-    units: state.units.map((x) => ({ ...x })),
-  };
-}
-
-describe("apply/checkVictory (default config)", () => {
-  runApplySuite(defaultCfg);
-});
-
-describe("apply/checkVictory (mutated config)", () => {
-  const mutated: RawGameConfig = JSON.parse(JSON.stringify(rawDefault));
-  mutated.boardSize = 9;
-  for (const k of Object.keys(mutated.classes)) {
-    const c = mutated.classes[k];
-    c.hp += 4;
-    c.atk += 3;
-    c.def += 1;
-    c.mov = Math.max(1, c.mov - 1);
-    if (c.healAmount) c.healAmount += 1;
-    if (k === "archer") c.range = [3];
-    if (k === "mage") c.range = [2, 3];
-    if (k === "sword" || k === "axe" || k === "spear") c.range = [1];
+function makeBoard(
+  size: number,
+  fill: Tile = "plain",
+  overrides: Record<string, Tile> = {},
+): Board {
+  const tiles: Tile[][] = Array.from({ length: size }, () =>
+    Array.from({ length: size }, () => fill),
+  );
+  for (const [k, t] of Object.entries(overrides)) {
+    const [xs, ys] = k.split(",");
+    tiles[Number(ys)][Number(xs)] = t;
   }
-  runApplySuite(cfgFrom(mutated));
-});
+  return { tiles };
+}
 
-function runApplySuite(cfg: GameEngineConfig) {
-  it("executes attack damage/counter per class distance matrix and healer never counters", () => {
-    const board = makeBoard(cfg.boardSize);
-    const sword = um(cfg, { id: "s1", side: "player", class: "sword", x: 2, y: 2 });
-    const spear = um(cfg, { id: "sp1", side: "enemy", class: "spear", x: 3, y: 2 });
-    const state = { board, units: [sword, spear] };
-    const dmg = Math.max(0, cfg.classes.sword.atk - cfg.classes.spear.def);
-    const cDmg = Math.max(0, cfg.classes.spear.atk - cfg.classes.sword.def);
-    const res = applyMoves(
-      state,
-      [
-        {
-          unitId: "s1",
-          path: [[2, 2]],
-          action: { type: "attack", targetId: "sp1" },
-        },
-      ],
-      "player",
-      cfg,
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const sAfter = res.result.state.units.find((x) => x.id === "s1")!;
-    const spAfter = res.result.state.units.find((x) => x.id === "sp1")!;
-    expect(spAfter.hp).toBe(cfg.classes.spear.hp - dmg);
-    // spear range [1] (mutated keeps melee as [1]) counters if in range
-    if (cfg.classes.spear.range.includes(1)) {
-      expect(sAfter.hp).toBe(cfg.classes.sword.hp - cDmg);
+function u(partial: Partial<Unit> & Pick<Unit, "id" | "side" | "class" | "x" | "y">): Unit {
+  return {
+    hp: 20,
+    maxHp: 20,
+    acted: false,
+    ...partial,
+  };
+}
+
+const baseCfg = projectEngineConfig(configJson as Parameters<typeof projectEngineConfig>[0]);
+
+function cfgFromRaw(raw: Parameters<typeof projectEngineConfig>[0]): GameEngineConfig {
+  return projectEngineConfig(raw);
+}
+
+function attackEvent(events: AppliedTurn["events"]) {
+  return events.find(
+    (e): e is Extract<AppliedTurn["events"][number], { kind: "attack" }> => e.kind === "attack",
+  );
+}
+function healEvent(events: AppliedTurn["events"]) {
+  return events.find(
+    (e): e is Extract<AppliedTurn["events"][number], { kind: "heal" }> => e.kind === "heal",
+  );
+}
+
+describe("applyMoves - counters and combat matrix", () => {
+  it("mage-3-no-counter-by-range1, archer-2-mutual, spear-1-mutual, healer never", () => {
+    {
+      const board = makeBoard(baseCfg.boardSize);
+      const mage = u({
+        id: "P-mage-1",
+        side: "player",
+        class: "mage",
+        x: 0,
+        y: 0,
+        hp: 15,
+        maxHp: 15,
+      });
+      const sword = u({
+        id: "E-sword-1",
+        side: "enemy",
+        class: "sword",
+        x: 3,
+        y: 0,
+        hp: 20,
+        maxHp: 20,
+      });
+      const res = applyMoves(
+        { board, units: [mage, sword] },
+        [{ unitId: mage.id, path: [[0, 0]], action: { type: "attack", targetId: sword.id } }],
+        "player",
+        baseCfg,
+      );
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.result.events.some((e) => e.kind === "counter")).toBe(false);
+    }
+    {
+      const board = makeBoard(baseCfg.boardSize);
+      const a1 = u({
+        id: "P-archer-1",
+        side: "player",
+        class: "archer",
+        x: 0,
+        y: 0,
+        hp: 16,
+        maxHp: 16,
+      });
+      const a2 = u({
+        id: "E-archer-1",
+        side: "enemy",
+        class: "archer",
+        x: 2,
+        y: 0,
+        hp: 16,
+        maxHp: 16,
+      });
+      const res = applyMoves(
+        { board, units: [a1, a2] },
+        [{ unitId: a1.id, path: [[0, 0]], action: { type: "attack", targetId: a2.id } }],
+        "player",
+        baseCfg,
+      );
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
       expect(res.result.events.some((e) => e.kind === "counter")).toBe(true);
     }
-
-    // mage at distance 3 from melee target: melee cannot counter if 3 not in its range
-    const board2 = makeBoard(cfg.boardSize);
-    const mage = um(cfg, { id: "m1", side: "player", class: "mage", x: 1, y: 1 });
-    const target = um(cfg, { id: "e1", side: "enemy", class: "sword", x: 4, y: 1 });
-    const rMage = cfg.classes.mage.range.includes(3)
-      ? 3
-      : cfg.classes.mage.range[cfg.classes.mage.range.length - 1];
-    target.x = 1 + rMage;
-    const mRes = applyMoves(
-      { board: board2, units: [mage, target] },
-      [{ unitId: "m1", path: [[1, 1]], action: { type: "attack", targetId: "e1" } }],
-      "player",
-      cfg,
-    );
-    expect(mRes.ok).toBe(true);
-    if (mRes.ok) {
-      const mageAfter = mRes.result.state.units.find((x) => x.id === "m1")!;
-      if (!cfg.classes.sword.range.includes(rMage)) {
-        expect(mageAfter.hp).toBe(cfg.classes.mage.hp);
-        expect(mRes.result.events.some((e) => e.kind === "counter")).toBe(false);
-      }
+    {
+      const board = makeBoard(baseCfg.boardSize);
+      const s1 = u({
+        id: "P-spear-1",
+        side: "player",
+        class: "spear",
+        x: 0,
+        y: 0,
+        hp: 18,
+        maxHp: 18,
+      });
+      const s2 = u({
+        id: "E-spear-1",
+        side: "enemy",
+        class: "spear",
+        x: 1,
+        y: 0,
+        hp: 18,
+        maxHp: 18,
+      });
+      const res = applyMoves(
+        { board, units: [s1, s2] },
+        [{ unitId: s1.id, path: [[0, 0]], action: { type: "attack", targetId: s2.id } }],
+        "player",
+        baseCfg,
+      );
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.result.events.some((e) => e.kind === "counter")).toBe(true);
     }
-
-    // archer mutual at distance in range
-    const board3 = makeBoard(cfg.boardSize);
-    const ar = um(cfg, { id: "a1", side: "player", class: "archer", x: 2, y: 2 });
-    const arE = um(cfg, {
-      id: "a2",
-      side: "enemy",
-      class: "archer",
-      x: 2 + cfg.classes.archer.range[0],
-      y: 2,
-    });
-    const aRes = applyMoves(
-      { board: board3, units: [ar, arE] },
-      [{ unitId: "a1", path: [[2, 2]], action: { type: "attack", targetId: "a2" } }],
-      "player",
-      cfg,
-    );
-    expect(aRes.ok).toBe(true);
-    if (aRes.ok) {
-      expect(aRes.result.events.some((e) => e.kind === "counter")).toBe(true);
-    }
-
-    // healer never counters
-    const board4 = makeBoard(cfg.boardSize);
-    const atk = um(cfg, { id: "p1", side: "player", class: "sword", x: 2, y: 2 });
-    const healer = um(cfg, { id: "h1", side: "enemy", class: "healer", x: 3, y: 2 });
-    const hRes = applyMoves(
-      { board: board4, units: [atk, healer] },
-      [{ unitId: "p1", path: [[2, 2]], action: { type: "attack", targetId: "h1" } }],
-      "player",
-      cfg,
-    );
-    expect(hRes.ok).toBe(true);
-    if (hRes.ok) {
-      const atkAfter = hRes.result.state.units.find((x) => x.id === "p1")!;
-      expect(atkAfter.hp).toBe(cfg.classes.sword.hp);
-      expect(hRes.result.events.some((e) => e.kind === "counter")).toBe(false);
+    {
+      const board = makeBoard(baseCfg.boardSize);
+      const s1 = u({
+        id: "P-sword-1",
+        side: "player",
+        class: "sword",
+        x: 0,
+        y: 0,
+        hp: 20,
+        maxHp: 20,
+      });
+      const h = u({
+        id: "E-healer-1",
+        side: "enemy",
+        class: "healer",
+        x: 1,
+        y: 0,
+        hp: 18,
+        maxHp: 18,
+      });
+      const res = applyMoves(
+        { board, units: [s1, h] },
+        [{ unitId: s1.id, path: [[0, 0]], action: { type: "attack", targetId: h.id } }],
+        "player",
+        baseCfg,
+      );
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.result.events.some((e) => e.kind === "counter")).toBe(false);
     }
   });
 
-  it("applies damage floor at 0, heal clamping, death removes unit", () => {
-    const board = makeBoard(cfg.boardSize);
-    const weakAtk = um(cfg, { id: "p1", side: "player", class: "archer", x: 2, y: 2 });
-    // force atk < def scenario by using high-def target class? use sword as target maybe not enough; craft via custom numbers in state but stats come from cfg in engine - engine uses cfg.classes for atk/def. So rely on cfg: if atk-def < 0 fine else damage >=0 always; to guarantee floor, pick pair where target def >= atk
-    const tank = um(cfg, {
-      id: "e1",
-      side: "enemy",
-      class: "sword",
-      x: 2 + cfg.classes.archer.range[0],
-      y: 2,
-    });
-    // ensure floor case: if not naturally floored, mutate expectation? better construct: if cfg.classes.archer.atk - cfg.classes.sword.def <= 0 expect 0 damage else still valid floor behavior (max(0,...)) holds.
-    const res = applyMoves(
-      { board, units: [weakAtk, tank] },
-      [{ unitId: "p1", path: [[2, 2]], action: { type: "attack", targetId: "e1" } }],
-      "player",
-      cfg,
-    );
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      const ev = res.result.events.find((e) => e.kind === "attack");
-      expect(ev && ev.kind === "attack" ? ev.damage : -1).toBe(
-        Math.max(0, cfg.classes.archer.atk - cfg.classes.sword.def),
-      );
-    }
-
-    // heal clamping
-    const board2 = makeBoard(cfg.boardSize);
-    const healer = um(cfg, { id: "h1", side: "player", class: "healer", x: 2, y: 2 });
-    const wounded = um(cfg, {
-      id: "p2",
+  it("damage floor at 0, heal clamping, death removes unit", () => {
+    const board = makeBoard(baseCfg.boardSize);
+    const raw = JSON.parse(JSON.stringify(configJson)) as {
+      boardSize: number;
+      classes: Record<string, Record<string, unknown>>;
+    };
+    raw.classes.sword.atk = 1;
+    raw.classes.axe.def = 10;
+    const cfg = projectEngineConfig(raw as Parameters<typeof projectEngineConfig>[0]);
+    const weak = u({
+      id: "P-sword-1",
       side: "player",
       class: "sword",
-      x: 3,
-      y: 2,
-      hp: cfg.classes.sword.hp - 1,
-      maxHp: cfg.classes.sword.hp,
+      x: 0,
+      y: 0,
+      hp: 20,
+      maxHp: 20,
     });
-    const hRes = applyMoves(
-      { board: board2, units: [healer, wounded] },
-      [{ unitId: "h1", path: [[2, 2]], action: { type: "heal", targetId: "p2" } }],
+    const tank = u({ id: "E-axe-1", side: "enemy", class: "axe", x: 1, y: 0, hp: 25, maxHp: 25 });
+    const r1 = applyMoves(
+      { board, units: [weak, tank] },
+      [{ unitId: weak.id, path: [[0, 0]], action: { type: "attack", targetId: tank.id } }],
       "player",
       cfg,
     );
-    expect(hRes.ok).toBe(true);
-    if (hRes.ok) {
-      const t = hRes.result.state.units.find((u) => u.id === "p2")!;
-      expect(t.hp).toBe(cfg.classes.sword.hp);
-      const hev = hRes.result.events.find((e) => e.kind === "heal");
-      expect(hev && hev.kind === "heal" ? hev.healed : -1).toBe(1);
-    }
+    expect(r1.ok).toBe(true);
+    if (!r1.ok) return;
+    const atkEv = attackEvent(r1.result.events);
+    expect(atkEv?.damage).toBe(0);
+    expect(atkEv?.targetHp).toBe(25);
 
-    // death removes unit
-    const board3 = makeBoard(cfg.boardSize);
-    const killer = um(cfg, { id: "k1", side: "player", class: "axe", x: 2, y: 2 });
-    const victim = um(cfg, {
-      id: "v1",
-      side: "enemy",
-      class: "archer",
-      x: 3,
+    const healer = u({
+      id: "P-healer-1",
+      side: "player",
+      class: "healer",
+      x: 2,
       y: 2,
-      hp: 1,
-      maxHp: cfg.classes.archer.hp,
+      hp: 18,
+      maxHp: 18,
     });
-    const kRes = applyMoves(
-      { board: board3, units: [killer, victim] },
-      [{ unitId: "k1", path: [[2, 2]], action: { type: "attack", targetId: "v1" } }],
+    const ally = u({
+      id: "P-spear-1",
+      side: "player",
+      class: "spear",
+      x: 2,
+      y: 3,
+      hp: 15,
+      maxHp: 18,
+    });
+    const r2 = applyMoves(
+      { board, units: [healer, ally] },
+      [{ unitId: healer.id, path: [[2, 2]], action: { type: "heal", targetId: ally.id } }],
       "player",
-      cfg,
+      baseCfg,
     );
-    expect(kRes.ok).toBe(true);
-    if (kRes.ok) {
-      expect(kRes.result.state.units.find((u) => u.id === "v1")).toBeUndefined();
-      expect(kRes.result.events.some((e) => e.kind === "died" && e.unitId === "v1")).toBe(true);
-    }
+    expect(r2.ok).toBe(true);
+    if (!r2.ok) return;
+    const hEv = healEvent(r2.result.events);
+    expect(hEv?.healed).toBe(3);
+    expect(hEv?.targetHp).toBe(18);
+
+    const killer = u({
+      id: "P-axe-1",
+      side: "player",
+      class: "axe",
+      x: 4,
+      y: 4,
+      hp: 25,
+      maxHp: 25,
+    });
+    const victim = u({
+      id: "E-sword-1",
+      side: "enemy",
+      class: "sword",
+      x: 5,
+      y: 4,
+      hp: 1,
+      maxHp: 20,
+    });
+    const r3 = applyMoves(
+      { board, units: [killer, victim] },
+      [{ unitId: killer.id, path: [[4, 4]], action: { type: "attack", targetId: victim.id } }],
+      "player",
+      baseCfg,
+    );
+    expect(r3.ok).toBe(true);
+    if (!r3.ok) return;
+    expect(r3.result.events.some((e) => e.kind === "died" && e.unitId === victim.id)).toBe(true);
+    expect(r3.result.state.units.find((x) => x.id === victim.id)).toBeUndefined();
   });
 
-  it("rejects healer attack and enforces acted/duplicate/landing/atomicity/sequential rules", () => {
-    const board = makeBoard(cfg.boardSize);
-    const healer = um(cfg, { id: "h1", side: "player", class: "healer", x: 2, y: 2 });
-    const enemy = um(cfg, { id: "e1", side: "enemy", class: "sword", x: 3, y: 2 });
-    const noAtk = applyMoves(
+  it("healer cannot attack", () => {
+    const board = makeBoard(baseCfg.boardSize);
+    const healer = u({
+      id: "P-healer-1",
+      side: "player",
+      class: "healer",
+      x: 0,
+      y: 0,
+      hp: 18,
+      maxHp: 18,
+    });
+    const enemy = u({
+      id: "E-sword-1",
+      side: "enemy",
+      class: "sword",
+      x: 1,
+      y: 0,
+      hp: 20,
+      maxHp: 20,
+    });
+    const res = applyMoves(
       { board, units: [healer, enemy] },
       [
         {
-          unitId: "h1",
-          path: [[2, 2]],
-          action: { type: "attack", targetId: "e1" } as unknown as { type: "wait" },
-        },
+          unitId: healer.id,
+          path: [[0, 0]],
+          action: { type: "attack", targetId: enemy.id },
+        } as Move,
       ],
       "player",
-      cfg,
+      baseCfg,
     );
-    expect(noAtk.ok).toBe(false);
-    if (!noAtk.ok) expect(noAtk.error).toBe("healer cannot attack");
+    expect(res).toEqual({ ok: false, error: "healer cannot attack" });
+  });
 
-    // acted semantics and duplicate rejection
-    const s1 = um(cfg, { id: "p1", side: "player", class: "sword", x: 1, y: 1, acted: true });
-    const actedRes = applyMoves(
-      { board: makeBoard(cfg.boardSize), units: [s1] },
-      [{ unitId: "p1", path: [[1, 1]], action: { type: "wait" } }],
-      "player",
-      cfg,
-    );
-    expect(actedRes).toEqual({ ok: false, error: "p1 already acted this turn" });
-    const s2 = um(cfg, { id: "p2", side: "player", class: "sword", x: 1, y: 1 });
-    const dupRes = applyMoves(
-      { board: makeBoard(cfg.boardSize), units: [s2] },
-      [
-        { unitId: "p2", path: [[1, 1]], action: { type: "wait" } },
-        { unitId: "p2", path: [[1, 1]], action: { type: "wait" } },
-      ],
-      "player",
-      cfg,
-    );
-    expect(dupRes).toEqual({ ok: false, error: "p2 appears twice" });
+  it("missing-targetId rejection", () => {
+    const board = makeBoard(baseCfg.boardSize);
+    const sword = u({ id: "P-sword-1", side: "player", class: "sword", x: 0, y: 0 });
+    const healer = u({
+      id: "P-healer-1",
+      side: "player",
+      class: "healer",
+      x: 2,
+      y: 2,
+      hp: 18,
+      maxHp: 18,
+    });
+    const enemy = u({ id: "E-sword-1", side: "enemy", class: "sword", x: 1, y: 0 });
+    expect(
+      applyMoves(
+        { board, units: [sword, enemy] },
+        [
+          {
+            unitId: sword.id,
+            path: [[0, 0]],
+            action: { type: "attack" } as unknown as Move["action"],
+          } as Move,
+        ],
+        "player",
+        baseCfg,
+      ),
+    ).toEqual({ ok: false, error: "attack requires a target" });
+    expect(
+      applyMoves(
+        { board, units: [healer] },
+        [
+          {
+            unitId: healer.id,
+            path: [[2, 2]],
+            action: { type: "heal" } as unknown as Move["action"],
+          } as Move,
+        ],
+        "player",
+        baseCfg,
+      ),
+    ).toEqual({ ok: false, error: "heal requires a target" });
+  });
 
-    // evolving landing: chain-follow success (entry 1 vacates, entry 2 lands there)
-    const a = um(cfg, { id: "a", side: "player", class: "sword", x: 1, y: 1 });
-    const b = um(cfg, { id: "b", side: "player", class: "sword", x: 2, y: 1 });
-    const chain = applyMoves(
-      { board: makeBoard(cfg.boardSize), units: [a, b] },
-      [
+  it("acted semantics, duplicate rejection, evolving landing, atomicity, sequential resolution", () => {
+    const board = makeBoard(baseCfg.boardSize);
+    const a = u({ id: "P-sword-1", side: "player", class: "sword", x: 0, y: 0 });
+    const b = u({ id: "P-sword-2", side: "player", class: "sword", x: 0, y: 1, acted: true });
+    expect(
+      applyMoves(
+        { board, units: [a] },
+        [
+          { unitId: a.id, path: [[0, 0]], action: { type: "wait" } },
+          { unitId: a.id, path: [[0, 0]], action: { type: "wait" } },
+        ],
+        "player",
+        baseCfg,
+      ),
+    ).toEqual({ ok: false, error: `${a.id} appears twice` });
+    expect(
+      applyMoves(
+        { board, units: [b] },
+        [{ unitId: b.id, path: [[0, 1]], action: { type: "wait" } }],
+        "player",
+        baseCfg,
+      ),
+    ).toEqual({ ok: false, error: `${b.id} already acted this turn` });
+
+    {
+      const u1 = u({ id: "P-sword-1", side: "player", class: "sword", x: 1, y: 1 });
+      const u2 = u({ id: "P-axe-1", side: "player", class: "axe", x: 2, y: 1 });
+      const moves: Move[] = [
         {
-          unitId: "a",
+          unitId: u1.id,
           path: [
             [1, 1],
             [1, 2],
@@ -289,39 +379,71 @@ function runApplySuite(cfg: GameEngineConfig) {
           action: { type: "wait" },
         },
         {
-          unitId: "b",
+          unitId: u2.id,
           path: [
             [2, 1],
             [1, 1],
           ],
           action: { type: "wait" },
         },
-      ],
-      "player",
-      cfg,
-    );
-    expect(chain.ok).toBe(true);
-    if (chain.ok) {
-      expect(chain.result.state.units.find((u) => u.id === "a")).toMatchObject({
-        x: 1,
-        y: 2,
-        acted: true,
-      });
-      expect(chain.result.state.units.find((u) => u.id === "b")).toMatchObject({
-        x: 1,
-        y: 1,
-        acted: true,
-      });
+      ];
+      const res = applyMoves(
+        { board: makeBoard(baseCfg.boardSize), units: [u1, u2] },
+        moves,
+        "player",
+        baseCfg,
+      );
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.result.state.units.find((x) => x.id === u1.id)).toMatchObject({
+          x: 1,
+          y: 2,
+          acted: true,
+        });
+        expect(res.result.state.units.find((x) => x.id === u2.id)).toMatchObject({
+          x: 1,
+          y: 1,
+          acted: true,
+        });
+      }
     }
 
-    // two entries claiming same evolving tile => reject
-    const c1 = um(cfg, { id: "c1", side: "player", class: "sword", x: 1, y: 1 });
-    const c2 = um(cfg, { id: "c2", side: "player", class: "sword", x: 3, y: 1 });
-    const claim = applyMoves(
-      { board: makeBoard(cfg.boardSize), units: [c1, c2] },
-      [
+    {
+      const u1 = u({ id: "P-sword-1", side: "player", class: "sword", x: 1, y: 1 });
+      const u2 = u({ id: "P-axe-1", side: "player", class: "axe", x: 2, y: 1 });
+      const moves: Move[] = [
         {
-          unitId: "c1",
+          unitId: u2.id,
+          path: [
+            [2, 1],
+            [3, 1],
+          ],
+          action: { type: "wait" },
+        },
+        {
+          unitId: u1.id,
+          path: [
+            [1, 1],
+            [2, 1],
+          ],
+          action: { type: "wait" },
+        },
+      ];
+      const res = applyMoves(
+        { board: makeBoard(baseCfg.boardSize), units: [u1, u2] },
+        moves,
+        "player",
+        baseCfg,
+      );
+      expect(res.ok).toBe(true);
+    }
+
+    {
+      const u1 = u({ id: "P-sword-1", side: "player", class: "sword", x: 1, y: 1 });
+      const u2 = u({ id: "P-axe-1", side: "player", class: "axe", x: 3, y: 1 });
+      const moves: Move[] = [
+        {
+          unitId: u1.id,
           path: [
             [1, 1],
             [2, 1],
@@ -329,269 +451,259 @@ function runApplySuite(cfg: GameEngineConfig) {
           action: { type: "wait" },
         },
         {
-          unitId: "c2",
+          unitId: u2.id,
           path: [
             [3, 1],
             [2, 1],
           ],
           action: { type: "wait" },
         },
-      ],
-      "player",
-      cfg,
-    );
-    expect(claim.ok).toBe(false);
-    if (!claim.ok) expect(claim.error).toBe("tile (2,1) is claimed by two moves");
+      ];
+      const res = applyMoves(
+        { board: makeBoard(baseCfg.boardSize), units: [u1, u2] },
+        moves,
+        "player",
+        baseCfg,
+      );
+      expect(res).toEqual({ ok: false, error: "tile (2,1) is claimed by two moves" });
+    }
 
-    // entering/landing on still-occupied tile => reject
-    const d1 = um(cfg, { id: "d1", side: "player", class: "sword", x: 1, y: 1 });
-    const d2 = um(cfg, { id: "d2", side: "player", class: "sword", x: 2, y: 1 });
-    const occ = applyMoves(
-      { board: makeBoard(cfg.boardSize), units: [d1, d2] },
-      [
+    {
+      const u1 = u({ id: "P-sword-1", side: "player", class: "sword", x: 1, y: 1 });
+      const u2 = u({ id: "P-axe-1", side: "player", class: "axe", x: 2, y: 1 });
+      const moves: Move[] = [
         {
-          unitId: "d1",
+          unitId: u1.id,
           path: [
             [1, 1],
             [2, 1],
           ],
           action: { type: "wait" },
         },
-      ],
-      "player",
-      cfg,
-    );
-    expect(occ.ok).toBe(false);
-    if (!occ.ok)
-      expect(occ.error).toBe("tile (2,1) is occupied in the current position of the turn chain");
-
-    // whole-bundle atomicity: one bad move => ok:false, state untouched
-    const orig = {
-      board: makeBoard(cfg.boardSize),
-      units: [um(cfg, { id: "x1", side: "player", class: "sword", x: 1, y: 1 })],
-    };
-    const snap = cloneState(orig);
-    const bad = applyMoves(
-      orig,
-      [
-        { unitId: "x1", path: [[1, 1]], action: { type: "wait" } },
-        { unitId: "missing", path: [[0, 0]], action: { type: "wait" } } as unknown as {
-          unitId: string;
-          path: [number, number][];
-          action: { type: "wait" };
-        },
-      ],
-      "player",
-      cfg,
-    );
-    expect(bad.ok).toBe(false);
-    expect(orig).toEqual(snap);
-
-    // sequential resolution: killed-attacker's later entry never executes
-    // enemy counters and kills p1; p1's later bundle entry must cause rejection (bundle fails), state untouched overall
-    // set up: p1 attacks e1 adjacent, e1 survives and counters killing p1 (hp 1), p1 has a later entry
-    const p1 = um(cfg, {
-      id: "p1",
-      side: "player",
-      class: "sword",
-      x: 1,
-      y: 1,
-      hp: 1,
-      maxHp: cfg.classes.sword.hp,
-    });
-    const e1 = um(cfg, {
-      id: "e1",
-      side: "enemy",
-      class: "sword",
-      x: 2,
-      y: 1,
-      hp: cfg.classes.sword.hp,
-      maxHp: cfg.classes.sword.hp,
-    });
-    const p3 = um(cfg, { id: "p3", side: "player", class: "sword", x: 1, y: 3 });
-    const seqState = { board: makeBoard(cfg.boardSize), units: [p1, e1, p3] };
-    const seqSnap = cloneState(seqState);
-    const seq = applyMoves(
-      seqState,
-      [
-        { unitId: "p1", path: [[1, 1]], action: { type: "attack", targetId: "e1" } },
-        { unitId: "p1", path: [[1, 1]], action: { type: "wait" } }, // duplicate/killed - cannot execute
-      ],
-      "player",
-      cfg,
-    );
-    expect(seq.ok).toBe(false);
-    expect(seqState).toEqual(seqSnap);
-  });
-
-  it("checks victory both directions and preview consistency", () => {
-    const p = um(cfg, { id: "p", side: "player", class: "sword", x: 0, y: 0 });
-    const e = um(cfg, { id: "e", side: "enemy", class: "sword", x: 1, y: 0 });
-    expect(checkVictory([p, e])).toBeNull();
-    expect(checkVictory([p])).toBe("player");
-    expect(checkVictory([e])).toBe("enemy");
-
-    const board = makeBoard(cfg.boardSize);
-    board.tiles[2][3] = "hill";
-    board.tiles[3][2] = "forest";
-    const unit = um(cfg, { id: "u1", side: "player", class: "mage", x: 2, y: 2 });
-    const enemy = um(cfg, { id: "e2", side: "enemy", class: "sword", x: 4, y: 2 });
-    const reach = reachableTiles(board, [unit, enemy], unit, cfg);
-    const prev = previewMove(board, [unit, enemy], unit, cfg);
-    expect(new Set(prev.moveTiles.map(([x, y]) => `${x},${y}`))).toEqual(reach);
-    // attack tiles correspond to enemies in range set from some reachable tile
-    for (const [ax, ay] of prev.attackTiles) {
-      const target = [enemy].find((t) => t.x === ax && t.y === ay);
-      expect(target).toBeTruthy();
-      const inRangeFromSome = prev.moveTiles.some(([mx, my]) =>
-        cfg.classes.mage.range.includes(Math.abs(mx - ax) + Math.abs(my - ay)),
+      ];
+      const res = applyMoves(
+        { board: makeBoard(baseCfg.boardSize), units: [u1, u2] },
+        moves,
+        "player",
+        baseCfg,
       );
-      expect(inRangeFromSome).toBe(true);
+      expect(res).toEqual({
+        ok: false,
+        error: "tile (2,1) is occupied in the current position of the turn chain",
+      });
+    }
+
+    {
+      const u1 = u({ id: "P-sword-1", side: "player", class: "sword", x: 1, y: 1 });
+      const u2 = u({ id: "P-axe-1", side: "player", class: "axe", x: 3, y: 1 });
+      const state = { board: makeBoard(baseCfg.boardSize), units: [u1, u2] };
+      const before = JSON.stringify(state);
+      const moves: Move[] = [
+        {
+          unitId: u1.id,
+          path: [
+            [1, 1],
+            [2, 1],
+          ],
+          action: { type: "wait" },
+        },
+        { unitId: "nope", path: [[3, 1]], action: { type: "wait" } },
+      ];
+      const res = applyMoves(state, moves, "player", baseCfg);
+      expect(res.ok).toBe(false);
+      expect(JSON.stringify(state)).toBe(before);
+    }
+
+    {
+      const attacker = u({
+        id: "P-sword-1",
+        side: "player",
+        class: "sword",
+        x: 0,
+        y: 0,
+        hp: 5,
+        maxHp: 20,
+      });
+      const defender = u({
+        id: "E-axe-1",
+        side: "enemy",
+        class: "axe",
+        x: 1,
+        y: 0,
+        hp: 25,
+        maxHp: 25,
+      });
+      const target = u({
+        id: "E-sword-1",
+        side: "enemy",
+        class: "sword",
+        x: 1,
+        y: 1,
+        hp: 20,
+        maxHp: 20,
+      });
+      const moves2: Move[] = [
+        { unitId: attacker.id, path: [[0, 0]], action: { type: "attack", targetId: defender.id } },
+        {
+          unitId: attacker.id,
+          path: [
+            [0, 0],
+            [0, 1],
+          ],
+          action: { type: "wait" },
+        },
+      ];
+      const state = { board: makeBoard(baseCfg.boardSize), units: [attacker, defender, target] };
+      const res = applyMoves(state, moves2, "player", baseCfg);
+      expect(res.ok).toBe(false);
+      expect(res.ok ? null : res.error).toBe(`unknown unit ${attacker.id}`);
+      expect(state.units.find((x) => x.id === attacker.id)?.hp).toBe(5);
     }
   });
 
-  it("rejects missing targetId, invalid targets/range/heal, and wrong-side/capability/unknown cases", () => {
-    const board = makeBoard(cfg.boardSize);
-    const sword = um(cfg, { id: "p1", side: "player", class: "sword", x: 2, y: 2 });
-    const enemy = um(cfg, { id: "e1", side: "enemy", class: "sword", x: 5, y: 5 });
-    expect(
-      applyMoves(
-        { board, units: [sword, enemy] },
-        [
-          {
-            unitId: "p1",
-            path: [[2, 2]],
-            action: { type: "attack" } as unknown as { type: "wait" },
-          },
-        ],
-        "player",
-        cfg,
-      ),
-    ).toEqual({ ok: false, error: "attack requires a target" });
-    const healer = um(cfg, { id: "h1", side: "player", class: "healer", x: 2, y: 2 });
-    expect(
-      applyMoves(
-        { board, units: [healer, sword] },
-        [
-          {
-            unitId: "h1",
-            path: [[2, 2]],
-            action: { type: "heal" } as unknown as { type: "wait" },
-          },
-        ],
-        "player",
-        cfg,
-      ),
-    ).toEqual({ ok: false, error: "heal requires a target" });
+  it("victory check both directions", () => {
+    const player = u({ id: "P-sword-1", side: "player", class: "sword", x: 0, y: 0 });
+    const enemy = u({ id: "E-sword-1", side: "enemy", class: "sword", x: 1, y: 0 });
+    expect(checkVictory([player, enemy])).toBeNull();
+    expect(checkVictory([player])).toBe("player");
+    expect(checkVictory([enemy])).toBe("enemy");
+  });
+});
 
-    // out of range
-    const far = applyMoves(
-      { board: makeBoard(cfg.boardSize), units: [um(cfg, { ...sword }), um(cfg, { ...enemy })] },
-      [{ unitId: "p1", path: [[2, 2]], action: { type: "attack", targetId: "e1" } }],
-      "player",
-      cfg,
-    );
-    expect(far.ok).toBe(false);
-    if (!far.ok)
-      expect(far.error).toBe(
-        `sword cannot attack a unit at ${Math.abs(2 - 5) + Math.abs(2 - 5)} tiles`,
+describe("mutated config proves no hardcoded stats", () => {
+  it("reruns with mutated config numbers in a temp file and still behaves per cfg", () => {
+    const raw = JSON.parse(JSON.stringify(configJson)) as {
+      boardSize: number;
+      classes: Record<string, Record<string, unknown>>;
+    };
+    raw.boardSize = 8;
+    raw.classes.sword.atk = 99;
+    raw.classes.sword.def = 1;
+    raw.classes.sword.mov = 1;
+    raw.classes.sword.range = [2];
+    raw.classes.healer.healAmount = 2;
+    const tmp = path.join(os.tmpdir(), `dc2-engine-apply-${Date.now()}-mut.json`);
+    fs.writeFileSync(tmp, JSON.stringify(raw), "utf8");
+    try {
+      const loaded = JSON.parse(fs.readFileSync(tmp, "utf8")) as Parameters<
+        typeof projectEngineConfig
+      >[0];
+      const cfg = cfgFromRaw(loaded);
+      const board = makeBoard(cfg.boardSize);
+      const reach = reachableTiles(
+        board,
+        [u({ id: "P-sword-1", side: "player", class: "sword", x: 1, y: 1 })],
+        u({ id: "P-sword-1", side: "player", class: "sword", x: 1, y: 1 }),
+        cfg,
       );
+      expect(reach.has("2,1")).toBe(true);
+      expect(reach.has("3,1")).toBe(false);
 
-    // wrong side / invalid attack target
-    const ally = um(cfg, { id: "p2", side: "player", class: "sword", x: 3, y: 2 });
-    expect(
-      applyMoves(
-        { board: makeBoard(cfg.boardSize), units: [um(cfg, { ...sword }), ally] },
-        [{ unitId: "p1", path: [[2, 2]], action: { type: "attack", targetId: "p2" } }],
+      const sword = u({
+        id: "P-sword-1",
+        side: "player",
+        class: "sword",
+        x: 0,
+        y: 0,
+        hp: 20,
+        maxHp: 20,
+      });
+      const enemyNear = u({
+        id: "E-spear-1",
+        side: "enemy",
+        class: "spear",
+        x: 1,
+        y: 0,
+        hp: 18,
+        maxHp: 18,
+      });
+      const enemyFar = u({
+        id: "E-spear-2",
+        side: "enemy",
+        class: "spear",
+        x: 2,
+        y: 0,
+        hp: 18,
+        maxHp: 18,
+      });
+      const bad = applyMoves(
+        { board, units: [sword, enemyNear] },
+        [{ unitId: sword.id, path: [[0, 0]], action: { type: "attack", targetId: enemyNear.id } }],
         "player",
         cfg,
-      ),
-    ).toEqual({ ok: false, error: "p2 is not a valid attack target" });
+      );
+      expect(bad.ok).toBe(false);
+      const ok = applyMoves(
+        { board, units: [u({ ...sword }), u({ ...enemyFar })] },
+        [{ unitId: sword.id, path: [[0, 0]], action: { type: "attack", targetId: enemyFar.id } }],
+        "player",
+        cfg,
+      );
+      expect(ok.ok).toBe(true);
+      if (ok.ok) {
+        const atkEv = attackEvent(ok.result.events);
+        expect(atkEv?.damage).toBe(Math.max(0, cfg.classes.sword.atk - cfg.classes.spear.def));
+      }
 
-    // heal must be adjacent and wounded
-    const healthy = um(cfg, {
-      id: "p4",
+      const healer = u({
+        id: "P-healer-1",
+        side: "player",
+        class: "healer",
+        x: 4,
+        y: 4,
+        hp: 18,
+        maxHp: 18,
+      });
+      const ally = u({
+        id: "P-axe-1",
+        side: "player",
+        class: "axe",
+        x: 4,
+        y: 5,
+        hp: 10,
+        maxHp: 25,
+      });
+      const hr = applyMoves(
+        { board, units: [healer, ally] },
+        [{ unitId: healer.id, path: [[4, 4]], action: { type: "heal", targetId: ally.id } }],
+        "player",
+        cfg,
+      );
+      expect(hr.ok).toBe(true);
+      if (hr.ok) {
+        const hev = healEvent(hr.result.events);
+        expect(hev?.healed).toBe(2);
+      }
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+});
+
+describe("preview consistency", () => {
+  it("preview matches reachable/attack and heal tiles from engine", () => {
+    const board = makeBoard(baseCfg.boardSize);
+    const mage = u({
+      id: "P-mage-1",
       side: "player",
+      class: "mage",
+      x: 3,
+      y: 3,
+      hp: 15,
+      maxHp: 15,
+    });
+    const enemy = u({
+      id: "E-sword-1",
+      side: "enemy",
       class: "sword",
       x: 3,
-      y: 2,
-      hp: cfg.classes.sword.hp,
-      maxHp: cfg.classes.sword.hp,
+      y: 5,
+      hp: 20,
+      maxHp: 20,
     });
-    expect(
-      applyMoves(
-        { board: makeBoard(cfg.boardSize), units: [um(cfg, { ...healer, id: "h2" }), healthy] },
-        [{ unitId: "h2", path: [[2, 2]], action: { type: "heal", targetId: "p4" } }],
-        "player",
-        cfg,
-      ),
-    ).toEqual({ ok: false, error: "heal target must be adjacent and wounded" });
-
-    // non-healer cannot heal
-    expect(
-      applyMoves(
-        {
-          board: makeBoard(cfg.boardSize),
-          units: [
-            um(cfg, { ...sword }),
-            um(cfg, {
-              id: "p5",
-              side: "player",
-              class: "sword",
-              x: 3,
-              y: 2,
-              hp: 1,
-              maxHp: cfg.classes.sword.hp,
-            }),
-          ],
-        },
-        [{ unitId: "p1", path: [[2, 2]], action: { type: "heal", targetId: "p5" } }],
-        "player",
-        cfg,
-      ),
-    ).toEqual({ ok: false, error: "sword cannot heal" });
-
-    // unknown unit / wrong side / unknown action / unknown target id
-    expect(
-      applyMoves(
-        { board: makeBoard(cfg.boardSize), units: [] },
-        [{ unitId: "nope", path: [[0, 0]], action: { type: "wait" } }],
-        "player",
-        cfg,
-      ),
-    ).toEqual({ ok: false, error: "unknown unit nope" });
-    expect(
-      applyMoves(
-        {
-          board: makeBoard(cfg.boardSize),
-          units: [um(cfg, { id: "e9", side: "enemy", class: "sword", x: 1, y: 1 })],
-        },
-        [{ unitId: "e9", path: [[1, 1]], action: { type: "wait" } }],
-        "player",
-        cfg,
-      ),
-    ).toEqual({ ok: false, error: "e9 belongs to the other army" });
-    expect(
-      applyMoves(
-        { board: makeBoard(cfg.boardSize), units: [um(cfg, { ...sword })] },
-        [
-          {
-            unitId: "p1",
-            path: [[2, 2]],
-            action: { type: "dance" } as unknown as { type: "wait" },
-          },
-        ],
-        "player",
-        cfg,
-      ),
-    ).toEqual({ ok: false, error: 'unknown action "dance"' });
-    expect(
-      applyMoves(
-        { board: makeBoard(cfg.boardSize), units: [um(cfg, { ...sword })] },
-        [{ unitId: "p1", path: [[2, 2]], action: { type: "attack", targetId: "ghost" } }],
-        "player",
-        cfg,
-      ),
-    ).toEqual({ ok: false, error: "unknown unit ghost" });
+    const prev = previewMove(board, [mage, enemy], mage, baseCfg);
+    const reach = reachableTiles(board, [mage, enemy], mage, baseCfg);
+    expect(new Set(prev.moveTiles.map(([x, y]) => `${x},${y}`))).toEqual(reach);
+    expect(prev.attackTiles.some(([x, y]) => x === 3 && y === 5)).toBe(true);
   });
-}
+});

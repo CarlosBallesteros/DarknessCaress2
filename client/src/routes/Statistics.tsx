@@ -1,24 +1,27 @@
 import { useEffect, useState } from "react";
 import { TopMenu } from "../components/TopMenu";
 import { getMeta } from "../api/meta";
-import { getStats } from "../api/stats";
+import { getStats } from "../api/games";
 import type { Meta, Stats } from "../types";
 import "../styles/Statistics.css";
 
 export function Statistics() {
-  const [meta, setMeta] = useState<Meta | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [m, s] = await Promise.all([getMeta(), getStats()]);
+        const [s, m] = await Promise.all([getStats(), getMeta()]);
         if (!cancelled) {
-          setMeta(m);
           setStats(s);
+          setMeta(m);
         }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -28,60 +31,61 @@ export function Statistics() {
     };
   }, []);
 
+  const labelFor = (id: string) => meta?.personalities[id]?.label ?? id;
+
   return (
-    <div className="page-shell">
+    <main className="page-with-menu">
       <TopMenu />
-      <main className="page-content stats-page">
-        {loading || !stats ? (
-          <div className="spinner">Loading…</div>
-        ) : stats.gamesPlayed === 0 ? (
-          <section className="card stats-empty">Play your first battle.</section>
-        ) : (
+      <section className="stats-page">
+        <h1>Statistics</h1>
+        {error ? <div className="error-banner">{error}</div> : null}
+        {loading ? <div className="spinner">Loading…</div> : null}
+        {!loading && stats && stats.gamesPlayed === 0 ? <p>Play your first battle.</p> : null}
+        {!loading && stats ? (
           <>
-            <section className="card stats-totals">
-              <div className="stats-total-item">
-                <div className="stats-big">{stats.gamesPlayed}</div>
-                <div className="stats-label">Games played</div>
+            <div className="stats-totals">
+              <div className="stat-big">
+                <span className="stat-value">{stats.gamesPlayed}</span>
+                <span className="stat-label">Games</span>
               </div>
-              <div className="stats-total-item">
-                <div className="stats-big">{Math.round(stats.winRate * 100)}%</div>
-                <div className="stats-label">Win rate</div>
+              <div className="stat-big">
+                <span className="stat-value">{(stats.winRate * 100).toFixed(1)}%</span>
+                <span className="stat-label">Win rate</span>
               </div>
-              <div className="stats-total-item">
-                <div className="stats-big">
-                  {stats.wins} / {stats.losses}
-                </div>
-                <div className="stats-label">Wins / Losses</div>
+              <div className="stat-big">
+                <span className="stat-value">{stats.wins}</span>
+                <span className="stat-label">Wins</span>
               </div>
-            </section>
-            <section className="card">
-              <h2>By difficulty</h2>
-              <div className="table-wrap">
-                <table className="stats-table">
-                  <thead>
-                    <tr>
-                      <th>Difficulty</th>
-                      <th>Played</th>
-                      <th>Wins</th>
-                      <th>Losses</th>
+              <div className="stat-big">
+                <span className="stat-value">{stats.losses}</span>
+                <span className="stat-label">Losses</span>
+              </div>
+            </div>
+            <div className="stats-table-wrap">
+              <table className="stats-table">
+                <thead>
+                  <tr>
+                    <th>Difficulty</th>
+                    <th>Played</th>
+                    <th>Wins</th>
+                    <th>Losses</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.byDifficulty.map((row) => (
+                    <tr key={row.difficulty}>
+                      <td>{labelFor(row.difficulty)}</td>
+                      <td>{row.played}</td>
+                      <td>{row.wins}</td>
+                      <td>{row.losses}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {stats.byDifficulty.map((row) => (
-                      <tr key={row.difficulty}>
-                        <td>{meta?.personalities[row.difficulty]?.label ?? row.difficulty}</td>
-                        <td>{row.played}</td>
-                        <td>{row.wins}</td>
-                        <td>{row.losses}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
-        )}
-      </main>
-    </div>
+        ) : null}
+      </section>
+    </main>
   );
 }

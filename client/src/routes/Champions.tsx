@@ -1,23 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TopMenu } from "../components/TopMenu";
 import { getMeta } from "../api/meta";
-import { assetPath } from "../lib/assetPath";
-import { useAuth } from "../lib/auth";
-import type { ClassKey, Meta } from "../types";
+import type { Meta } from "../types";
+import { assetPath } from "../utils/assetPath";
 import "../styles/Champions.css";
 
-type LightboxState = { classKey: ClassKey; side: "player" | "enemy"; label: string } | null;
+const CLASS_ORDER = ["sword", "axe", "spear", "archer", "mage", "healer"];
 
 export function Champions() {
-  const { user } = useAuth();
   const [meta, setMeta] = useState<Meta | null>(null);
-  const [lightbox, setLightbox] = useState<LightboxState>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void getMeta().then((m) => {
-      if (!cancelled) setMeta(m);
-    });
+    (async () => {
+      try {
+        const m = await getMeta();
+        if (!cancelled) setMeta(m);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -25,92 +29,108 @@ export function Champions() {
 
   useEffect(() => {
     if (!lightbox) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightbox(null);
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") setLightbox(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [lightbox]);
 
-  const themeId = user?.theme || meta?.themes[0]?.id || "warriors-europe";
-  const classKeys = (meta ? (Object.keys(meta.classes) as ClassKey[]) : []) as ClassKey[];
+  const classes = useMemo(() => {
+    if (!meta) return [];
+    const keys = Object.keys(meta.classes);
+    return keys.sort((a, b) => {
+      const ia = CLASS_ORDER.indexOf(a);
+      const ib = CLASS_ORDER.indexOf(b);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+  }, [meta]);
 
   return (
-    <div className="page-shell">
+    <main className="page-with-menu">
       <TopMenu />
-      <main className="page-content champions-page">
-        {!meta ? (
-          <div className="spinner">Loading…</div>
-        ) : (
+      <section className="champions-page">
+        <h1>Champions</h1>
+        {error ? <div className="error-banner">{error}</div> : null}
+        {!meta ? <div className="spinner">Loading…</div> : null}
+        {meta ? (
           <div className="champions-grid">
-            {classKeys.map((classKey) => {
-              const cls = meta.classes[classKey];
-              const lore = meta.lore[classKey] ?? "";
+            {classes.map((key) => {
+              const c = meta.classes[key];
+              const theme = meta.themes[0]?.id ?? "warriors-europe";
+              const pPlayer = assetPath("portrait", theme, key, "player");
+              const pEnemy = assetPath("portrait", theme, key, "enemy");
+              const fPlayer = assetPath("portrait-full", theme, key, "player");
+              const fEnemy = assetPath("portrait-full", theme, key, "enemy");
               return (
-                <article key={classKey} className="card champion-card">
-                  <div className={`role-badge ${cls.role}`}>
-                    {cls.role === "attacker" ? "Attacker" : "Supporter"}
+                <article className="champion-card" key={key}>
+                  <div className={`role-badge role-${c.role}`}>
+                    {c.role === "attacker" ? "Attacker" : "Supporter"}
                   </div>
-                  <div className="champion-portraits">
-                    <button
-                      type="button"
-                      className="portrait-btn"
-                      onClick={() =>
-                        setLightbox({ classKey, side: "player", label: `${cls.label} (Player)` })
-                      }
-                    >
-                      <img
-                        src={assetPath("portrait", themeId, classKey, "player")}
-                        alt={`${cls.label} player portrait`}
-                      />
-                      <span className="portrait-label player">Player</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="portrait-btn"
-                      onClick={() =>
-                        setLightbox({ classKey, side: "enemy", label: `${cls.label} (Enemy)` })
-                      }
-                    >
-                      <img
-                        src={assetPath("portrait", themeId, classKey, "enemy")}
-                        alt={`${cls.label} enemy portrait`}
-                      />
-                      <span className="portrait-label enemy">Enemy</span>
-                    </button>
+                  <div className="portraits-row">
+                    <figure>
+                      <button
+                        type="button"
+                        className="portrait-btn"
+                        onClick={() => setLightbox({ src: fPlayer, alt: `${c.label} player` })}
+                      >
+                        <img
+                          src={pPlayer}
+                          alt={`${c.label} player portrait`}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+                          }}
+                        />
+                      </button>
+                      <figcaption className="side-label player">Player</figcaption>
+                    </figure>
+                    <figure>
+                      <button
+                        type="button"
+                        className="portrait-btn"
+                        onClick={() => setLightbox({ src: fEnemy, alt: `${c.label} enemy` })}
+                      >
+                        <img
+                          src={pEnemy}
+                          alt={`${c.label} enemy portrait`}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+                          }}
+                        />
+                      </button>
+                      <figcaption className="side-label enemy">Enemy</figcaption>
+                    </figure>
                   </div>
                   <div className="champion-stats-block">
-                    <h2 className="champion-label">{cls.label}</h2>
-                    <div className="champion-stats">
-                      <span>HP {cls.hp}</span>
-                      <span>ATK {cls.atk}</span>
-                      <span>DEF {cls.def}</span>
-                      <span>MOV {cls.mov}</span>
-                      <span>
-                        {cls.healAmount
-                          ? `Heal ${cls.healAmount}`
-                          : `RNG ${cls.range.join(",") || "-"}`}
-                      </span>
-                    </div>
+                    <h2>{c.label}</h2>
+                    <ul>
+                      <li>HP {c.hp}</li>
+                      <li>ATK {c.atk}</li>
+                      <li>DEF {c.def}</li>
+                      <li>MOV {c.mov}</li>
+                      <li>
+                        RNG{" "}
+                        {c.range.length
+                          ? c.range.join(", ")
+                          : c.healAmount
+                            ? `Heal ${c.healAmount} (adj.)`
+                            : "-"}
+                      </li>
+                      <li>Count {c.count}</li>
+                    </ul>
                   </div>
-                  <p className="champion-lore">{lore}</p>
+                  <p className="champion-lore">{meta.lore[key] ?? ""}</p>
                 </article>
               );
             })}
           </div>
-        )}
-      </main>
-
+        ) : null}
+      </section>
       {lightbox ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setLightbox(null)}>
-          <div className="lightbox" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={assetPath("portrait-full", themeId, lightbox.classKey, lightbox.side)}
-              alt={lightbox.label}
-            />
-          </div>
+        <div className="lightbox" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
+          <img src={lightbox.src} alt={lightbox.alt} />
         </div>
       ) : null}
-    </div>
+    </main>
   );
 }

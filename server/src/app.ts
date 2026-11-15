@@ -1,115 +1,143 @@
-﻿import cookieParser from "cookie-parser";
-import express, { type Express, type NextFunction, type Request, type Response } from "express";
+import cookieParser from "cookie-parser";
+import express, { type NextFunction, type Request, type Response } from "express";
+import bcrypt from "bcrypt";
 import fs from "node:fs";
 import path from "node:path";
-import { env } from "./env";
-import { config } from "./config";
-import { authRouter } from "./features/auth/routes";
-import { gamesRouter } from "./features/games/routes";
-import { metaRouter } from "./features/meta/routes";
-import { statsRouter } from "./features/stats/routes";
-import { usersRouter } from "./features/users/routes";
-import { wrapAsync } from "./features/wrapAsync";
-import { sweepAllStaleJobs } from "./features/games/staleRecovery";
+import { fileURLToPath } from "node:url";
+import type pg from "pg";
+import { config, type AppConfig } from "./config/index.js";
+import { createPool } from "./db/pool.js";
+import { runMigrations } from "./db/migrate.js";
+import { loadEnv } from "./env.js";
+import { getLlmClient, type LlmClient } from "./features/ai/llmClient.js";
+import { createAuthRouter } from "./features/auth/router.js";
+import { createRequireAuth } from "./features/auth/requireAuth.js";
+import { createGamesRouter } from "./features/games/router.js";
+import { startJobsSweep } from "./features/games/jobs.js";
+import { createMetaRouter } from "./features/meta/router.js";
+import { createStatsRouter } from "./features/stats/router.js";
+import { createUsersRouter } from "./features/users/router.js";
+import { wrapAsync } from "./features/wrapAsync.js";
 
-export function createApp(): Express {
-  // Config is loaded once at module initialization (server/src/config/index.ts).
-  void config;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+export interface ServerOptions {
+  pool: pg.Pool;
+  jwtSecret: string;
+  config: AppConfig;
+  llm?: LlmClient;
+}
+
+function createBaseApp() {
   const app = express();
-  app.set("trust proxy", 1);
   app.use(express.json());
   app.use(cookieParser());
-
   app.get(
     "/api/health",
-    wrapAsync(async (_req, res) => {
+    wrapAsync((_req, res) => {
       res.status(200).json({ ok: true });
     }),
   );
+  return app;
+}
 
-  app.use(authRouter);
-  app.use(usersRouter);
-  app.use(metaRouter);
-  app.use(gamesRouter);
-  app.use(statsRouter);
+export function createServer(options?: ServerOptions) {
+  const resolved: ServerOptions | null =
+    options ??
+    (() => {
+      const databaseUrl = process.env.DATABASE_URL;
+      const jwtSecret = process.env.JWT_SECRET;
+      if (databaseUrl && jwtSecret) {
+        return {
+          pool: createPool(databaseUrl),
+          jwtSecret,
+          config,
+        };
+      }
+      return null;
+    })();
 
-  if (env.NODE_ENV === "production") {
-    const clientDist = path.resolve(__dirname, "../../client/dist");
-    if (fs.existsSync(clientDist)) {
-      app.use(express.static(clientDist));
-      app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => {
-        res.sendFile(path.join(clientDist, "index.html"));
-      });
-    }
+  if (!resolved) {
+    const app = createBaseApp();
+    app.use("/api", createMetaRouter(config));
+    return app;
   }
+
+  const app = createBaseApp();
+  const requireAuth = createRequireAuth(resolved.pool, resolved.jwtSecret);
+  const llm = resolved.llm ?? getLlmClient();
+  app.use("/api", createMetaRouter(resolved.config));
+  app.use("/api", createAuthRouter(resolved.pool, resolved.jwtSecret));
+  app.use("/api", createUsersRouter(resolved.pool, resolved.config, requireAuth));
+  app.use("/api", createStatsRouter(resolved.pool, resolved.config, requireAuth));
+  app.use("/api", createGamesRouter(resolved.pool, resolved.config, requireAuth, llm));
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     void err;
     void _next;
-    res.status(500).json({ error: "Internal server error" });
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
+
+  // Production SPA: serve built client and fall back to index.html for non-API routes.
+  const clientDist = path.resolve(__dirname, "../../client/dist");
+  if (fs.existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    app.get(/^\/(?!api(?:\/|$)).*/, (_req, res) => {
+      res.sendFile(path.join(clientDist, "index.html"));
+    });
+  }
 
   return app;
 }
 
-export const app = createApp();
-export const createServer = createApp;
-
-let sweepTimer: NodeJS.Timeout | null = null;
-
-export function startIntervalSweep(): void {
-  if (sweepTimer) return;
-  const intervalMs = Math.max(1, config.ai.sweepIntervalSeconds) * 1000;
-  sweepTimer = setInterval(() => {
-    void sweepAllStaleJobs().catch((err) => {
-      console.error("stale sweep error", err);
-    });
-  }, intervalMs);
-  // do not keep process alive only for sweep in tests/tools contexts? in server it's fine
-  if (typeof sweepTimer.unref === "function") {
-    sweepTimer.unref();
-  }
-}
-
-async function ensureDefaultUser(): Promise<void> {
-  const { pool } = await import("./db/pool");
-  const { hashPassword } = await import("./features/auth/passwords");
-  // idempotent seed: test@email.com / Player1 / 12345678, bcrypt cost 10
-  const existing = await pool.query("SELECT id FROM users WHERE email = $1 OR username = $2", [
-    "test@email.com",
-    "Player1",
-  ]);
-  if ((existing.rowCount ?? 0) > 0) {
-    return;
-  }
-  const passwordHash = await hashPassword("12345678");
+async function ensureDefaultUser(pool: pg.Pool): Promise<void> {
+  const existing = await pool.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = $1 OR username = $2 LIMIT 1",
+    ["test@email.com", "Player1"],
+  );
+  if ((existing.rowCount ?? 0) > 0) return;
+  const passwordHash = await bcrypt.hash("12345678", 10);
   try {
-    await pool.query(`INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3)`, [
-      "test@email.com",
-      "Player1",
-      passwordHash,
-    ]);
+    await pool.query(
+      "INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3)",
+      ["test@email.com", "Player1", passwordHash],
+    );
   } catch (err) {
-    // conflicting user may have appeared concurrently; safe to skip
+    // Skipped safely if a conflicting user already exists (race/idempotency).
     const code = (err as { code?: string }).code;
     if (code !== "23505") throw err;
   }
 }
 
-export async function boot(): Promise<void> {
-  const { runMigrations } = await import("./db/migrate");
-  await runMigrations();
-  await ensureDefaultUser();
-  startIntervalSweep();
-  app.listen(env.PORT, () => {
-    console.log(`Server listening on ${env.PORT}`);
+function isDirectRun(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  return entry.endsWith("app.ts") || entry.endsWith("app.js");
+}
+
+async function boot(): Promise<void> {
+  const env = loadEnv();
+  const port = env.PORT;
+  const pool = createPool(env.DATABASE_URL);
+  await runMigrations(pool);
+  await ensureDefaultUser(pool);
+  const llm = getLlmClient();
+  // Interval sweep for stale background jobs (board design and AI turns).
+  startJobsSweep(pool, config, llm);
+  const app = createServer({
+    pool,
+    jwtSecret: env.JWT_SECRET,
+    config,
+    llm,
+  });
+  app.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
   });
 }
 
-if (require.main === module) {
-  void boot().catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+if (isDirectRun()) {
+  void boot();
 }

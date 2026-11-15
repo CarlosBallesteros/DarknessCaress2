@@ -15,11 +15,21 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-export const passwordChangeSchema = z.object({
+export const patchMeSchema = z
+  .object({
+    username: z
+      .string()
+      .min(3)
+      .max(20)
+      .regex(/^[a-zA-Z0-9_-]+$/)
+      .optional(),
+    theme: z.string().min(1).optional(),
+  })
+  .refine((data) => data.username !== undefined || data.theme !== undefined, {
+    message: "At least one field must be provided",
+  });
+
+export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8),
 });
-
-export type RegisterInput = z.infer<typeof registerSchema>;
-export type LoginInput = z.infer<typeof loginSchema>;
-export type PasswordChangeInput = z.infer<typeof passwordChangeSchema>;

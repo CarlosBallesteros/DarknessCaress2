@@ -1,753 +1,987 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { TopMenu } from "../components/TopMenu";
-import { ConfirmModal } from "../components/ConfirmModal";
-import { usePolling } from "../hooks/usePolling";
-import { endTurn, forfeitGame, getGame, getPreview, submitMoves } from "../api/games";
+import { endTurn, forfeitGame, getGame, previewUnit, submitMoves } from "../api/games";
 import { getMeta } from "../api/meta";
-import { ApiError } from "../api/request";
-import { assetPath } from "../lib/assetPath";
-import { computeDisplayPath, manhattan, type Point } from "../lib/pathDisplay";
-import { canSelectPlayerUnit, initialBoardUiState, stagedMovesReducer } from "../state/stagedMoves";
-import type { ClassKey, GameState, Meta, MoveBundle, Unit } from "../types";
+import { usePolling } from "../hooks/usePolling";
+import { boardReducer, initialBoardState, type StagedMove } from "../state/stagedMoves";
+import type { GameState, Meta, PreviewResponse, Unit } from "../types";
+import { ApiError } from "../types";
+import { assetPath } from "../utils/assetPath";
+import {
+  computeLocalMoveTiles,
+  filterAttackTilesFromDestination,
+  shortestPath,
+  shortestPathOverPassable,
+} from "../utils/path";
 import "../styles/GameBoard.css";
 
-const CLASS_ORDER: ClassKey[] = ["sword", "axe", "spear", "archer", "mage", "healer"];
+type Point = [number, number];
 
-function classOrderIndex(key: ClassKey): number {
-  const i = CLASS_ORDER.indexOf(key);
-  return i === -1 ? 999 : i;
+const DISPLAY_ORDER = ["sword", "axe", "spear", "archer", "mage", "healer"];
+
+function key(x: number, y: number): string {
+  return `${x},${y}`;
 }
 
-function tileClass(tile: string): string {
-  switch (tile) {
-    case "forest":
-      return "tile-forest";
-    case "hill":
-      return "tile-hill";
-    case "lake":
-      return "tile-lake";
-    case "river":
-      return "tile-river";
-    case "bridge":
-      return "tile-bridge";
-    case "rock":
-      return "tile-rock";
-    default:
-      return "tile-plain";
+function hpClass(hp: number, maxHp: number): string {
+  if (hp >= maxHp) return "hp-full";
+  const f = hp / maxHp;
+  if (f > 2 / 3) return "hp-green";
+  if (f >= 1 / 3) return "hp-amber";
+  return "hp-red";
+}
+
+function statusText(game: GameState, personaLabel: string): string {
+  if (game.status === "generating_board") return "The battlefield is being designed…";
+  if (game.status === "ai_turn") return "The darkness is thinking…";
+  if (game.status === "won") return "Victory";
+  if (game.status === "lost") return "Defeat";
+  return `Your turn — ${personaLabel}`;
+}
+
+function deriveGhostUnits(units: Unit[], staged: StagedMove[]): Unit[] {
+  const byId = new Map(units.map((u) => [u.id, { ...u }]));
+  for (const s of staged) {
+    const u = byId.get(s.unitId);
+    const dest = s.path[s.path.length - 1];
+    if (u && dest) {
+      u.x = dest[0];
+      u.y = dest[1];
+    }
   }
-}
-
-function unitLabel(unit: Unit, meta: Meta | null): string {
-  const base = meta?.classes[unit.class]?.label ?? unit.class;
-  const n = unit.id.split("-").pop();
-  return n ? `${base} #${n}` : base;
-}
-
-function parseMoveErrorIndex(message: string): number | null {
-  const m = /^move\s+(\d+):/i.exec(message);
-  if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) ? n - 1 : null;
+  return Array.from(byId.values());
 }
 
 export function GameBoard() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [meta, setMeta] = useState<Meta | null>(null);
   const [game, setGame] = useState<GameState | null>(null);
-  const [ui, dispatch] = useReducer(stagedMovesReducer, initialBoardUiState);
+  const [meta, setMeta] = useState<Meta | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [bannerError, setBannerError] = useState<string | null>(null);
-  const [showEndConfirm, setShowEndConfirm] = useState(false);
-  const [showForfeitConfirm, setShowForfeitConfirm] = useState(false);
+  const [boardState, dispatch] = useReducer(boardReducer, initialBoardState);
   const [submitting, setSubmitting] = useState(false);
-  const [endTurnBusy, setEndTurnBusy] = useState(false);
-  const [replayLock, setReplayLock] = useState(false);
-  const replayToken = useRef(0);
-  const prevStatus = useRef<GameState["status"] | null>(null);
-  const prevLastAi = useRef<string | null>(null);
+  const [inspectedPreview, setInspectedPreview] = useState<PreviewResponse | null>(null);
+  const [overlay, setOverlay] = useState<"none" | "victory" | "defeat">("none");
+  const [animatingAi, setAnimatingAi] = useState(false);
+  const [showForfeitConfirm, setShowForfeitConfirm] = useState(false);
+  const [forfeiting, setForfeiting] = useState(false);
+  const [endTurnConfirmCount, setEndTurnConfirmCount] = useState<number | null>(null);
+  const animatingRef = useRef(false);
+  const prevStatusRef = useRef<GameState["status"] | null>(null);
+  const lastAnimatedTurnRef = useRef<number | null>(null);
 
-  const loadAll = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!id) return;
-    const [g, m] = await Promise.all([getGame(id), meta ? Promise.resolve(meta) : getMeta()]);
-    setGame(g.game);
-    if (!meta) setMeta(m);
+    try {
+      const [gRes, mRes] = await Promise.all([
+        getGame(id),
+        meta ? Promise.resolve(meta) : getMeta(),
+      ]);
+      setGame(gRes.game);
+      if (!meta) setMeta(mRes as Meta);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to load game");
+    } finally {
+      setLoading(false);
+    }
   }, [id, meta]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await loadAll();
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadAll]);
+    void load();
+  }, [load]);
 
-  // polling while ai_turn or generating_board
-  usePolling(
-    () => {
-      if (!id || replayLock) return;
-      void getGame(id)
-        .then((res) => setGame(res.game))
-        .catch(() => {});
-    },
-    !!game && (game.status === "ai_turn" || game.status === "generating_board") && !replayLock,
-    3000,
-  );
-
-  // replay on transition to player_turn with new lastAiActions
   useEffect(() => {
     if (!game) return;
-    const lastKey = game.lastAiActions ? JSON.stringify(game.lastAiActions) : null;
-    const becamePlayerTurn = prevStatus.current === "ai_turn" && game.status === "player_turn";
-    const hasNewActions = !!lastKey && lastKey !== prevLastAi.current;
-    if (becamePlayerTurn && hasNewActions && game.lastAiActions && game.lastAiActions.length > 0) {
-      replayToken.current += 1;
-      const token = replayToken.current;
-      setReplayLock(true);
-      const total = game.lastAiActions.length * 120 + 120;
-      window.setTimeout(() => {
-        if (replayToken.current === token) {
-          setReplayLock(false);
-        }
-      }, total);
-    } else if (game.status !== "player_turn" || !hasNewActions) {
-      // ensure lock not stuck
-      if (game.status !== "ai_turn") setReplayLock(false);
-    }
-    prevStatus.current = game.status;
-    prevLastAi.current = lastKey;
+    if (game.status === "won") setOverlay("victory");
+    else if (game.status === "lost") setOverlay("defeat");
+    else setOverlay("none");
   }, [game]);
 
+  // AI action animation when status flips to player_turn with lastAiActions
   useEffect(() => {
-    return () => {
-      replayToken.current += 1;
-      setReplayLock(false);
-    };
-  }, []);
+    if (!game) return;
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = game.status;
+    if (prev === "ai_turn" && game.status === "player_turn") {
+      dispatch({ type: "reset" });
+      if (
+        game.lastAiActions &&
+        game.lastAiActions.length > 0 &&
+        lastAnimatedTurnRef.current !== game.turnNumber
+      ) {
+        lastAnimatedTurnRef.current = game.turnNumber;
+        animatingRef.current = true;
+        setAnimatingAi(true);
+        const total = game.lastAiActions.length * 120;
+        const t = window.setTimeout(() => {
+          animatingRef.current = false;
+          setAnimatingAi(false);
+        }, total);
+        return () => {
+          window.clearTimeout(t);
+          animatingRef.current = false;
+          setAnimatingAi(false);
+        };
+      }
+    }
+    // Safety: never leave animation state stuck if conditions no longer apply.
+    if (animatingRef.current && game.status !== "player_turn") {
+      animatingRef.current = false;
+      setAnimatingAi(false);
+    }
+    return;
+  }, [game?.status, game?.lastAiActions, game?.turnNumber]);
 
-  const themeId = (meta?.themes[0]?.id ?? "warriors-europe") as string;
+  const pollingActive =
+    !!game &&
+    (game.status === "ai_turn" || game.status === "generating_board") &&
+    !animatingAi &&
+    !submitting;
+  usePolling(load, pollingActive, 3000);
 
-  const unitsById = useMemo(() => {
-    const map = new Map<string, Unit>();
-    for (const u of game?.units ?? []) map.set(u.id, u);
-    return map;
-  }, [game]);
+  const boardSize = meta?.boardSize ?? 8;
+  const themeId = game && meta ? (meta.themes[0]?.id ?? "warriors-europe") : "warriors-europe";
+  const personaLabel =
+    game && meta
+      ? (meta.personalities[game.difficulty]?.label ?? game.difficulty)
+      : (game?.difficulty ?? "");
 
-  const stagedUnitIds = useMemo(
-    () => new Set(ui.stagedMoves.map((m) => m.unitId)),
-    [ui.stagedMoves],
+  const staged = boardState.staged;
+  const ghostUnits = useMemo(
+    () => (game ? deriveGhostUnits(game.units, staged) : []),
+    [game, staged],
   );
-
-  const boardSize = meta?.boardSize ?? game?.board.tiles.length ?? 8;
-  const tiles =
-    game?.board.tiles ??
-    Array.from({ length: boardSize }, () => Array.from({ length: boardSize }, () => "plain"));
-
-  const isBoardInteractive =
-    game?.status === "player_turn" && !submitting && !endTurnBusy && !replayLock;
-
-  const trayUnits = useMemo(() => {
-    const player = (game?.units ?? []).filter((u) => u.side === "player");
-    return [...player].sort((a, b) => {
-      const oa = classOrderIndex(a.class);
-      const ob = classOrderIndex(b.class);
-      if (oa !== ob) return oa - ob;
-      return a.id.localeCompare(b.id);
-    });
-  }, [game]);
-
-  const selectedUnit = ui.selectedUnitId ? (unitsById.get(ui.selectedUnitId) ?? null) : null;
-  const inspectUnit = ui.inspectUnitId ? (unitsById.get(ui.inspectUnitId) ?? null) : null;
-
-  const preview = ui.preview;
-
-  const effectiveMoveTiles = preview?.moveTiles ?? [];
-  const effectiveAttackTilesBase = preview?.attackTiles ?? [];
-  const effectiveHealTilesBase = preview?.healTiles ?? [];
-
-  const actionableAttackTiles = useMemo(() => {
-    if (!game || !meta || !preview) return [] as [number, number][];
-    if (ui.mode === "movePicked" && ui.pickedDestination && selectedUnit) {
-      const ranges = meta.classes[selectedUnit.class]?.range ?? [];
-      return effectiveAttackTilesBase.filter((t) => {
-        const enemy = (game.units ?? []).find(
-          (u) => u.side === "enemy" && u.x === t[0] && u.y === t[1],
-        );
-        if (!enemy) return false;
-        return ranges.includes(manhattan(ui.pickedDestination as Point, [enemy.x, enemy.y]));
-      });
+  const stagedUnitIds = new Set(staged.map((s) => s.unitId));
+  const stagedOriginKeys = new Set<string>();
+  if (game) {
+    for (const s of staged) {
+      const u = game.units.find((x) => x.id === s.unitId);
+      if (u) stagedOriginKeys.add(key(u.x, u.y));
     }
-    return effectiveAttackTilesBase;
-  }, [game, meta, preview, ui.mode, ui.pickedDestination, selectedUnit, effectiveAttackTilesBase]);
+  }
 
-  const actionableHealTiles = useMemo(() => {
-    if (!game || !preview) return [] as [number, number][];
-    if (selectedUnit?.class !== "healer") return [] as [number, number][];
-    if (ui.mode === "movePicked" && ui.pickedDestination) {
-      // allies adjacent to chosen destination, wounded
-      return (game.units ?? [])
-        .filter(
-          (u) =>
-            u.side === "player" &&
-            u.hp < u.maxHp &&
-            manhattan([u.x, u.y], ui.pickedDestination as Point) === 1,
-        )
-        .map((u) => [u.x, u.y] as [number, number]);
+  const effectiveMoveTiles = useMemo((): Point[] => {
+    if (!game || !meta) return [];
+    const mode = boardState.mode;
+    if (mode.kind === "unitSelected") {
+      const unit = game.units.find((u) => u.id === mode.unitId);
+      if (!unit) return [];
+      const cls = meta.classes[unit.class];
+      const mov = cls?.mov ?? 0;
+      const local = computeLocalMoveTiles(
+        game.board.tiles,
+        boardSize,
+        game.units,
+        unit.id,
+        mov,
+        staged,
+      );
+      if (staged.length > 0) return local;
+      return mode.preview.moveTiles as Point[];
     }
-    return effectiveHealTilesBase;
-  }, [game, preview, ui.mode, ui.pickedDestination, selectedUnit, effectiveHealTilesBase]);
+    if (mode.kind === "movePicked") return [];
+    return [];
+  }, [boardState.mode, game, meta, staged, boardSize]);
+
+  const selectableUnit = (unit: Unit): boolean => {
+    if (game?.status !== "player_turn") return false;
+    if (unit.side !== "player") return false;
+    if (unit.acted) return false;
+    if (stagedUnitIds.has(unit.id)) return false;
+    return true;
+  };
 
   const onSelectUnit = async (unit: Unit) => {
-    if (!id || !game || !isBoardInteractive) return;
-    setBannerError(null);
-    try {
-      const p = await getPreview(id, unit.id);
-      if (unit.side === "enemy") {
-        dispatch({ type: "inspectEnemy", unitId: unit.id, preview: p });
-      } else {
-        if (!canSelectPlayerUnit(unit, ui)) return;
-        dispatch({ type: "selectOwnUnit", unitId: unit.id, preview: p });
+    if (!game || !id) return;
+    if (game.status !== "player_turn") return;
+    if (animatingRef.current) return;
+
+    // enemy inspect / attack via clicking enemy sprite
+    if (unit.side === "enemy") {
+      const mode = boardState.mode;
+      if (mode.kind === "unitSelected") {
+        const own = game.units.find((u) => u.id === mode.unitId);
+        if (own && meta) {
+          const cls = meta.classes[own.class];
+          const range = cls?.range ?? [];
+          const d = Math.abs(unit.x - own.x) + Math.abs(unit.y - own.y);
+          if (range.includes(d)) {
+            const move: StagedMove = {
+              unitId: own.id,
+              path: [[own.x, own.y]],
+              action: { type: "attack", targetId: unit.id },
+            };
+            dispatch({ type: "stageMove", move });
+            return;
+          }
+        }
       }
-    } catch (err) {
-      if (err instanceof ApiError) setBannerError(err.message);
+      if (mode.kind === "movePicked") {
+        const own = game.units.find((u) => u.id === mode.unitId);
+        if (own) {
+          const cls = meta?.classes[own.class];
+          const range = cls?.range ?? [];
+          const d =
+            Math.abs(unit.x - mode.destination[0]) +
+            Math.abs(unit.y - mode.destination[1]);
+          if (range.includes(d)) {
+            const move: StagedMove = {
+              unitId: own.id,
+              path: mode.path,
+              action: { type: "attack", targetId: unit.id },
+            };
+            dispatch({ type: "stageMove", move });
+            return;
+          }
+        }
+      }
+      try {
+        const preview = await previewUnit(id, unit.id);
+        dispatch({ type: "inspectEnemy", unitId: unit.id, preview });
+        setInspectedPreview(preview);
+      } catch (e) {
+        setBannerError(e instanceof ApiError ? e.message : "Preview failed");
+      }
+      return;
     }
-  };
 
-  const tryStageAttackFromCurrent = (enemy: Unit): boolean => {
-    if (!selectedUnit || !preview || ui.mode !== "unitSelected") return false;
-    const here: [number, number] = [selectedUnit.x, selectedUnit.y];
-    const canHit = actionableAttackTiles.some((t) => t[0] === enemy.x && t[1] === enemy.y);
-    // allowed if target reachable from current tile and in preview attackTiles and within class range from current
-    if (!canHit) return false;
-    if (!meta) return false;
-    const ranges = meta.classes[selectedUnit.class]?.range ?? [];
-    if (!ranges.includes(manhattan(here, [enemy.x, enemy.y]))) return false;
-    const move: MoveBundle = {
-      unitId: selectedUnit.id,
-      path: [here],
-      action: { type: "attack", targetId: enemy.id },
-    };
-    dispatch({ type: "stageMove", move });
-    return true;
-  };
+    // own unit: in unitSelected, allow healer to heal a valid adjacent wounded ally without moving
+    if (mode.kind === "unitSelected") {
+      const own = game.units.find((u) => u.id === mode.unitId);
+      const cls = own && meta ? meta.classes[own.class] : undefined;
+      if (
+        own &&
+        cls?.healAmount !== undefined &&
+        unit.side === "player" &&
+        unit.id !== own.id &&
+        unit.hp < unit.maxHp
+      ) {
+        const adjacent = Math.abs(unit.x - own.x) + Math.abs(unit.y - own.y) === 1;
+        if (adjacent) {
+          dispatch({
+            type: "stageMove",
+            move: {
+              unitId: own.id,
+              path: [[own.x, own.y]],
+              action: { type: "heal", targetId: unit.id },
+            },
+          });
+          return;
+        }
+      }
+    }
 
-  const tryStageHealFromCurrent = (ally: Unit): boolean => {
-    if (!selectedUnit || selectedUnit.class !== "healer" || ui.mode !== "unitSelected")
-      return false;
-    if (ally.side !== "player" || ally.hp >= ally.maxHp) return false;
-    if (manhattan([selectedUnit.x, selectedUnit.y], [ally.x, ally.y]) !== 1) return false;
-    const here: [number, number] = [selectedUnit.x, selectedUnit.y];
-    const move: MoveBundle = {
-      unitId: selectedUnit.id,
-      path: [here],
-      action: { type: "heal", targetId: ally.id },
-    };
-    dispatch({ type: "stageMove", move });
-    return true;
+    // own unit: in movePicked, allow healer to heal a valid adjacent wounded ally by clicking it
+    if (mode.kind === "movePicked") {
+      const own = game.units.find((u) => u.id === mode.unitId);
+      const cls = own && meta ? meta.classes[own.class] : undefined;
+      if (own && cls?.healAmount !== undefined && unit.side === "player" && unit.hp < unit.maxHp) {
+        const adjacent =
+          Math.abs(unit.x - mode.destination[0]) + Math.abs(unit.y - mode.destination[1]) === 1;
+        if (adjacent) {
+          dispatch({
+            type: "stageMove",
+            move: {
+              unitId: own.id,
+              path: mode.path,
+              action: { type: "heal", targetId: unit.id },
+            },
+          });
+          return;
+        }
+      }
+      // clicking another own selectable unit in movePicked should reselect (consistent with tile handler)
+      if (unit.side === "player" && selectableUnit(unit)) {
+        try {
+          const preview = await previewUnit(id, unit.id);
+          dispatch({ type: "selectUnit", unitId: unit.id, preview });
+          setInspectedPreview(null);
+        } catch (e) {
+          setBannerError(e instanceof ApiError ? e.message : "Preview failed");
+        }
+        return;
+      }
+    }
+
+    if (!selectableUnit(unit)) return;
+    try {
+      const preview = await previewUnit(id, unit.id);
+      dispatch({ type: "selectUnit", unitId: unit.id, preview });
+      setInspectedPreview(null);
+    } catch (e) {
+      setBannerError(e instanceof ApiError ? e.message : "Preview failed");
+    }
   };
 
   const onTileClick = async (x: number, y: number) => {
-    if (!id || !game || !isBoardInteractive) return;
-    setBannerError(null);
+    if (!game || !id || !meta) return;
+    if (game.status !== "player_turn") return;
+    if (animatingRef.current) return;
+    const mode = boardState.mode;
 
-    const unitOnTile = (game.units ?? []).find((u) => u.x === x && u.y === y);
-
-    if (ui.mode === "idle") {
-      if (unitOnTile) void onSelectUnit(unitOnTile);
+    if (mode.kind === "unitSelected") {
+      const moveTiles = effectiveMoveTiles;
+      const isMoveTile = moveTiles.some(([mx, my]) => mx === x && my === y);
+      const clickedUnit = ghostUnits.find((u) => u.x === x && u.y === y);
+      if (clickedUnit && clickedUnit.side === "enemy") {
+        // enemy clicks handled in onSelectUnit generally, but tile click on enemy sprite area can bubble
+        await onSelectUnit(clickedUnit);
+        return;
+      }
+      if (isMoveTile) {
+        const own = game.units.find((u) => u.id === mode.unitId);
+        if (!own) return;
+        const start: Point =
+          staged.length > 0
+            ? (() => {
+                // recompute from ghost position
+                const g = ghostUnits.find((u) => u.id === own.id);
+                return g ? ([g.x, g.y] as Point) : ([own.x, own.y] as Point);
+              })()
+            : [own.x, own.y];
+        let path = shortestPath(start, [x, y], moveTiles);
+        if (!path) {
+          const blocked = new Set<string>();
+          // Treat enemy-occupied tiles as blocked for traversal; allies/others handled permissively in fallback.
+          for (const u of game.units) {
+            if (u.side !== own.side && u.hp > 0) blocked.add(`${u.x},${u.y}`);
+          }
+          // Don't block destination if it's the clicked tile (must be in moveTiles)
+          blocked.delete(`${x},${y}`);
+          const mov = meta.classes[own.class]?.mov ?? 0;
+          path = shortestPathOverPassable(game.board.tiles, boardSize, start, [x, y], blocked, mov);
+        }
+        if (!path) {
+          setBannerError("Could not compute a valid path to that tile.");
+          return;
+        }
+        dispatch({ type: "pickDestination", destination: [x, y], path });
+        return;
+      }
+      if (!clickedUnit) {
+        dispatch({ type: "clearMode" });
+      }
       return;
     }
 
-    if (ui.mode === "enemyInspect") {
-      if (unitOnTile && unitOnTile.side === "player" && canSelectPlayerUnit(unitOnTile, ui)) {
-        void onSelectUnit(unitOnTile);
-      } else if (unitOnTile && unitOnTile.side === "enemy") {
-        void onSelectUnit(unitOnTile);
+    if (mode.kind === "movePicked") {
+      const own = game.units.find((u) => u.id === mode.unitId);
+      if (!own) return;
+      const cls = meta.classes[own.class];
+      const range = cls?.range ?? [];
+      const rangeSet = new Set(range);
+      // Use effective (ghost-aware) positions so targets stay valid after staging earlier moves.
+      const targetAt = ghostUnits.find((u) => u.x === x && u.y === y && u.hp > 0);
+
+      // heal target: own wounded unit adjacent to destination
+      if (cls && cls.healAmount !== undefined) {
+        const adjacent =
+          Math.abs(x - mode.destination[0]) + Math.abs(y - mode.destination[1]) === 1;
+        if (
+          adjacent &&
+          targetAt &&
+          targetAt.side === "player" &&
+          targetAt.hp < targetAt.maxHp
+        ) {
+          dispatch({
+            type: "stageMove",
+            move: {
+              unitId: own.id,
+              path: mode.path,
+              action: { type: "heal", targetId: targetAt.id },
+            },
+          });
+          return;
+        }
+      }
+
+      // attack target: enemy within range from destination
+      const inRange = rangeSet.has(
+        Math.abs(x - mode.destination[0]) + Math.abs(y - mode.destination[1]),
+      );
+      if (inRange && targetAt && targetAt.side === "enemy") {
+        dispatch({
+          type: "stageMove",
+          move: {
+            unitId: own.id,
+            path: mode.path,
+            action: { type: "attack", targetId: targetAt.id },
+          },
+        });
+        return;
+      }
+
+      // clicking another own selectable unit -> reselect
+      if (targetAt && targetAt.side === "player" && selectableUnit(targetAt)) {
+        await onSelectUnit(targetAt);
+        return;
+      }
+      // clicking enemy not actionable -> inspect
+      if (targetAt && targetAt.side === "enemy") {
+        await onSelectUnit(targetAt);
+        return;
+      }
+      // empty or other -> back/idle
+      dispatch({ type: "backToSelected" });
+      return;
+    }
+
+    if (mode.kind === "enemyInspect" || mode.kind === "idle") {
+      const clickedUnit = game.units.find((u) => u.x === x && u.y === y && u.hp > 0);
+      if (clickedUnit) {
+        await onSelectUnit(clickedUnit);
       } else {
-        dispatch({ type: "clearSelection" });
+        dispatch({ type: "clearMode" });
       }
-      return;
-    }
-
-    if (ui.mode === "unitSelected" && selectedUnit) {
-      if (unitOnTile) {
-        if (unitOnTile.side === "enemy") {
-          if (tryStageAttackFromCurrent(unitOnTile)) return;
-          void onSelectUnit(unitOnTile); // inspect
-          return;
-        }
-        if (unitOnTile.side === "player") {
-          if (selectedUnit.class === "healer" && tryStageHealFromCurrent(unitOnTile)) return;
-          if (canSelectPlayerUnit(unitOnTile, ui)) {
-            void onSelectUnit(unitOnTile);
-            return;
-          }
-        }
-      }
-
-      const isMove = effectiveMoveTiles.some((t) => t[0] === x && t[1] === y);
-      if (isMove) {
-        const origin: [number, number] = [selectedUnit.x, selectedUnit.y];
-        const dest: [number, number] = [x, y];
-        const path = computeDisplayPath(origin, dest, effectiveMoveTiles);
-        if (path) {
-          dispatch({ type: "pickMoveDestination", destination: dest, path });
-          return;
-        }
-      }
-      dispatch({ type: "clearSelection" });
-      return;
-    }
-
-    if (ui.mode === "movePicked" && selectedUnit && ui.pickedDestination) {
-      if (unitOnTile) {
-        if (unitOnTile.side === "enemy") {
-          const canAttack = actionableAttackTiles.some(
-            (t) => t[0] === unitOnTile.x && t[1] === unitOnTile.y,
-          );
-          if (canAttack && ui.displayPath) {
-            dispatch({
-              type: "stageMove",
-              move: {
-                unitId: selectedUnit.id,
-                path: ui.displayPath,
-                action: { type: "attack", targetId: unitOnTile.id },
-              },
-            });
-            return;
-          }
-          void onSelectUnit(unitOnTile);
-          return;
-        }
-        if (unitOnTile.side === "player") {
-          const canHeal = actionableHealTiles.some(
-            (t) => t[0] === unitOnTile.x && t[1] === unitOnTile.y,
-          );
-          if (canHeal && ui.displayPath) {
-            dispatch({
-              type: "stageMove",
-              move: {
-                unitId: selectedUnit.id,
-                path: ui.displayPath,
-                action: { type: "heal", targetId: unitOnTile.id },
-              },
-            });
-            return;
-          }
-          if (canSelectPlayerUnit(unitOnTile, ui)) {
-            void onSelectUnit(unitOnTile);
-            return;
-          }
-        }
-      }
-      // click elsewhere while move picked - keep pick? Esc/cancel handled separately; treat as clear/cancel to selected
-      dispatch({ type: "cancelMovePick" });
-      return;
-    }
-
-    if (ui.mode === "staged") {
-      if (unitOnTile) void onSelectUnit(unitOnTile);
-      else dispatch({ type: "clearSelection" });
     }
   };
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (ui.mode === "movePicked") dispatch({ type: "cancelMovePick" });
-        else if (ui.mode === "unitSelected" || ui.mode === "enemyInspect")
-          dispatch({ type: "clearSelection" });
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        if (boardState.mode.kind === "movePicked") dispatch({ type: "backToSelected" });
+        else dispatch({ type: "clearMode" });
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ui.mode]);
+  }, [boardState.mode.kind]);
 
-  const unactedCount = useMemo(() => {
-    if (!game) return 0;
-    return (game.units ?? []).filter(
-      (u) => u.side === "player" && !u.acted && !stagedUnitIds.has(u.id),
-    ).length;
-  }, [game, stagedUnitIds]);
-
-  const performEndTurn = async () => {
-    if (!id || !game || game.status !== "player_turn") return;
-    setSubmitting(true);
-    setBannerError(null);
-    setShowEndConfirm(false);
-    try {
-      dispatch({ type: "beginSubmit" });
-      const movesRes = await submitMoves(id, ui.stagedMoves);
-      const afterMoves = movesRes.game;
-      setGame(afterMoves);
-      if (afterMoves.status === "won" || afterMoves.status === "lost") {
-        dispatch({ type: "submitSucceeded" });
-        return;
-      }
-      setEndTurnBusy(true);
-      const endRes = await endTurn(id);
-      setGame(endRes.game);
-      dispatch({ type: "submitSucceeded" });
-    } catch (err) {
-      if (err instanceof ApiError) {
-        const idx = parseMoveErrorIndex(err.message);
-        dispatch({ type: "submitFailed", error: err.message, errorMoveIndex: idx });
-        setBannerError(err.message);
-        // refresh authoritative state
-        try {
-          const fresh = await getGame(id);
-          setGame(fresh.game);
-        } catch {
-          // ignore
-        }
-      } else {
-        setBannerError("Failed to end turn");
-      }
-    } finally {
-      setSubmitting(false);
-      setEndTurnBusy(false);
-    }
-  };
-
-  const onEndTurnClick = () => {
-    if (!game || game.status !== "player_turn") return;
-    if (unactedCount > 0) {
-      setShowEndConfirm(true);
-    } else {
-      void performEndTurn();
-    }
-  };
-
-  const onForfeit = async () => {
-    if (!id) return;
-    try {
-      const res = await forfeitGame(id);
-      setGame(res.game);
-      setShowForfeitConfirm(false);
-    } catch (err) {
-      if (err instanceof ApiError) setBannerError(err.message);
-    }
-  };
-
-  const onStageWait = () => {
-    if (!selectedUnit || ui.mode !== "movePicked" || !ui.displayPath) return;
+  const waitInPlace = () => {
+    const mode = boardState.mode;
+    if (mode.kind !== "movePicked" || !game) return;
     dispatch({
       type: "stageMove",
-      move: { unitId: selectedUnit.id, path: ui.displayPath, action: { type: "wait" } },
+      move: { unitId: mode.unitId, path: mode.path, action: { type: "wait" } },
     });
   };
 
-  const headerUnit = ui.mode === "enemyInspect" ? inspectUnit : selectedUnit;
-  const personaLabel = game ? (meta?.personalities[game.difficulty]?.label ?? game.difficulty) : "";
+  const performEndTurn = async () => {
+    if (!game || !id) return;
+    setSubmitting(true);
+    setBannerError(null);
+    try {
+      const movesRes = await submitMoves(id, {
+        moves: staged.map((s) => ({ unitId: s.unitId, path: s.path, action: s.action })),
+      });
+      const afterMoves = movesRes.game;
+      setGame(afterMoves);
+      if (afterMoves.status === "won") {
+        setOverlay("victory");
+        dispatch({ type: "reset" });
+        return;
+      }
+      if (afterMoves.status === "lost") {
+        setOverlay("defeat");
+        dispatch({ type: "reset" });
+        return;
+      }
+      const endRes = await endTurn(id);
+      setGame(endRes.game);
+      dispatch({ type: "reset" });
+    } catch (e) {
+      if (e instanceof ApiError) {
+        setBannerError(e.message);
+        const m = /^move (\d+):/i.exec(e.message);
+        if (m) {
+          const idx = Number(m[1]) - 1;
+          dispatch({
+            type: "setError",
+            index: idx,
+            message: e.message,
+            flashUntil: Date.now() + 1200,
+          });
+        }
+      } else {
+        setBannerError("Failed to submit turn");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-  const showGenerating = game?.status === "generating_board";
+  const requestEndTurn = () => {
+    if (!game || !id) return;
+    const unacted = game.units.filter(
+      (u) => u.side === "player" && !u.acted && !stagedUnitIds.has(u.id),
+    );
+    if (unacted.length > 0) {
+      setEndTurnConfirmCount(unacted.length);
+      return;
+    }
+    void performEndTurn();
+  };
 
-  if (loading || !game || !meta) {
+  const confirmEndTurn = async () => {
+    setEndTurnConfirmCount(null);
+    await performEndTurn();
+  };
+
+  const requestForfeit = () => {
+    setShowForfeitConfirm(true);
+  };
+
+  const confirmForfeit = async () => {
+    if (!id) return;
+    setForfeiting(true);
+    setBannerError(null);
+    try {
+      const res = await forfeitGame(id);
+      setGame(res.game);
+      setOverlay("defeat");
+      setShowForfeitConfirm(false);
+    } catch (e) {
+      setBannerError(e instanceof ApiError ? e.message : "Failed to forfeit");
+    } finally {
+      setForfeiting(false);
+    }
+  };
+
+  const onUnstage = (index: number) => {
+    dispatch({ type: "unstage", index });
+  };
+
+  if (!id) return null;
+  if (loading && !game) {
     return (
-      <div className="page-shell">
+      <main className="page-with-menu">
         <TopMenu />
-        <main className="page-content">
-          <div className="spinner">Loading…</div>
-        </main>
-      </div>
+        <div className="spinner">Loading…</div>
+      </main>
     );
   }
+  if (error && !game) {
+    return (
+      <main className="page-with-menu">
+        <TopMenu />
+        <div className="error-banner">{error}</div>
+      </main>
+    );
+  }
+  if (!game) return null;
+
+  const tiles = game.board.tiles;
+  const unitsByPos = new Map<string, Unit>();
+  for (const u of ghostUnits) {
+    if (u.hp > 0) unitsByPos.set(key(u.x, u.y), u);
+  }
+  const selectedId =
+    boardState.mode.kind === "unitSelected" || boardState.mode.kind === "movePicked"
+      ? boardState.mode.unitId
+      : null;
+  const inspectedId = boardState.mode.kind === "enemyInspect" ? boardState.mode.unitId : null;
+
+  const mode = boardState.mode;
+  const moveOverlay = mode.kind === "unitSelected" ? effectiveMoveTiles : [];
+  let attackOverlay: Point[] = [];
+  let healOverlay: Point[] = [];
+  let inspectOverlay: Point[] = [];
+  if (mode.kind === "movePicked" && meta) {
+    const own = game.units.find((u) => u.id === mode.unitId);
+    const cls = own ? meta.classes[own.class] : undefined;
+    const range = cls?.range ?? [];
+    const rangeSet = new Set(range);
+    // Derive action targets from effective board state (includes staged ghosts) so options
+    // remain correct after staging earlier moves in the same turn.
+    attackOverlay = ghostUnits
+      .filter(
+        (u) =>
+          u.hp > 0 &&
+          u.side === "enemy" &&
+          rangeSet.has(
+            Math.abs(u.x - mode.destination[0]) + Math.abs(u.y - mode.destination[1]),
+          ),
+      )
+      .map((u) => [u.x, u.y] as Point);
+    if (cls?.healAmount !== undefined) {
+      healOverlay = ghostUnits
+        .filter(
+          (u) =>
+            u.hp > 0 &&
+            u.side === "player" &&
+            u.hp < u.maxHp &&
+            Math.abs(u.x - mode.destination[0]) + Math.abs(u.y - mode.destination[1]) === 1,
+        )
+        .map((u) => [u.x, u.y] as Point);
+    }
+  }
+  if (mode.kind === "unitSelected") {
+    // show union hints? spec: "overlay draws" and later filters; keep simple: show attack/heal from current reachable union subtly not required explicitly
+    // but action-from-current-tile uses preview.attackTiles/healTiles; show them for clarity when no dest picked
+    const own = game.units.find((u) => u.id === mode.unitId);
+    const ownCls = own && meta ? meta.classes[own.class] : undefined;
+    attackOverlay = (mode.preview.attackTiles as Point[]).filter(([ax, ay]) => {
+      if (!own || !ownCls) return false;
+      // reachable from current tile if distance from own position in range? preview is union from any reachable final tile;
+      // "attack from where I stand" allowed when target reachable from unit's CURRENT tile
+      const d = Math.abs(ax - own.x) + Math.abs(ay - own.y);
+      return ownCls.range.includes(d);
+    });
+    if (own && ownCls?.healAmount !== undefined) {
+      healOverlay = (mode.preview.healTiles as Point[]).filter(([hx, hy]) => {
+        return Math.abs(hx - own.x) + Math.abs(hy - own.y) === 1;
+      });
+    }
+  }
+  if (mode.kind === "enemyInspect") {
+    inspectOverlay = (mode.preview.moveTiles ?? []) as Point[];
+  }
+
+  const moveSet = new Set(moveOverlay.map(([x, y]) => key(x, y)));
+  const attackSet = new Set(attackOverlay.map(([x, y]) => key(x, y)));
+  const healSet = new Set(healOverlay.map(([x, y]) => key(x, y)));
+  const inspectSet = new Set(inspectOverlay.map(([x, y]) => key(x, y)));
+
+  const trayUnits = game.units
+    .filter((u) => u.side === "player" && u.hp > 0)
+    .sort((a, b) => {
+      const ia = DISPLAY_ORDER.indexOf(a.class);
+      const ib = DISPLAY_ORDER.indexOf(b.class);
+      if (ia !== ib) return ia - ib;
+      return a.id.localeCompare(b.id);
+    });
+
+  const selectedUnit = selectedId ? (game.units.find((u) => u.id === selectedId) ?? null) : null;
+  const inspectedUnit = inspectedId ? (game.units.find((u) => u.id === inspectedId) ?? null) : null;
+  const panelUnit = mode.kind === "enemyInspect" ? inspectedUnit : selectedUnit;
+  const panelPreview =
+    mode.kind === "enemyInspect"
+      ? inspectedPreview
+      : mode.kind === "unitSelected" || mode.kind === "movePicked"
+        ? mode.preview
+        : null;
+
+  const errorIdx = boardState.errorMoveIndex;
+  const flash = boardState.errorFlashUntil && Date.now() < boardState.errorFlashUntil;
 
   return (
-    <div className="page-shell">
+    <main className="page-with-menu board-screen">
       <TopMenu />
-      <main className="page-content board-screen-content">
-        <div className="board-layout">
-          <div className="board-left">
-            <div className={`phase-banner persona-${game.difficulty}`}>
-              <span className="persona-badge-inline">{personaLabel}</span>
-              <span>Turn {game.turnNumber}</span>
-              <span className="phase-status">
-                {game.status === "ai_turn"
-                  ? "The darkness is thinking…"
-                  : showGenerating
-                    ? "The battlefield is being designed…"
-                    : game.status === "player_turn"
-                      ? "Your turn"
-                      : game.status === "won"
-                        ? "Victory"
-                        : "Defeat"}
-              </span>
-            </div>
+      <div className={`phase-banner persona-${game.difficulty} status-${game.status}`}>
+        <span className={`persona-badge persona-${game.difficulty}`}>{personaLabel}</span>
+        <span>Turn {game.turnNumber}</span>
+        <span
+          className={game.status === "ai_turn" || game.status === "generating_board" ? "pulse" : ""}
+        >
+          {statusText(game, personaLabel)}
+        </span>
+      </div>
+      {bannerError || boardState.errorMessage ? (
+        <div className="error-banner">{boardState.errorMessage ?? bannerError}</div>
+      ) : null}
 
-            <div
-              className="board-grid"
-              style={{
-                gridTemplateColumns: `repeat(${boardSize}, 1fr)`,
-                gridTemplateRows: `repeat(${boardSize}, 1fr)`,
-              }}
-            >
-              {tiles.flatMap((row, y) =>
-                row.map((tile, x) => {
-                  const isMove =
-                    ui.mode !== "idle" &&
-                    ui.mode !== "staged" &&
-                    effectiveMoveTiles.some((t) => t[0] === x && t[1] === y);
-                  const isAttack = actionableAttackTiles.some((t) => t[0] === x && t[1] === y);
-                  const isHeal = actionableHealTiles.some((t) => t[0] === x && t[1] === y);
-                  const isInspect =
-                    ui.mode === "enemyInspect" &&
-                    effectiveMoveTiles.some((t) => t[0] === x && t[1] === y);
-                  const isPicked =
-                    ui.pickedDestination &&
-                    ui.pickedDestination[0] === x &&
-                    ui.pickedDestination[1] === y;
-                  const classes = [
-                    "board-tile",
-                    tileClass(tile),
-                    isMove ? "ov-move" : "",
-                    isAttack ? "ov-attack" : "",
-                    isHeal ? "ov-heal" : "",
-                    isInspect ? "ov-inspect" : "",
-                    isPicked ? "ov-selected-dest" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
-                  const u = (game.units ?? []).find((un) => un.x === x && un.y === y);
-                  const stagedOriginHere = ui.stagedMoves.some(
-                    (m) =>
-                      m.path.length > 0 &&
-                      m.path[0][0] === x &&
-                      m.path[0][1] === y &&
-                      !(m.path[m.path.length - 1][0] === x && m.path[m.path.length - 1][1] === y),
-                  );
-                  return (
-                    <div
-                      key={`${x}-${y}`}
-                      data-testid={`tile-${x}-${y}`}
-                      className={classes}
-                      onClick={() => void onTileClick(x, y)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") void onTileClick(x, y);
-                      }}
-                    >
-                      <img
-                        className="terrain-sprite"
-                        src={assetPath("terrain", tile)}
-                        alt=""
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).style.display = "none";
-                        }}
-                      />
-                      {stagedOriginHere ? <div className="staged-origin-marker" /> : null}
-                      {u ? (
-                        <div
-                          data-testid={`unit-${u.id}`}
-                          className={[
-                            "unit-sprite-wrap",
-                            `side-${u.side}`,
-                            u.acted || stagedUnitIds.has(u.id) ? "acted" : "",
-                            ui.selectedUnitId === u.id ? "selected-ring" : "",
-                            ui.inspectUnitId === u.id ? "inspect-ring" : "",
-                            ui.errorMoveIndex !== null &&
-                            ui.stagedMoves[ui.errorMoveIndex]?.unitId === u.id
-                              ? "error-ring"
-                              : "",
-                          ].join(" ")}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void onTileClick(x, y);
-                          }}
-                        >
-                          <img
-                            src={assetPath("sprite", themeId, u.class, u.side)}
-                            alt={`${u.side} ${u.class}`}
-                          />
-                          {u.hp < u.maxHp ? (
-                            <div className="hp-bar">
-                              <div
-                                className={`hp-fill ${u.hp / u.maxHp < 1 / 3 ? "hp-red" : u.hp / u.maxHp <= 2 / 3 ? "hp-amber" : "hp-green"}`}
-                                style={{
-                                  width: `${Math.max(0, Math.min(100, (u.hp / u.maxHp) * 100))}%`,
-                                }}
-                              />
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                }),
-              )}
-            </div>
-
-            {game.status === "won" || game.status === "lost" ? (
-              <div className={`result-overlay ${game.status}`}>
-                <div className="result-card card">
-                  <h2>{game.status === "won" ? "Victory" : "Defeat"}</h2>
-                  <button type="button" className="primary-btn" onClick={() => navigate("/play")}>
-                    Back to battles
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="board-right">
-            {bannerError || ui.submitError ? (
-              <div className="error-banner">{bannerError || ui.submitError}</div>
-            ) : null}
-
-            <section className="action-panel card">
-              {headerUnit ? (
-                <>
-                  <div className="action-header">
+      <div
+        className="board-layout"
+        style={{
+          ["--tile-size" as string]: `clamp(32px, calc((min(100vw, 1400px) / var(--board-split, 2) - 3rem) / ${boardSize}), 64px)`,
+        }}
+      >
+        <div className="board-wrap">
+          <div
+            className="board-grid"
+            style={{
+              gridTemplateColumns: `repeat(${boardSize}, var(--tile-size))`,
+              gridTemplateRows: `repeat(${boardSize}, var(--tile-size))`,
+            }}
+          >
+            {tiles.map((row, y) =>
+              row.map((tile, x) => {
+                const posKey = key(x, y);
+                const u = unitsByPos.get(posKey);
+                const isMove = moveSet.has(posKey);
+                const isAttack = attackSet.has(posKey);
+                const isHeal = healSet.has(posKey);
+                const isInspect = inspectSet.has(posKey);
+                const isSelected = !!u && u.id === selectedId;
+                const isInspected = !!u && u.id === inspectedId;
+                const isStagedOrigin =
+                  stagedOriginKeys.has(posKey) &&
+                  (!u ||
+                    u.id !==
+                      staged.find((s) => {
+                        const ou = game.units.find((uu) => uu.id === s.unitId);
+                        return ou && ou.x === x && ou.y === y;
+                      })?.unitId);
+                return (
+                  <div
+                    key={`${x}-${y}`}
+                    className={`tile tile-${tile} ${isMove ? "ov-move" : ""} ${isAttack ? "ov-attack" : ""} ${isHeal ? "ov-heal" : ""} ${isInspect ? "ov-inspect" : ""} ${isSelected ? "selected" : ""} ${isInspected ? "inspected" : ""} ${isStagedOrigin ? "staged-origin" : ""}`}
+                    data-testid={`tile-${x}-${y}`}
+                    onClick={() => void onTileClick(x, y)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") void onTileClick(x, y);
+                    }}
+                  >
                     <img
-                      className="action-portrait"
-                      src={assetPath(
-                        "portrait",
-                        themeId,
-                        headerUnit.class,
-                        headerUnit.side === "enemy" ? "enemy" : "player",
-                      )}
-                      alt={headerUnit.class}
+                      className="terrain-img"
+                      src={assetPath("terrain", tile)}
+                      alt=""
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
                     />
-                    <div>
-                      <div className="action-class-label">
-                        {meta.classes[headerUnit.class]?.label ?? headerUnit.class}
+                    {u ? (
+                      <div
+                        className={`unit-sprite ${u.side} ${u.acted || stagedUnitIds.has(u.id) ? "acted" : ""} ${flash && errorIdx !== null && staged[errorIdx]?.unitId === u.id ? "error-flash" : ""}`}
+                        data-testid={`unit-${u.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void onSelectUnit(u);
+                        }}
+                        title={u.id}
+                      >
+                        <img
+                          src={assetPath("sprite", themeId, u.class, u.side)}
+                          alt={`${u.side} ${u.class}`}
+                          onError={(e) => {
+                            const el = e.currentTarget as HTMLImageElement;
+                            el.style.display = "none";
+                            console.warn("Missing sprite", el.src);
+                          }}
+                        />
+                        {u.hp < u.maxHp ? (
+                          <div className={`hp-bar ${hpClass(u.hp, u.maxHp)}`}>
+                            <div
+                              className="hp-fill"
+                              style={{ width: `${Math.max(0, (u.hp / u.maxHp) * 100)}%` }}
+                            />
+                          </div>
+                        ) : null}
                       </div>
-                      <div className="action-mini-stats">
-                        HP {headerUnit.hp}/{headerUnit.maxHp} · ATK{" "}
-                        {meta.classes[headerUnit.class]?.atk ?? 0} · DEF{" "}
-                        {meta.classes[headerUnit.class]?.def ?? 0}
-                      </div>
+                    ) : null}
+                  </div>
+                );
+              }),
+            )}
+          </div>
+        </div>
+
+        <aside className="side-panel">
+          <div className="action-panel">
+            {panelUnit && meta ? (
+              <>
+                <div className="panel-header">
+                  <img
+                    className="panel-portrait"
+                    src={assetPath("portrait", themeId, panelUnit.class, panelUnit.side)}
+                    alt={`${panelUnit.class} portrait`}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+                    }}
+                  />
+                  <div>
+                    <div className="panel-class">
+                      {meta.classes[panelUnit.class]?.label ?? panelUnit.class}
+                    </div>
+                    <div className="panel-stats">
+                      HP {panelUnit.hp}/{panelUnit.maxHp} · ATK{" "}
+                      {meta.classes[panelUnit.class]?.atk ?? 0} · DEF{" "}
+                      {meta.classes[panelUnit.class]?.def ?? 0}
                     </div>
                   </div>
-                  {ui.mode === "enemyInspect" ? (
-                    <p className="action-hint">Inspecting enemy unit.</p>
-                  ) : ui.mode === "movePicked" ? (
-                    <div className="action-buttons">
-                      <button type="button" className="secondary-btn" onClick={onStageWait}>
-                        Wait
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-btn"
-                        onClick={() => dispatch({ type: "cancelMovePick" })}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="action-hint">Select a destination tile, or an action target.</p>
-                  )}
-                </>
-              ) : (
-                <p className="action-hint">Select one of your units to act.</p>
-              )}
-            </section>
-
-            <section className="staged-bar card">
-              <h3>Staged moves</h3>
-              {ui.stagedMoves.length === 0 ? (
-                <p className="muted">No moves staged.</p>
-              ) : (
-                <div className="staged-chips">
-                  {ui.stagedMoves.map((m, i) => {
-                    const u = unitsById.get(m.unitId);
-                    const dest = m.path[m.path.length - 1];
-                    const label = u ? unitLabel(u, meta) : m.unitId;
-                    const actionText =
-                      m.action.type === "attack"
-                        ? `attack ${m.action.targetId}`
-                        : m.action.type === "heal"
-                          ? `heal ${m.action.targetId}`
-                          : "wait";
-                    return (
-                      <button
-                        key={`${m.unitId}-${i}`}
-                        type="button"
-                        data-testid={`staged-chip-${i}`}
-                        className={`staged-chip ${ui.errorMoveIndex === i ? "error" : ""}`}
-                        onClick={() => dispatch({ type: "unstageMove", index: i })}
-                        disabled={!isBoardInteractive}
-                        title="Click to unstage"
-                      >
-                        {label} → ({dest?.[0]},{dest?.[1]}) {actionText}
-                      </button>
-                    );
-                  })}
                 </div>
-              )}
-            </section>
+                {mode.kind === "enemyInspect" ? (
+                  <p className="panel-hint">Inspecting enemy unit.</p>
+                ) : null}
+                {mode.kind === "unitSelected" ? (
+                  <div className="panel-actions">
+                    <p className="panel-hint">Select a destination tile or a valid target.</p>
+                    {panelUnit &&
+                    (panelPreview?.attackTiles ?? []).some(([ax, ay]) => {
+                      const cls = meta.classes[panelUnit.class];
+                      if (!cls) return false;
+                      return cls.range.includes(
+                        Math.abs(ax - panelUnit.x) + Math.abs(ay - panelUnit.y),
+                      );
+                    }) ? (
+                      <p className="panel-hint">
+                        You can attack from current position by clicking a highlighted enemy.
+                      </p>
+                    ) : null}
+                    <button type="button" onClick={() => dispatch({ type: "clearMode" })}>
+                      Cancel
+                    </button>
+                  </div>
+                ) : null}
+                {mode.kind === "movePicked" ? (
+                  <div className="panel-actions">
+                    <p className="panel-hint">
+                      Choose an action from the destination: attack, heal, or wait.
+                    </p>
+                    <button type="button" onClick={waitInPlace}>
+                      Wait
+                    </button>
+                    <button type="button" onClick={() => dispatch({ type: "backToSelected" })}>
+                      Cancel
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="panel-hint">Select one of your units to begin.</p>
+            )}
+          </div>
 
-            <section className="unit-tray card" aria-label="Your units">
-              {trayUnits.map((u) => {
-                const staged = stagedUnitIds.has(u.id);
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    className={`tray-chip ${u.acted || staged ? "acted" : ""} ${ui.selectedUnitId === u.id ? "selected" : ""}`}
-                    onClick={() => void onSelectUnit(u)}
-                    disabled={!isBoardInteractive || u.acted || staged}
-                  >
-                    <span className="tray-label">{unitLabel(u, meta)}</span>
-                    <span className="tray-hp">
-                      {u.hp}/{u.maxHp}
-                    </span>
-                  </button>
-                );
-              })}
-            </section>
+          <div className="staged-bar">
+            <h3>Staged moves</h3>
+            <div className="staged-chips">
+              {staged.map((s, i) => (
+                <button
+                  key={`${s.unitId}-${i}`}
+                  type="button"
+                  className={`staged-chip ${errorIdx === i ? "chip-error" : ""}`}
+                  data-testid={`staged-chip-${i}`}
+                  onClick={() => onUnstage(i)}
+                  title="Click to unstage"
+                >
+                  {s.unitId} → ({s.path[s.path.length - 1]?.[0]},{s.path[s.path.length - 1]?.[1]}){" "}
+                  {s.action.type}
+                  {"targetId" in s.action ? ` ${s.action.targetId}` : ""}
+                </button>
+              ))}
+            </div>
+          </div>
 
-            <section className="turn-footer card">
+      <div className="unit-tray">
+        {trayUnits.map((u) => (
+          <button
+            key={u.id}
+            type="button"
+            className={`tray-unit ${u.id === selectedId ? "selected" : ""} ${u.acted || stagedUnitIds.has(u.id) ? "acted" : ""}`}
+            onClick={() => void onSelectUnit(u)}
+          >
+            <span className="tray-label">{meta?.classes[u.class]?.label ?? u.class}</span>
+            <span className="tray-hp">
+              {u.hp}/{u.maxHp}
+            </span>
+          </button>
+        ))}
+      </div>
+
+
+      <footer className="turn-footer">
+        <button
+          type="button"
+          className="primary"
+          data-testid="end-turn"
+          onClick={requestEndTurn}
+          disabled={game.status !== "player_turn" || submitting || animatingAi}
+        >
+          End turn
+        </button>
+        <button
+          type="button"
+          data-testid="forfeit"
+          onClick={requestForfeit}
+          disabled={submitting || forfeiting}
+        >
+          Forfeit
+        </button>
+      </footer>
+        </aside>
+      </div>
+
+
+      {overlay === "victory" || overlay === "defeat" ? (
+        <div className="result-overlay">
+          <div className="result-card">
+            <h2>{overlay === "victory" ? "Victory" : "Defeat"}</h2>
+            <button type="button" onClick={() => navigate("/play")}>
+              Back to games
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {showForfeitConfirm ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !forfeiting) {
+              setShowForfeitConfirm(false);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !forfeiting) {
+              setShowForfeitConfirm(false);
+            }
+          }}
+          tabIndex={-1}
+        >
+          <div className="modal">
+            <h2>Forfeit battle?</h2>
+            <p>This battle will be counted as a loss.</p>
+            <div className="modal-actions">
               <button
                 type="button"
-                className="primary-btn"
-                data-testid="end-turn"
-                onClick={onEndTurnClick}
-                disabled={!isBoardInteractive}
+                className="secondary"
+                onClick={() => setShowForfeitConfirm(false)}
+                disabled={forfeiting}
               >
-                End turn
+                Cancel
               </button>
               <button
                 type="button"
-                className="danger-btn"
-                data-testid="forfeit"
-                onClick={() => setShowForfeitConfirm(true)}
-                disabled={game.status === "won" || game.status === "lost"}
+                className="danger"
+                data-testid="forfeit-confirm"
+                onClick={() => void confirmForfeit()}
+                disabled={forfeiting}
               >
                 Forfeit
               </button>
-            </section>
+            </div>
           </div>
         </div>
-      </main>
-
-      <ConfirmModal
-        open={showEndConfirm}
-        title={`${unactedCount} unit(s) have not acted`}
-        body={<p>End the turn anyway? The un-acted units simply skip this turn.</p>}
-        cancelLabel="Keep acting"
-        confirmLabel="End turn"
-        onCancel={() => setShowEndConfirm(false)}
-        onConfirm={() => void performEndTurn()}
-      />
-
-      <ConfirmModal
-        open={showForfeitConfirm}
-        title="Forfeit battle?"
-        body={<p>This battle will be counted as a loss.</p>}
-        cancelLabel="Cancel"
-        confirmLabel="Forfeit"
-        danger
-        onCancel={() => setShowForfeitConfirm(false)}
-        onConfirm={() => void onForfeit()}
-      />
-    </div>
+      ) : null}
+      {endTurnConfirmCount !== null ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !submitting) {
+              setEndTurnConfirmCount(null);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !submitting) {
+              setEndTurnConfirmCount(null);
+            }
+          }}
+          tabIndex={-1}
+        >
+          <div className="modal">
+            <h2>{`${endTurnConfirmCount} unit(s) have not acted`}</h2>
+            <p>End the turn anyway? The un-acted units simply skip this turn.</p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setEndTurnConfirmCount(null)}
+                disabled={submitting}
+              >
+                Keep acting
+              </button>
+              <button
+                type="button"
+                className="primary"
+                data-testid="end-turn-confirm"
+                onClick={() => void confirmEndTurn()}
+                disabled={submitting}
+              >
+                End turn
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </main>
   );
 }

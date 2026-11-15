@@ -1,66 +1,62 @@
-export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
+import { ApiError } from "../types";
+
+type UnauthorizedHandler = (fromPath?: string) => void;
+
+let onUnauthorized: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  onUnauthorized = handler;
+}
+
+function extractErrorMessage(data: unknown, status: number): string {
+  if (data && typeof data === "object" && "error" in data) {
+    const msg = (data as { error?: unknown }).error;
+    if (typeof msg === "string") return msg;
   }
+  return status >= 500 ? "Server error" : "Request failed";
 }
 
-function isPublicRoutePath(pathname: string): boolean {
-  return pathname === "/" || pathname === "/login" || pathname === "/register";
-}
+export async function request<T>(
+  path: string,
+  opts: RequestInit & { suppressUnauthorized?: boolean } = {},
+): Promise<T> {
+  const { suppressUnauthorized, ...init } = opts;
+  const headers = new Headers(init.headers ?? {});
+  const hasBody = init.body !== undefined && init.body !== null;
+  if (hasBody && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
-type RequestOptions = RequestInit & { suppressAuthRedirect?: boolean };
-
-export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const { suppressAuthRedirect, headers, body, ...rest } = opts;
-  const init: RequestInit = {
+  const response = await fetch(path, {
+    ...init,
+    headers,
     credentials: "include",
-    ...rest,
-    headers: {
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-      ...(headers ?? {}),
-    },
-  };
-  if (body !== undefined) {
-    init.body = body;
-  }
+  });
 
-  const res = await fetch(path, init);
-  if (res.status === 204) {
+  if (response.status === 204) {
     return undefined as T;
   }
 
   let data: unknown = null;
-  const text = await res.text();
+  const text = await response.text();
   if (text) {
     try {
-      data = JSON.parse(text) as unknown;
+      data = JSON.parse(text);
     } catch {
       data = null;
     }
   }
 
-  if (!res.ok) {
-    const message =
-      data &&
-      typeof data === "object" &&
-      "error" in data &&
-      typeof (data as { error: unknown }).error === "string"
-        ? (data as { error: string }).error
-        : `Request failed (${res.status})`;
-    const err = new ApiError(res.status, message);
-
-    if (res.status === 401 && !suppressAuthRedirect) {
-      const current = window.location.pathname;
-      if (!isPublicRoutePath(current)) {
-        const returnTo = current + window.location.search;
-        const url = `/login${returnTo ? `?from=${encodeURIComponent(returnTo)}` : ""}`;
-        window.location.assign(url);
-      }
+  if (!response.ok) {
+    const message = extractErrorMessage(data, response.status);
+    if (response.status === 401 && onUnauthorized && !suppressUnauthorized) {
+      const fromPath =
+        typeof window !== "undefined"
+          ? window.location.pathname + window.location.search
+          : undefined;
+      onUnauthorized(fromPath);
     }
-    throw err;
+    throw new ApiError(response.status, message);
   }
 
   return data as T;

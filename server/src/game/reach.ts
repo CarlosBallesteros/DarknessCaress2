@@ -1,4 +1,51 @@
-import type { Board, GameEngineConfig, Unit } from "./types";
+import type { Board, GameEngineConfig, Unit } from "./types.js";
+
+const key = (x: number, y: number) => `${x},${y}`;
+
+function inBounds(x: number, y: number, size: number): boolean {
+  return x >= 0 && y >= 0 && x < size && y < size;
+}
+
+function isWater(board: Board, x: number, y: number): boolean {
+  const tile = board.tiles[y]?.[x];
+  return tile === "lake" || tile === "river";
+}
+
+function occupantAt(units: Unit[], x: number, y: number): Unit | undefined {
+  return units.find((u) => u.x === x && u.y === y);
+}
+
+function isPassableStep(
+  board: Board,
+  units: Unit[],
+  mover: Unit,
+  x: number,
+  y: number,
+  cfg: GameEngineConfig,
+): boolean {
+  if (!inBounds(x, y, cfg.boardSize)) return false;
+  if (isWater(board, x, y)) return false;
+  const occ = occupantAt(units, x, y);
+  if (!occ) return true;
+  if (occ.id === mover.id) return true; // moving unit itself counts as free while it moves
+  if (occ.side === mover.side) return true; // may pass through allies
+  return false; // enemy blocks entry
+}
+
+function isStandableDest(
+  board: Board,
+  units: Unit[],
+  mover: Unit,
+  x: number,
+  y: number,
+  cfg: GameEngineConfig,
+): boolean {
+  if (!inBounds(x, y, cfg.boardSize)) return false;
+  if (isWater(board, x, y)) return false;
+  const occ = occupantAt(units, x, y);
+  if (!occ) return true;
+  return occ.id === mover.id; // only own origin allowed as "occupied" end (wait/self)
+}
 
 const DIRS: Array<[number, number]> = [
   [1, 0],
@@ -7,20 +54,34 @@ const DIRS: Array<[number, number]> = [
   [0, -1],
 ];
 
-function key(x: number, y: number): string {
-  return `${x},${y}`;
+interface Node {
+  x: number;
+  y: number;
+  dist: number;
+  prev: Node | null;
 }
 
-function inBounds(boardSize: number, x: number, y: number): boolean {
-  return x >= 0 && y >= 0 && x < boardSize && y < boardSize;
-}
-
-function isWalkableTile(tile: string): boolean {
-  return tile !== "lake" && tile !== "river";
-}
-
-function unitAt(units: Unit[], x: number, y: number): Unit | undefined {
-  return units.find((u) => u.x === x && u.y === y);
+function bfs(board: Board, units: Unit[], unit: Unit, cfg: GameEngineConfig): Map<string, Node> {
+  const start: Node = { x: unit.x, y: unit.y, dist: 0, prev: null };
+  const visited = new Map<string, Node>();
+  visited.set(key(start.x, start.y), start);
+  const queue: Node[] = [start];
+  const mov = cfg.classes[unit.class].mov;
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (cur.dist >= mov) continue;
+    for (const [dx, dy] of DIRS) {
+      const nx = cur.x + dx;
+      const ny = cur.y + dy;
+      const k = key(nx, ny);
+      if (visited.has(k)) continue;
+      if (!isPassableStep(board, units, unit, nx, ny, cfg)) continue;
+      const next: Node = { x: nx, y: ny, dist: cur.dist + 1, prev: cur };
+      visited.set(k, next);
+      queue.push(next);
+    }
+  }
+  return visited;
 }
 
 export function reachableTiles(
@@ -29,43 +90,13 @@ export function reachableTiles(
   unit: Unit,
   cfg: GameEngineConfig,
 ): Set<string> {
-  const size = cfg.boardSize;
-  const mov = cfg.classes[unit.class].mov;
-  const visited = new Map<string, number>();
-  const queue: Array<[number, number, number]> = [[unit.x, unit.y, 0]];
-  visited.set(key(unit.x, unit.y), 0);
-
-  while (queue.length > 0) {
-    const [x, y, d] = queue.shift()!;
-    if (d === mov) continue;
-    for (const [dx, dy] of DIRS) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (!inBounds(size, nx, ny)) continue;
-      const k = key(nx, ny);
-      if (visited.has(k)) continue;
-      const tile = board.tiles[ny]?.[nx];
-      if (tile === undefined || !isWalkableTile(tile)) continue;
-      const occ = unitAt(units, nx, ny);
-      if (occ && occ.id !== unit.id && occ.side !== unit.side) continue; // enemy blocks entry
-      // allies (and no one) can be entered/passed through; moving unit's own tile treated as free when relevant
-      visited.set(k, d + 1);
-      queue.push([nx, ny, d + 1]);
+  const visited = bfs(board, units, unit, cfg);
+  const result = new Set<string>();
+  for (const node of visited.values()) {
+    if (isStandableDest(board, units, unit, node.x, node.y, cfg)) {
+      result.add(key(node.x, node.y));
     }
   }
-
-  const result = new Set<string>();
-  for (const [k, d] of visited.entries()) {
-    const [xs, ys] = k.split(",");
-    const x = Number(xs);
-    const y = Number(ys);
-    const occ = unitAt(units, x, y);
-    // cannot end on any occupied tile (moving unit's current tile is fine to stay on)
-    if (occ && occ.id !== unit.id) continue;
-    if (d <= mov) result.add(k);
-  }
-  // ensure start is included even if somehow missed
-  result.add(key(unit.x, unit.y));
   return result;
 }
 
@@ -76,43 +107,39 @@ export function isPathLegal(
   path: [number, number][],
   cfg: GameEngineConfig,
 ): string | null {
-  if (path.length === 0) {
-    return "path must start at the unit's tile";
-  }
+  if (path.length === 0) return "path must start at the unit's tile";
   const [sx, sy] = path[0];
-  if (sx !== unit.x || sy !== unit.y) {
-    return "path must start at the unit's tile";
-  }
+  if (sx !== unit.x || sy !== unit.y) return "path must start at the unit's tile";
 
-  const size = cfg.boardSize;
   const mov = cfg.classes[unit.class].mov;
   const edges = path.length - 1;
-  if (edges > mov) {
-    return `path length ${edges} exceeds movement ${mov}`;
-  }
+  if (edges > mov) return `path length ${edges} exceeds movement ${mov}`;
 
+  // step-by-step legality
   for (let i = 1; i < path.length; i++) {
     const [px, py] = path[i - 1];
     const [x, y] = path[i];
+    if (!inBounds(x, y, cfg.boardSize)) {
+      return `path step (${x},${y}) is outside the board`;
+    }
     const man = Math.abs(x - px) + Math.abs(y - py);
     if (man !== 1) {
       return `path step (${x},${y}) is not adjacent to the previous step`;
     }
-    if (!inBounds(size, x, y)) {
-      return `path step (${x},${y}) is outside the board`;
-    }
-    const tile = board.tiles[y]?.[x];
-    if (tile === undefined || !isWalkableTile(tile)) {
+    if (isWater(board, x, y)) {
       return `path step (${x},${y}) is water`;
     }
-    const occ = unitAt(units, x, y);
-    if (occ && occ.id !== unit.id && occ.side !== unit.side) {
-      return `path enters an enemy unit at (${x},${y})`;
+    const occ = occupantAt(units, x, y);
+    if (occ && occ.id !== unit.id) {
+      if (occ.side !== unit.side) {
+        return `path enters an enemy unit at (${x},${y})`;
+      }
+      // ally: pass-through allowed, but cannot end on occupied tile (checked below)
     }
   }
 
   const [ex, ey] = path[path.length - 1];
-  const endOcc = unitAt(units, ex, ey);
+  const endOcc = occupantAt(units, ex, ey);
   if (endOcc && endOcc.id !== unit.id) {
     return "path ends on an occupied tile";
   }
@@ -120,8 +147,27 @@ export function isPathLegal(
   return null;
 }
 
-function manhattan(ax: number, ay: number, bx: number, by: number): number {
-  return Math.abs(ax - bx) + Math.abs(ay - by);
+export function pathTo(
+  board: Board,
+  units: Unit[],
+  unit: Unit,
+  dest: [number, number],
+  cfg: GameEngineConfig,
+): Array<[number, number]> | null {
+  const [dx, dy] = dest;
+  if (!isStandableDest(board, units, unit, dx, dy, cfg)) return null;
+  const visited = bfs(board, units, unit, cfg);
+  const node = visited.get(key(dx, dy));
+  if (!node) return null;
+  // reconstruct origin -> dest inclusive
+  const rev: Array<[number, number]> = [];
+  let cur: Node | null = node;
+  while (cur) {
+    rev.push([cur.x, cur.y]);
+    cur = cur.prev;
+  }
+  rev.reverse();
+  return rev;
 }
 
 export function previewMove(
@@ -145,36 +191,42 @@ export function previewMove(
   const attackSet = new Set<string>();
   const healSet = new Set<string>();
 
-  const rangeSet = new Set(cls.range);
-
-  if (unit.class === "healer") {
-    for (const k of reachable) {
-      const [xs, ys] = k.split(",");
-      const x = Number(xs);
-      const y = Number(ys);
-      for (const target of units) {
-        if (target.side !== unit.side) continue;
-        if (target.id === unit.id) continue;
-        if (target.hp <= 0) continue;
-        if (target.hp >= target.maxHp) continue;
-        if (manhattan(x, y, target.x, target.y) === 1) {
-          healSet.add(key(target.x, target.y));
+  if (cls.atk > 0 && cls.range.length > 0) {
+    // enemy tiles at Manhattan distance ∈ class range list from any reachable final tile
+    for (const enemy of units) {
+      if (enemy.side === unit.side) continue;
+      let can = false;
+      for (const k of reachable) {
+        const [xs, ys] = k.split(",");
+        const rx = Number(xs);
+        const ry = Number(ys);
+        const dist = Math.abs(enemy.x - rx) + Math.abs(enemy.y - ry);
+        if (cls.range.includes(dist)) {
+          can = true;
+          break;
         }
       }
+      if (can) attackSet.add(key(enemy.x, enemy.y));
     }
-  } else if (cls.atk > 0 && cls.range.length > 0) {
-    for (const k of reachable) {
-      const [xs, ys] = k.split(",");
-      const x = Number(xs);
-      const y = Number(ys);
-      for (const target of units) {
-        if (target.side === unit.side) continue;
-        if (target.hp <= 0) continue;
-        const d = manhattan(x, y, target.x, target.y);
-        if (rangeSet.has(d)) {
-          attackSet.add(key(target.x, target.y));
+  }
+
+  if (cls.healAmount !== undefined) {
+    // same-side units healable this turn: Manhattan-adjacent to any reachable final tile, hp < maxHp
+    for (const ally of units) {
+      if (ally.side !== unit.side) continue;
+      if (ally.hp >= ally.maxHp) continue;
+      let can = false;
+      for (const k of reachable) {
+        const [xs, ys] = k.split(",");
+        const rx = Number(xs);
+        const ry = Number(ys);
+        const dist = Math.abs(ally.x - rx) + Math.abs(ally.y - ry);
+        if (dist === 1) {
+          can = true;
+          break;
         }
       }
+      if (can) healSet.add(key(ally.x, ally.y));
     }
   }
 
@@ -188,65 +240,4 @@ export function previewMove(
   });
 
   return { moveTiles, attackTiles, healTiles };
-}
-
-export function pathTo(
-  board: Board,
-  units: Unit[],
-  unit: Unit,
-  dest: [number, number],
-  cfg: GameEngineConfig,
-): Array<[number, number]> | null {
-  const [dx, dy] = dest;
-  const size = cfg.boardSize;
-  if (!inBounds(size, dx, dy)) return null;
-  // dest must be standable in given snapshot
-  const endOcc = unitAt(units, dx, dy);
-  if (endOcc && endOcc.id !== unit.id) return null;
-  const tile = board.tiles[dy]?.[dx];
-  if (tile === undefined || !isWalkableTile(tile)) return null;
-
-  const mov = cfg.classes[unit.class].mov;
-  const startKey = key(unit.x, unit.y);
-  const prev = new Map<string, string | null>();
-  const dist = new Map<string, number>();
-  const queue: Array<[number, number]> = [[unit.x, unit.y]];
-  prev.set(startKey, null);
-  dist.set(startKey, 0);
-
-  while (queue.length > 0) {
-    const [x, y] = queue.shift()!;
-    const d = dist.get(key(x, y))!;
-    if (x === dx && y === dy) break;
-    if (d === mov) continue;
-    for (const [ox, oy] of DIRS) {
-      const nx = x + ox;
-      const ny = y + oy;
-      if (!inBounds(size, nx, ny)) continue;
-      const nk = key(nx, ny);
-      if (prev.has(nk)) continue;
-      const t = board.tiles[ny]?.[nx];
-      if (t === undefined || !isWalkableTile(t)) continue;
-      const occ = unitAt(units, nx, ny);
-      if (occ && occ.id !== unit.id && occ.side !== unit.side) continue;
-      prev.set(nk, key(x, y));
-      dist.set(nk, d + 1);
-      queue.push([nx, ny]);
-    }
-  }
-
-  const destKey = key(dx, dy);
-  if (!prev.has(destKey)) return null;
-  const d = dist.get(destKey)!;
-  if (d > mov) return null;
-
-  const path: Array<[number, number]> = [];
-  let cur: string | null = destKey;
-  while (cur !== null) {
-    const [xs, ys] = cur.split(",");
-    path.push([Number(xs), Number(ys)]);
-    cur = prev.get(cur) ?? null;
-  }
-  path.reverse();
-  return path;
 }

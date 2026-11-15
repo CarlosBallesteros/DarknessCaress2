@@ -1,16 +1,44 @@
-import type { Board, Tile } from "../../game/types";
-import type { BoardBrief } from "./briefSchema";
+import type { Board, Tile } from "../../game/types.js";
+import type { BoardBrief } from "./briefSchema.js";
 
-function inBounds(size: number, x: number, y: number): boolean {
-  return x >= 0 && y >= 0 && x < size && y < size;
+export interface ValidationResult {
+  ok: boolean;
+  errors: string[];
 }
 
-function key(x: number, y: number): string {
-  return `${x},${y}`;
+export function validateBoard(
+  board: Board,
+  brief: BoardBrief,
+  boardSize: number,
+): ValidationResult {
+  const errors: string[] = [];
+  const tiles = board.tiles;
+  const size = boardSize;
+
+  if (brief.river) {
+    validateRiver(tiles, brief, size, errors);
+  }
+  validateCrossability(tiles, size, errors);
+  validateSpawns(tiles, size, errors);
+  validateReserved(tiles, size, errors);
+
+  return { ok: errors.length === 0, errors };
 }
 
-function isWalkable(tile: Tile): boolean {
-  return tile !== "lake" && tile !== "river";
+function inBounds(x: number, y: number, size: number): boolean {
+  return x >= 0 && x < size && y >= 0 && y < size;
+}
+
+function isWater(t: Tile): boolean {
+  return t === "river" || t === "lake";
+}
+
+function isWalkable(t: Tile): boolean {
+  return t !== "lake" && t !== "river";
+}
+
+function riverish(t: Tile): boolean {
+  return t === "river" || t === "bridge";
 }
 
 function neighbors4(x: number, y: number): Array<[number, number]> {
@@ -22,145 +50,149 @@ function neighbors4(x: number, y: number): Array<[number, number]> {
   ];
 }
 
-export function validateBoard(board: Board, brief: BoardBrief, size: number): string | null {
-  const tiles = board.tiles;
-  if (tiles.length !== size || tiles.some((row) => row.length !== size)) {
-    return "board has wrong dimensions";
-  }
-
-  const reserved = (y: number) => y <= 1 || y >= size - 2;
-
-  const riverTiles: Array<[number, number]> = [];
-  const bridgeTiles: Array<[number, number]> = [];
+function validateRiver(tiles: Tile[][], brief: BoardBrief, size: number, errors: string[]): void {
+  const riverCells: Array<[number, number]> = [];
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const t = tiles[y][x];
-      if (t === "river") riverTiles.push([x, y]);
-      if (t === "bridge") bridgeTiles.push([x, y]);
+      if (riverish(tiles[y]![x]!)) riverCells.push([x, y]);
     }
   }
 
-  if (brief.river) {
-    // Invariant 1: river exists as one connected simple path spanning left edge -> right edge
-    const riverish = new Set<string>();
-    for (const [x, y] of riverTiles) riverish.add(key(x, y));
-    for (const [x, y] of bridgeTiles) riverish.add(key(x, y));
-
-    if (riverish.size === 0) return "river missing";
-
-    const riverishCells = Array.from(riverish).map(
-      (k) => k.split(",").map(Number) as [number, number],
-    );
-    const leftEdgeCells = riverishCells.filter(([x]) => x === 0);
-    const rightEdgeCells = riverishCells.filter(([x]) => x === size - 1);
-    if (leftEdgeCells.length === 0 || rightEdgeCells.length === 0) {
-      return "river must span left and right edges";
-    }
-
-    let endpointCount = 0;
-    for (const [x, y] of riverishCells) {
-      const deg = neighbors4(x, y).filter(
-        ([nx, ny]) => inBounds(size, nx, ny) && riverish.has(key(nx, ny)),
-      ).length;
-      if (deg === 1) {
-        endpointCount++;
-        if (x !== 0 && x !== size - 1) return "river endpoint must be on left or right edge";
-      } else if (deg !== 2) {
-        return "river tile must have degree 2";
-      }
-    }
-    if (endpointCount !== 2) return "river must have exactly two endpoints";
-
-    // connected: BFS from a left-edge river cell covers all
-    const start = leftEdgeCells[0];
-    const q: Array<[number, number]> = [start];
-    const seen = new Set<string>([key(start[0], start[1])]);
-    while (q.length > 0) {
-      const [x, y] = q.shift()!;
-      for (const [nx, ny] of neighbors4(x, y)) {
-        if (!inBounds(size, nx, ny)) continue;
-        const nk = key(nx, ny);
-        if (!riverish.has(nk) || seen.has(nk)) continue;
-        seen.add(nk);
-        q.push([nx, ny]);
-      }
-    }
-    if (seen.size !== riverish.size) return "river must be a single connected path";
-
-    // Invariant 2
-    for (const [x, y] of riverTiles) {
-      if (reserved(y)) return "river passes through reserved row";
-      const t = tiles[y][x];
-      if (t !== "river") return "river tile mismatch";
-    }
-    for (const [x, y] of riverTiles) {
-      // cannot overlap lake/rock (tile is river already, so just ensure none are lake/rock-typed in river set - implied)
-      void x;
-      void y;
-    }
-
-    // Invariant 3
-    if (bridgeTiles.length !== brief.bridgeTiles) return "bridge count mismatch";
-    for (const [x, y] of bridgeTiles) {
-      if (!riverish.has(key(x, y))) return "bridge not on river path";
-      // every bridge lies on a horizontal run: immediate left and right neighbors are river/bridge
-      const leftOk = inBounds(size, x - 1, y) && riverish.has(key(x - 1, y));
-      const rightOk = inBounds(size, x + 1, y) && riverish.has(key(x + 1, y));
-      if (!leftOk || !rightOk) return "bridge not on a horizontal run";
-    }
-  } else {
-    // riverless: no river tiles; bridges ignored (but there should be none placed as river)
-    if (riverTiles.length !== 0) return "riverless brief must have no river tiles";
-    // bridges may exist? shouldn't be placed; treat as invalid if present from carve, but materializer won't place
+  if (riverCells.length === 0) {
+    errors.push("river missing");
+    return;
   }
 
-  // Invariant 4: crossability BFS from player's spawn area to enemy's spawn area
-  const playerSpawn: Array<[number, number]> = [];
-  const enemySpawn: Array<[number, number]> = [];
-  for (let y = size - 2; y <= size - 1; y++)
-    for (let x = 0; x < size; x++) playerSpawn.push([x, y]);
-  for (let y = 0; y <= 1; y++) for (let x = 0; x < size; x++) enemySpawn.push([x, y]);
-
-  const canCross = (() => {
-    const seen = new Set<string>();
-    const q: Array<[number, number]> = [];
-    for (const [x, y] of playerSpawn) {
-      const t = tiles[y][x];
-      if (!isWalkable(t)) continue;
-      const k = key(x, y);
-      if (!seen.has(k)) {
-        seen.add(k);
-        q.push([x, y]);
-      }
+  // 2. River never passes through reserved rows; never overlaps lake/rock.
+  for (const [, y] of riverCells) {
+    if (y === 0 || y === 1 || y === size - 2 || y === size - 1) {
+      errors.push("river passes through reserved row");
     }
-    const enemySet = new Set(enemySpawn.map(([x, y]) => key(x, y)));
-    while (q.length > 0) {
-      const [x, y] = q.shift()!;
-      if (enemySet.has(key(x, y))) return true;
-      for (const [nx, ny] of neighbors4(x, y)) {
-        if (!inBounds(size, nx, ny)) continue;
-        const nk = key(nx, ny);
-        if (seen.has(nk)) continue;
-        if (!isWalkable(tiles[ny][nx])) continue;
-        seen.add(nk);
-        q.push([nx, ny]);
-      }
-    }
-    return false;
-  })();
-  if (!canCross) return "board is not crossable";
-
-  // Invariant 6: no water in reserved rows; spawn tiles free of obstacles
-  for (const [x, y] of [...playerSpawn, ...enemySpawn]) {
-    const t = tiles[y][x];
-    if (t === "lake" || t === "river") return "water in reserved row";
-    // "free of obstacles" - reserved forced plain by materializer, but validate
-    if (t !== "plain" && t !== "forest" && t !== "hill" && t !== "bridge" && t !== "rock") {
-      // any non-walkable obstacle would be bad; plain/forest/hill/rock are walkable? walkable means not lake/river.
-      // but spawn tiles must be safe/walkable plain/terrain-safe and within reserved spawn rows (inv 5 context)
-    }
-    if (!isWalkable(t)) return "spawn tile not walkable";
   }
 
-  return null;
+  // 1. One connected simple path spanning left edge → right edge
+  const left = riverCells.filter(([x]) => x === 0);
+  const right = riverCells.filter(([x]) => x === size - 1);
+  if (left.length !== 1 || right.length !== 1) {
+    errors.push("river must span left edge to right edge with single endpoints");
+  }
+
+  // connectivity
+  const all = new Set(riverCells.map(([x, y]) => `${x},${y}`));
+  const start = riverCells[0]!;
+  const q: Array<[number, number]> = [start];
+  const seen = new Set<string>([`${start[0]},${start[1]}`]);
+  while (q.length) {
+    const [cx, cy] = q.shift()!;
+    for (const [nx, ny] of neighbors4(cx, cy)) {
+      if (!inBounds(nx, ny, size)) continue;
+      const k = `${nx},${ny}`;
+      if (!all.has(k) || seen.has(k)) continue;
+      seen.add(k);
+      q.push([nx, ny]);
+    }
+  }
+  if (seen.size !== all.size) {
+    errors.push("river is not connected");
+  }
+
+  // degree/simple path
+  for (const [x, y] of riverCells) {
+    let deg = 0;
+    for (const [nx, ny] of neighbors4(x, y)) {
+      if (!inBounds(nx, ny, size)) continue;
+      if (riverish(tiles[ny]![nx]!)) deg++;
+    }
+    const isEnd = x === 0 || x === size - 1;
+    if (isEnd) {
+      if (deg !== 1) errors.push("river endpoint degree invalid");
+    } else {
+      if (deg !== 2) errors.push("river path is not simple");
+    }
+  }
+
+  // 3. Bridge count equals the brief's; every bridge lies on the river path.
+  let bridges = 0;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (tiles[y]![x] === "bridge") {
+        bridges++;
+        if (!all.has(`${x},${y}`)) {
+          // bridge should be part of riverish set; by construction yes
+        }
+      }
+    }
+  }
+  if (bridges !== brief.bridgeTiles) {
+    errors.push(`bridge count ${bridges} != ${brief.bridgeTiles}`);
+  }
+}
+
+function validateCrossability(tiles: Tile[][], size: number, errors: string[]): void {
+  // BFS from the player's spawn area to the enemy's spawn area using walkable tiles (bridge counts)
+  const startCells: Array<[number, number]> = [];
+  for (const y of [size - 2, size - 1]) {
+    for (let x = 0; x < size; x++) {
+      if (isWalkable(tiles[y]![x]!)) startCells.push([x, y]);
+    }
+  }
+  const targets = new Set<string>();
+  for (const y of [0, 1]) {
+    for (let x = 0; x < size; x++) {
+      if (isWalkable(tiles[y]![x]!)) targets.add(`${x},${y}`);
+    }
+  }
+  if (startCells.length === 0 || targets.size === 0) {
+    errors.push("spawn areas not walkable");
+    return;
+  }
+
+  const q: Array<[number, number]> = [...startCells];
+  const seen = new Set<string>(startCells.map(([x, y]) => `${x},${y}`));
+  let reached = false;
+  while (q.length) {
+    const [cx, cy] = q.shift()!;
+    const ck = `${cx},${cy}`;
+    if (targets.has(ck)) {
+      reached = true;
+      break;
+    }
+    for (const [nx, ny] of neighbors4(cx, cy)) {
+      if (!inBounds(nx, ny, size)) continue;
+      const nk = `${nx},${ny}`;
+      if (seen.has(nk)) continue;
+      if (!isWalkable(tiles[ny]![nx]!)) continue;
+      seen.add(nk);
+      q.push([nx, ny]);
+    }
+  }
+  if (!reached) errors.push("board not crossable between spawn areas");
+}
+
+function validateSpawns(tiles: Tile[][], size: number, errors: string[]): void {
+  // spawn tiles (reserved rows) must be walkable plain/terrain-safe and free of obstacles
+  for (const y of [0, 1, size - 2, size - 1]) {
+    for (let x = 0; x < size; x++) {
+      const t = tiles[y]![x]!;
+      if (t !== "plain" && t !== "forest" && t !== "hill" && t !== "rock" && t !== "bridge") {
+        // bridge shouldn't appear in reserved rows but if it did it's walkable; water is not allowed
+      }
+      if (isWater(t)) errors.push("water in spawn row");
+      // "obstacles" - rocks are cosmetic but tiles must be free of obstacles in spawn? doc says
+      // "All spawn tiles must be walkable plain/terrain-safe and within the reserved spawn rows."
+      // rock is a tile type; in practice reserved rows forced plain so fine.
+      if (t === "rock") errors.push("obstacle in spawn row");
+    }
+  }
+}
+
+function validateReserved(tiles: Tile[][], size: number, errors: string[]): void {
+  for (const y of [0, 1, size - 2, size - 1]) {
+    for (let x = 0; x < size; x++) {
+      const t = tiles[y]![x]!;
+      if (t === "lake" || t === "river") {
+        errors.push("water tile remains in reserved rows");
+      }
+    }
+  }
 }

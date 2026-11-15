@@ -1,72 +1,65 @@
 .stats-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  max-width: 900px;
+  width: min(1000px, 100% - 2rem);
+  margin: 0 auto;
+  padding: 1.25rem 0 2rem;
 }
-
-.stats-totals {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  text-align: center;
-}
-
-.stats-total-item {
-  padding: 0.25rem;
-}
-
-.stats-big {
-  font-size: clamp(1.6rem, 4vw, 2rem);
-  font-weight: 700;
-  color: var(--gold-soft);
-  line-height: 1.1;
-}
-
-.stats-label {
-  color: var(--text-dim);
-  margin-top: 0.2rem;
-}
-
-.stats-page h2 {
-  margin: 0 0 0.5rem;
+.stats-page h1,
+.champions-page h1,
+.profile-page h1 {
+  margin: 0 0 0.75rem;
   font-family: var(--font-display-soft);
 }
-
-.table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+.stats-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.85rem;
+  margin: 1rem 0 1.25rem;
 }
-
+.stat-big {
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-md);
+  padding: 0.9rem;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.stat-value {
+  display: block;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+  font-weight: 700;
+  color: var(--gold-soft);
+}
+.stat-label {
+  color: var(--text-dim);
+}
+.stats-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-md);
+  background: var(--ink-raised);
+}
 .stats-table {
   width: 100%;
   min-width: 420px;
   border-collapse: collapse;
 }
-
 .stats-table th,
 .stats-table td {
-  padding: 0.65rem 0.5rem;
-  border-bottom: 1px solid var(--ink-border);
+  padding: 0.7rem 0.75rem;
   text-align: left;
+  border-bottom: 1px solid var(--ink-border);
 }
-
 .stats-table th {
-  color: var(--text-dim);
   font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.stats-empty {
-  text-align: center;
-  font-size: 1.2rem;
   color: var(--text-dim);
+  background: color-mix(in srgb, var(--ink) 35%, transparent);
 }
-
-@media (max-width: 700px) {
-  .stats-totals {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+.stats-table tbody tr:last-child td {
+  border-bottom: none;
+}
+@media (max-width: 480px) {
+  .stats-page {
+    width: min(1000px, 100% - 1.5rem);
   }
   .stats-table {
     min-width: 360px;

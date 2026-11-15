@@ -1,135 +1,289 @@
-.games-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+.games-strip-page {
+  width: min(1200px, 100% - 2rem);
+  margin: 0 auto;
+  padding: 1.25rem 0 2rem;
 }
-
-.games-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1rem;
-  align-items: start;
-}
-
-.games-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  min-width: 0;
-}
-
-.strip-section h2 {
-  margin: 0 0 0.5rem;
-  font-family: var(--font-display-soft);
-  font-size: 1.35rem;
-}
-
-.windowed-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 0.5rem;
-  align-items: stretch;
-}
-
-.window-arrow {
-  border: 1px solid var(--ink-border);
-  background: var(--ink-raised);
-  color: var(--text);
-  border-radius: 8px;
-  min-width: 2.4rem;
-  padding: 0 0.4rem;
-  cursor: pointer;
-}
-
-.window-arrow:hover:not(:disabled) {
-  background: var(--surface-muted);
-}
-
-.window-cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  min-width: 0;
-}
-
-.game-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  cursor: pointer;
-  min-width: 0;
-  transition:
-    border-color 120ms ease,
-    transform 80ms ease;
-}
-
-.game-card:hover {
-  border-color: color-mix(in srgb, var(--gold) 40%, var(--ink-border));
-}
-
-.game-card:active {
-  transform: translateY(1px);
-}
-
-.game-card.dimmed {
-  opacity: 0.6;
-}
-
-.card-top {
+.strip-header {
   display: flex;
   justify-content: space-between;
-  gap: 0.4rem;
   align-items: flex-start;
-  flex-wrap: wrap;
-  padding-right: 1.75rem;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
 }
-
-.persona-badge,
-.status-badge {
-  font-size: 0.72rem;
-  line-height: 1.2;
-  padding: 0.18rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid var(--ink-border);
+.new-battle-button {
+  padding: 0.65rem 1.1rem;
+  background: var(--gold);
+  color: #1a1408;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-md);
+  font-weight: 700;
 }
-
-.persona-aggressive {
-  color: #fff;
-  background: color-mix(in srgb, var(--persona-aggressive) 72%, transparent);
-}
-.persona-defensive {
-  color: #fff;
-  background: color-mix(in srgb, var(--persona-defensive) 72%, transparent);
-}
-.persona-erratic {
-  color: #fff;
-  background: color-mix(in srgb, var(--persona-erratic) 72%, transparent);
-}
-
-.status-player {
-  color: #1a1406;
+.new-battle-button:hover:not(:disabled) {
   background: var(--gold-soft);
+  border-color: var(--gold-soft);
 }
-.status-ai {
-  color: #fff;
-  background: var(--blood-soft);
-  animation: pulse 1.6s ease-in-out infinite;
+.new-battle-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
-.status-gen {
-  color: #1a1406;
-  background: var(--gold);
-  animation: pulse 1.6s ease-in-out infinite;
+.empty-caption {
+  margin: 0.5rem 0 0;
+  color: var(--text-dim);
 }
-.status-won {
-  color: #1a1406;
-  background: var(--gold);
+.strip-empty {
+  margin: 0.25rem 0 0.75rem;
+  color: var(--text-dim);
 }
-.status-lost {
+.strip-row-title {
+  margin: 1.1rem 0 0.5rem;
+  font-size: 1.45rem;
+  font-family: var(--font-display-soft);
+}
+.strip-window {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+.strip-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 0.15rem 0 0.75rem;
+  min-width: 0;
+}
+.strip-arrow,
+.strip-arrow-spacer {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+.strip-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-md);
+  background: var(--ink-raised);
+  color: var(--text);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.strip-arrow:hover {
+  border-color: var(--gold);
+  color: var(--gold-soft);
+}
+.strip-arrow-spacer {
+  display: inline-block;
+}
+.game-card {
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-md);
+  padding: 0.55rem;
+  position: relative;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  min-width: 0;
+}
+.game-card.past {
+  opacity: 0.58;
+}
+.card-focus {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.card-focus:hover {
+  border: none;
+}
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  font-size: 0.82rem;
+  align-items: center;
+}
+.persona-badge,
+.badge {
+  padding: 0.12rem 0.45rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--ink-border);
+  line-height: 1.3;
+}
+.turn-label,
+.updated-label {
+  color: var(--text-dim);
+}
+.badge.your-turn {
+  color: #1a1408;
+  background: var(--gold-soft);
+  border-color: transparent;
+}
+.badge.ai-thinking {
   color: #fff;
   background: var(--blood);
+  border-color: transparent;
+  animation: pulse 1.2s infinite;
 }
-
+.badge.designing {
+  color: #1a1408;
+  background: var(--gold);
+  border-color: transparent;
+  animation: pulse 1.2s infinite;
+}
+.badge.victory {
+  color: #1a1408;
+  background: var(--gold);
+  border-color: transparent;
+}
+.badge.defeat {
+  color: #fff;
+  background: var(--blood-soft);
+  border-color: transparent;
+}
+.persona-aggressive .persona-badge,
+.persona-badge.persona-aggressive {
+  border-color: var(--persona-aggressive);
+}
+.persona-defensive .persona-badge,
+.persona-badge.persona-defensive {
+  border-color: var(--persona-defensive);
+}
+.persona-erratic .persona-badge,
+.persona-badge.persona-erratic {
+  border-color: var(--persona-erratic);
+}
+.card-menu-wrap {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+}
+.card-menu-btn {
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0.1rem 0.35rem;
+  line-height: 1;
+  background: color-mix(in srgb, var(--ink-raised) 80%, black 20%);
+  border: 1px solid var(--ink-border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+}
+.card-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.2rem);
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem;
+  z-index: 5;
+  box-shadow: var(--shadow-card);
+}
+.card-menu button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+}
+.mini-map {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.mini-tile {
+  width: 100%;
+  height: 100%;
+}
+.mini-dot {
+  position: absolute;
+  width: 10%;
+  height: 10%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.mini-dot.player {
+  background: #d7c06a;
+  box-shadow: 0 0 0 1px #fff4c7;
+}
+.mini-dot.enemy {
+  background: #b33232;
+  box-shadow: 0 0 0 1px #3a0000;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 30;
+}
+.modal {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.1rem;
+  box-shadow: var(--shadow-card);
+}
+.modal h2 {
+  margin-top: 0;
+  font-family: var(--font-display-soft);
+}
+.persona-choices {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.85rem 0 1rem;
+}
+.persona-choice {
+  flex: 1 1 140px;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--ink-border);
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+}
+.persona-choice.persona-aggressive {
+  background: var(--persona-aggressive);
+  border-color: var(--persona-aggressive);
+  color: #fff;
+}
+.persona-choice.persona-aggressive:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.persona-choice.persona-defensive {
+  background: var(--persona-defensive);
+  border-color: var(--persona-defensive);
+  color: #fff;
+}
+.persona-choice.persona-defensive:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.persona-choice.persona-erratic {
+  background: var(--persona-erratic);
+  border-color: var(--persona-erratic);
+  color: #fff;
+}
+.persona-choice.persona-erratic:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
 @keyframes pulse {
   0%,
   100% {
@@ -139,192 +293,34 @@
     opacity: 0.55;
   }
 }
-
-.mini-map {
-  position: relative;
-  display: grid;
-  aspect-ratio: 1 / 1;
-  width: 100%;
-  max-width: 200px;
-  margin: 0 auto;
-  border: 1px solid var(--ink-border);
-  border-radius: 4px;
-  overflow: hidden;
-  background: var(--tile-plain);
-}
-
-.mini-tile {
-  width: 100%;
-  height: 100%;
-}
-
-.mini-dot {
-  position: absolute;
-  border-radius: 999px;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
-}
-.mini-dot.player {
-  background: var(--gold-soft);
-}
-.mini-dot.enemy {
-  background: var(--blood-soft);
-}
-
-.card-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  color: var(--text-dim);
-  font-size: 0.82rem;
-}
-
-.card-menu-wrap {
-  position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
-}
-
-.card-menu-btn {
-  border: 1px solid var(--ink-border);
-  background: var(--ink-raised);
-  color: var(--text);
-  border-radius: 6px;
-  width: 1.8rem;
-  height: 1.8rem;
-  cursor: pointer;
-}
-
-.card-menu-btn:hover {
-  background: var(--surface-muted);
-}
-
-.card-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.2rem);
-  background: var(--ink-raised);
-  border: 1px solid var(--ink-border);
-  border-radius: 8px;
-  min-width: 120px;
-  z-index: 5;
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-}
-
-.card-menu-item {
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  color: var(--text);
-  padding: 0.55rem 0.7rem;
-  cursor: pointer;
-}
-
-.card-menu-item:hover {
-  background: var(--surface-muted);
-}
-
-.empty-row {
-  grid-column: 1 / -1;
-  text-align: center;
-  color: var(--text-dim);
-  min-height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.new-battle-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  position: sticky;
-  top: 5.5rem;
-}
-
-.new-battle-btn {
-  white-space: nowrap;
-}
-
-.cap-note {
-  color: var(--text-dim);
-  font-size: 0.85rem;
-  max-width: 200px;
-}
-
-.persona-choices {
-  display: grid;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.persona-choice {
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 8px;
-  padding: 0.75rem 0.9rem;
-  cursor: pointer;
-  font-weight: 600;
-  color: #fff;
-}
-
-.persona-choice:hover:not(:disabled) {
-  filter: brightness(1.06);
-}
-
-.persona-choice.persona-aggressive {
-  background: var(--persona-aggressive);
-}
-.persona-choice.persona-defensive {
-  background: var(--persona-defensive);
-}
-.persona-choice.persona-erratic {
-  background: var(--persona-erratic);
-}
-
-@media (max-width: 900px) {
-  .games-layout {
-    grid-template-columns: 1fr;
+@media (max-width: 700px) {
+  .games-strip-page {
+    width: min(1200px, 100% - 1.5rem);
   }
-  .new-battle-panel {
-    position: static;
-    order: -1;
-    align-items: flex-start;
-  }
-  .cap-note {
-    max-width: none;
-  }
-}
-
-@media (max-width: 640px) {
-  .windowed-row {
+  .strip-window {
+    grid-template-columns: 2.1rem minmax(0, 1fr) 2.1rem;
     gap: 0.35rem;
   }
-  .window-arrow {
-    min-width: 2rem;
-    padding: 0 0.2rem;
+  .strip-row {
+    gap: 0.5rem;
   }
-  .window-cards {
-    gap: 0.4rem;
+  .strip-arrow,
+  .strip-arrow-spacer {
+    width: 2.1rem;
+    height: 2.1rem;
   }
-  .game-card {
-    padding: 0.6rem;
+}
+@media (max-width: 420px) {
+  .strip-window {
+    grid-template-columns: 1.9rem minmax(0, 1fr) 1.9rem;
+  }
+  .strip-row {
     gap: 0.35rem;
   }
-  .card-top {
-    padding-right: 1.6rem;
-  }
-  .persona-badge,
-  .status-badge {
-    font-size: 0.62rem;
-    padding: 0.12rem 0.3rem;
-  }
-  .card-meta {
-    font-size: 0.72rem;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-  .mini-map {
-    max-width: none;
+  .strip-arrow,
+  .strip-arrow-spacer {
+    width: 1.9rem;
+    height: 1.9rem;
+    font-size: 1.2rem;
   }
 }

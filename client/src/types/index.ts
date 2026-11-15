@@ -8,6 +8,8 @@ export interface User {
   createdAt: string;
 }
 
+export type TileCode = "plain" | "forest" | "hill" | "lake" | "rock" | "river" | "bridge";
+
 export interface Board {
   tiles: string[][];
 }
@@ -15,7 +17,7 @@ export interface Board {
 export interface Unit {
   id: string;
   side: "player" | "enemy";
-  class: ClassKey;
+  class: string;
   x: number;
   y: number;
   hp: number;
@@ -23,21 +25,37 @@ export interface Unit {
   acted: boolean;
 }
 
-export interface AiAction {
-  unitId: string;
-  path: [number, number][];
-  action:
-    | { type: "attack"; targetId: string }
-    | { type: "heal"; targetId: string }
-    | { type: "wait" };
-  outcome: {
-    targetId: string;
-    damage: number;
-    targetHp: number;
-    targetDied: boolean;
-    counter: { damage: number; attackerHp: number } | null;
-  } | null;
-}
+export type AiAction =
+  | {
+      unitId: string;
+      path: [number, number][];
+      action: { type: "attack"; targetId: string };
+      outcome: {
+        targetId: string;
+        damage: number;
+        targetHp: number;
+        targetDied: boolean;
+        counter: { damage: number; attackerHp: number } | null;
+      } | null;
+    }
+  | {
+      unitId: string;
+      path: [number, number][];
+      action: { type: "heal"; targetId: string };
+      outcome: {
+        targetId: string;
+        damage: number;
+        targetHp: number;
+        targetDied: boolean;
+        counter: { damage: number; attackerHp: number } | null;
+      } | null;
+    }
+  | {
+      unitId: string;
+      path: [number, number][];
+      action: { type: "wait" };
+      outcome: null;
+    };
 
 export type GameStatus = "generating_board" | "player_turn" | "ai_turn" | "won" | "lost";
 
@@ -77,10 +95,10 @@ export interface MetaClass {
 export interface Meta {
   boardSize: number;
   maxActiveGames: number;
-  classes: Record<ClassKey, MetaClass>;
+  classes: Record<string, MetaClass>;
   personalities: Record<string, { label: string }>;
   themes: Array<{ id: string; label: string }>;
-  lore: Record<ClassKey, string>;
+  lore: Record<string, string>;
 }
 
 export interface Stats {
@@ -88,7 +106,12 @@ export interface Stats {
   wins: number;
   losses: number;
   winRate: number;
-  byDifficulty: Array<{ difficulty: string; played: number; wins: number; losses: number }>;
+  byDifficulty: Array<{
+    difficulty: string;
+    played: number;
+    wins: number;
+    losses: number;
+  }>;
 }
 
 export interface PreviewResponse {
@@ -99,12 +122,19 @@ export interface PreviewResponse {
 }
 
 export type MoveAction =
-  | { type: "attack"; targetId: string }
-  | { type: "heal"; targetId: string }
-  | { type: "wait" };
+  { type: "attack"; targetId: string } | { type: "heal"; targetId: string } | { type: "wait" };
 
-export interface MoveBundle {
+export interface MovePayload {
   unitId: string;
   path: [number, number][];
   action: MoveAction;
+}
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = "ApiError";
+  }
 }

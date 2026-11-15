@@ -1,90 +1,70 @@
 import { describe, expect, it } from "vitest";
-import type { MoveBundle, PreviewResponse } from "../types";
-import { initialBoardUiState, stagedMovesReducer } from "./stagedMoves";
+import { boardReducer, initialBoardState } from "./stagedMoves";
 
-const preview: PreviewResponse = {
-  moveTiles: [[1, 0]],
+const preview = {
+  moveTiles: [[1, 1] as [number, number]],
   attackTiles: [],
   healTiles: [],
-  side: "player",
+  side: "player" as const,
 };
 
-const moveA: MoveBundle = {
-  unitId: "P-sword-1",
-  path: [
-    [0, 0],
-    [1, 0],
-  ],
-  action: { type: "wait" },
-};
-
-const moveB: MoveBundle = {
-  unitId: "P-axe-1",
-  path: [[0, 1]],
-  action: { type: "wait" },
-};
-
-describe("stagedMovesReducer", () => {
-  it("supports selecting, picking destination, staging and unstage transitions", () => {
-    let state = stagedMovesReducer(initialBoardUiState, {
-      type: "selectOwnUnit",
-      unitId: "P-sword-1",
-      preview,
-    });
-    expect(state.mode).toBe("unitSelected");
-    expect(state.selectedUnitId).toBe("P-sword-1");
-
-    state = stagedMovesReducer(state, {
-      type: "pickMoveDestination",
-      destination: [1, 0],
+describe("staged-moves reducer", () => {
+  it("selects unit and stages a move", () => {
+    let s = boardReducer(initialBoardState, { type: "selectUnit", unitId: "P-sword-1", preview });
+    expect(s.mode.kind).toBe("unitSelected");
+    s = boardReducer(s, {
+      type: "pickDestination",
+      destination: [1, 1],
       path: [
         [0, 0],
-        [1, 0],
+        [1, 1],
       ],
     });
-    expect(state.mode).toBe("movePicked");
-    expect(state.pickedDestination).toEqual([1, 0]);
-
-    state = stagedMovesReducer(state, { type: "stageMove", move: moveA });
-    expect(state.stagedMoves).toHaveLength(1);
-    expect(state.selectedUnitId).toBeNull();
-
-    state = stagedMovesReducer(state, {
-      type: "selectOwnUnit",
-      unitId: "P-axe-1",
-      preview,
+    expect(s.mode.kind).toBe("movePicked");
+    s = boardReducer(s, {
+      type: "stageMove",
+      move: {
+        unitId: "P-sword-1",
+        path: [
+          [0, 0],
+          [1, 1],
+        ],
+        action: { type: "wait" },
+      },
     });
-    state = stagedMovesReducer(state, { type: "stageMove", move: moveB });
-    expect(state.stagedMoves).toHaveLength(2);
-
-    state = stagedMovesReducer(state, { type: "unstageMove", index: 0 });
-    expect(state.stagedMoves).toHaveLength(1);
-    expect(state.stagedMoves[0]?.unitId).toBe("P-axe-1");
+    expect(s.staged).toHaveLength(1);
+    expect(s.mode.kind).toBe("idle");
   });
 
-  it("keeps bundle on submit failure and records error index, then clears on success", () => {
-    let state = stagedMovesReducer(initialBoardUiState, {
-      type: "selectOwnUnit",
-      unitId: "P-sword-1",
-      preview,
+  it("unstages by index and adjusts error index", () => {
+    let s = initialBoardState;
+    s = boardReducer(s, {
+      type: "stageMove",
+      move: { unitId: "P-sword-1", path: [[0, 0]], action: { type: "wait" } },
     });
-    state = stagedMovesReducer(state, { type: "stageMove", move: moveA });
-    state = stagedMovesReducer(state, { type: "stageMove", move: moveB });
-
-    state = stagedMovesReducer(state, { type: "beginSubmit" });
-    expect(state.mode).toBe("playerTurnSubmitted");
-
-    state = stagedMovesReducer(state, {
-      type: "submitFailed",
-      error: "move 2: bad move",
-      errorMoveIndex: 1,
+    s = boardReducer(s, {
+      type: "stageMove",
+      move: { unitId: "P-axe-1", path: [[1, 0]], action: { type: "wait" } },
     });
-    expect(state.mode).toBe("staged");
-    expect(state.stagedMoves).toHaveLength(2);
-    expect(state.errorMoveIndex).toBe(1);
-    expect(state.submitError).toBe("move 2: bad move");
+    s = boardReducer(s, { type: "setError", index: 1, message: "move 2: bad", flashUntil: 9999 });
+    expect(s.errorMoveIndex).toBe(1);
+    s = boardReducer(s, { type: "unstage", index: 0 });
+    expect(s.staged).toHaveLength(1);
+    expect(s.staged[0].unitId).toBe("P-axe-1");
+    expect(s.errorMoveIndex).toBe(0);
+  });
 
-    state = stagedMovesReducer(state, { type: "submitSucceeded" });
-    expect(state).toEqual(initialBoardUiState);
+  it("replaces staged move for same unit", () => {
+    let s = initialBoardState;
+    s = boardReducer(s, {
+      type: "stageMove",
+      move: { unitId: "P-sword-1", path: [[0, 0]], action: { type: "wait" } },
+    });
+    s = boardReducer(s, {
+      type: "stageMove",
+      move: { unitId: "P-sword-1", path: [[0, 1]], action: { type: "wait" } },
+    });
+    expect(s.staged).toHaveLength(1);
+    expect(s.staged[0].path).toEqual([[0, 1]]);
   });
 });

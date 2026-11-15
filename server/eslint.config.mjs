@@ -1,21 +1,15 @@
 import js from "@eslint/js";
+import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  {
-    ignores: ["dist/**", "node_modules/**"],
-  },
+  { ignores: ["dist/**", "node_modules/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
     files: ["**/*.ts"],
     languageOptions: {
-      parserOptions: {
-        projectService: {
-          allowDefaultProject: ["vitest.config.ts"],
-        },
-        tsconfigRootDir: import.meta.dirname,
-      },
+      globals: globals.node,
     },
   },
   {
@@ -27,20 +21,11 @@ export default tseslint.config(
           patterns: [
             {
               group: ["**/features/**", "../features/**", "../../features/**"],
-              message: "Engine module (src/game) must not import from features/.",
+              message: "The game engine must not import from features/.",
             },
           ],
         },
       ],
-    },
-  },
-  {
-    files: ["**/*.config.{js,mjs,ts}"],
-    languageOptions: {
-      globals: {
-        console: "readonly",
-        process: "readonly",
-      },
     },
   },
 );

@@ -1,48 +1,47 @@
 import type { User } from "../types";
 import { request } from "./request";
 
-export function register(input: {
+export function register(body: {
   email: string;
   password: string;
   username: string;
 }): Promise<{ user: User }> {
   return request<{ user: User }>("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify(body),
   });
 }
 
-export function login(input: { email: string; password: string }): Promise<{ user: User }> {
+export function login(body: { email: string; password: string }): Promise<{ user: User }> {
   return request<{ user: User }>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify(body),
   });
 }
 
-export async function logout(): Promise<void> {
-  await request<void>("/api/auth/logout", { method: "POST" });
+export function logout(): Promise<void> {
+  return request<void>("/api/auth/logout", { method: "POST" });
 }
 
-export function me(options?: { suppressAuthRedirect?: boolean }): Promise<{ user: User }> {
+export function me(opts: { suppressUnauthorized?: boolean } = {}): Promise<{ user: User }> {
   return request<{ user: User }>("/api/me", {
-    method: "GET",
-    suppressAuthRedirect: options?.suppressAuthRedirect,
+    suppressUnauthorized: opts.suppressUnauthorized ?? true,
   });
 }
 
-export function updateMe(input: { username?: string; theme?: string }): Promise<{ user: User }> {
+export function patchMe(body: { username?: string; theme?: string }): Promise<{ user: User }> {
   return request<{ user: User }>("/api/me", {
     method: "PATCH",
-    body: JSON.stringify(input),
+    body: JSON.stringify(body),
   });
 }
 
-export async function changePassword(input: {
+export function changePassword(body: {
   currentPassword: string;
   newPassword: string;
 }): Promise<void> {
-  await request<void>("/api/me/password", {
+  return request<void>("/api/me/password", {
     method: "PATCH",
-    body: JSON.stringify(input),
+    body: JSON.stringify(body),
   });
 }

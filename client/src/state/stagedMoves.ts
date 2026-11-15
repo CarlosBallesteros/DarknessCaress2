@@ -1,121 +1,103 @@
-import type { MoveBundle, PreviewResponse, Unit } from "../types";
+import type { MovePayload, PreviewResponse, Unit } from "../types";
+
+export type Point = [number, number];
+
+export type StagedMove = MovePayload;
 
 export type BoardMode =
-  | "idle"
-  | "unitSelected"
-  | "enemyInspect"
-  | "movePicked"
-  | "staged"
-  | "playerTurnSubmitted";
+  | { kind: "idle" }
+  | { kind: "unitSelected"; unitId: string; preview: PreviewResponse }
+  | {
+      kind: "movePicked";
+      unitId: string;
+      preview: PreviewResponse;
+      destination: Point;
+      path: Point[];
+    }
+  | { kind: "enemyInspect"; unitId: string; preview: PreviewResponse };
 
-export interface BoardUiState {
+export interface BoardState {
   mode: BoardMode;
-  selectedUnitId: string | null;
-  inspectUnitId: string | null;
-  preview: PreviewResponse | null;
-  pickedDestination: [number, number] | null;
-  displayPath: [number, number][] | null;
-  stagedMoves: MoveBundle[];
+  staged: StagedMove[];
   errorMoveIndex: number | null;
-  submitError: string | null;
+  errorMessage: string | null;
+  errorFlashUntil: number | null;
 }
 
-export type BoardUiAction =
-  | { type: "reset" }
-  | { type: "selectOwnUnit"; unitId: string; preview: PreviewResponse }
-  | { type: "inspectEnemy"; unitId: string; preview: PreviewResponse }
-  | { type: "clearSelection" }
-  | { type: "pickMoveDestination"; destination: [number, number]; path: [number, number][] }
-  | { type: "cancelMovePick" }
-  | { type: "stageMove"; move: MoveBundle }
-  | { type: "unstageMove"; index: number }
-  | { type: "beginSubmit" }
-  | { type: "submitFailed"; error: string; errorMoveIndex: number | null }
-  | { type: "submitSucceeded" };
-
-export const initialBoardUiState: BoardUiState = {
-  mode: "idle",
-  selectedUnitId: null,
-  inspectUnitId: null,
-  preview: null,
-  pickedDestination: null,
-  displayPath: null,
-  stagedMoves: [],
+export const initialBoardState: BoardState = {
+  mode: { kind: "idle" },
+  staged: [],
   errorMoveIndex: null,
-  submitError: null,
+  errorMessage: null,
+  errorFlashUntil: null,
 };
 
-function clearError(state: BoardUiState): BoardUiState {
-  if (state.errorMoveIndex === null && state.submitError === null) return state;
-  return { ...state, errorMoveIndex: null, submitError: null };
+export type BoardAction =
+  | { type: "reset" }
+  | { type: "selectUnit"; unitId: string; preview: PreviewResponse }
+  | { type: "inspectEnemy"; unitId: string; preview: PreviewResponse }
+  | { type: "pickDestination"; destination: Point; path: Point[] }
+  | { type: "backToSelected" }
+  | { type: "clearMode" }
+  | { type: "stageMove"; move: StagedMove }
+  | { type: "unstage"; index: number }
+  | { type: "setError"; index: number | null; message: string | null; flashUntil?: number | null }
+  | { type: "clearError" };
+
+function canSelectOwn(unit: Unit | null | undefined): boolean {
+  return !!unit && unit.side === "player" && !unit.acted;
 }
 
-export function stagedMovesReducer(state: BoardUiState, action: BoardUiAction): BoardUiState {
+export function boardReducer(state: BoardState, action: BoardAction): BoardState {
   switch (action.type) {
     case "reset":
-      return { ...initialBoardUiState };
-    case "selectOwnUnit":
+      return initialBoardState;
+    case "selectUnit":
       return {
-        ...clearError(state),
-        mode: "unitSelected",
-        selectedUnitId: action.unitId,
-        inspectUnitId: null,
-        preview: action.preview,
-        pickedDestination: null,
-        displayPath: null,
+        ...state,
+        mode: { kind: "unitSelected", unitId: action.unitId, preview: action.preview },
       };
     case "inspectEnemy":
       return {
-        ...clearError(state),
-        mode: "enemyInspect",
-        selectedUnitId: null,
-        inspectUnitId: action.unitId,
-        preview: action.preview,
-        pickedDestination: null,
-        displayPath: null,
+        ...state,
+        mode: { kind: "enemyInspect", unitId: action.unitId, preview: action.preview },
       };
-    case "clearSelection":
-      return {
-        ...clearError(state),
-        mode: state.stagedMoves.length > 0 ? "staged" : "idle",
-        selectedUnitId: null,
-        inspectUnitId: null,
-        preview: null,
-        pickedDestination: null,
-        displayPath: null,
-      };
-    case "pickMoveDestination":
-      if (state.mode !== "unitSelected" && state.mode !== "movePicked") return state;
-      return {
-        ...clearError(state),
-        mode: "movePicked",
-        pickedDestination: action.destination,
-        displayPath: action.path,
-      };
-    case "cancelMovePick":
-      if (state.mode !== "movePicked") return state;
-      return {
-        ...clearError(state),
-        mode: "unitSelected",
-        pickedDestination: null,
-        displayPath: null,
-      };
-    case "stageMove":
+    case "pickDestination":
+      if (state.mode.kind !== "unitSelected" && state.mode.kind !== "movePicked") return state;
       return {
         ...state,
-        mode: "staged",
-        selectedUnitId: null,
-        inspectUnitId: null,
-        preview: null,
-        pickedDestination: null,
-        displayPath: null,
-        stagedMoves: [...state.stagedMoves, action.move],
-        errorMoveIndex: null,
-        submitError: null,
+        mode: {
+          kind: "movePicked",
+          unitId: state.mode.unitId,
+          preview: state.mode.preview,
+          destination: action.destination,
+          path: action.path,
+        },
       };
-    case "unstageMove": {
-      const next = state.stagedMoves.filter((_, i) => i !== action.index);
-      const nextError =
+    case "backToSelected":
+      if (state.mode.kind === "movePicked") {
+        return {
+          ...state,
+          mode: { kind: "unitSelected", unitId: state.mode.unitId, preview: state.mode.preview },
+        };
+      }
+      return state;
+    case "clearMode":
+      return { ...state, mode: { kind: "idle" } };
+    case "stageMove": {
+      // replace existing staged move for same unit if any
+      const filtered = state.staged.filter((m) => m.unitId !== action.move.unitId);
+      return {
+        ...state,
+        staged: [...filtered, action.move],
+        mode: { kind: "idle" },
+        errorMoveIndex: null,
+        errorMessage: null,
+      };
+    }
+    case "unstage": {
+      const next = state.staged.filter((_, i) => i !== action.index);
+      const errIdx =
         state.errorMoveIndex === null
           ? null
           : state.errorMoveIndex === action.index
@@ -123,48 +105,30 @@ export function stagedMovesReducer(state: BoardUiState, action: BoardUiAction): 
             : state.errorMoveIndex > action.index
               ? state.errorMoveIndex - 1
               : state.errorMoveIndex;
-      const nextMode =
-        state.mode === "staged" || state.mode === "idle"
-          ? next.length > 0
-            ? "staged"
-            : "idle"
-          : state.mode;
       return {
         ...state,
-        mode: nextMode,
-        stagedMoves: next,
-        errorMoveIndex: nextError,
-        submitError: nextError === null ? null : state.submitError,
+        staged: next,
+        errorMoveIndex: errIdx,
+        errorMessage: errIdx === null ? null : state.errorMessage,
       };
     }
-    case "beginSubmit":
+    case "setError":
       return {
         ...state,
-        mode: "playerTurnSubmitted",
-        errorMoveIndex: null,
-        submitError: null,
+        errorMoveIndex: action.index,
+        errorMessage: action.message,
+        errorFlashUntil: action.flashUntil ?? (action.index !== null ? Date.now() + 1200 : null),
       };
-    case "submitFailed":
-      return {
-        ...state,
-        // bundle stays intact for fixing; mode returns to staged context
-        mode: "staged",
-        errorMoveIndex: action.errorMoveIndex,
-        submitError: action.error,
-      };
-    case "submitSucceeded":
-      return {
-        ...initialBoardUiState,
-      };
+    case "clearError":
+      return { ...state, errorMoveIndex: null, errorMessage: null, errorFlashUntil: null };
     default:
       return state;
   }
 }
 
-export function isUnitStaged(state: BoardUiState, unitId: string): boolean {
-  return state.stagedMoves.some((m) => m.unitId === unitId);
-}
-
-export function canSelectPlayerUnit(unit: Unit, state: BoardUiState): boolean {
-  return unit.side === "player" && !unit.acted && !isUnitStaged(state, unit.id);
+export function isOwnSelectable(unit: Unit | undefined, staged: StagedMove[]): boolean {
+  if (!canSelectOwn(unit)) return false;
+  // units already staged this round are not selectable for another staged action in same way?
+  // spec allows unstage via chip; selecting again is fine in general, but acted means submitted to server state.
+  return !unit!.acted && !staged.some((s) => s.unitId === unit!.id);
 }

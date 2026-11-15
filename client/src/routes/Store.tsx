@@ -1,19 +1,18 @@
 import { TopMenu } from "../components/TopMenu";
-import "../styles/Store.css";
 
 export function Store() {
   return (
-    <div className="page-shell">
+    <main className="page-with-menu">
       <TopMenu />
-      <main className="page-content store-page">
-        <section className="card store-card">
-          <h1>Store</h1>
-          <p className="store-coming">Coming soon…</p>
-          <p className="store-flavor">
-            New banners, relics, and warrior themes will one day gather here under the lamplight.
+      <section className="store-page" aria-labelledby="store-title">
+        <div className="store-card">
+          <h1 id="store-title">Store</h1>
+          <p className="coming-soon">Coming soon…</p>
+          <p className="store-copy">
+            New themes and cosmetics will appear here in a future update.
           </p>
-        </section>
-      </main>
-    </div>
+        </div>
+      </section>
+    </main>
   );
 }

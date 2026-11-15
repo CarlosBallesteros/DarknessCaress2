@@ -1,6 +1,7 @@
-import { Pool } from "pg";
-import { env } from "../env";
+import pg from "pg";
 
-export const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-});
+const { Pool } = pg;
+
+export function createPool(connectionString: string): pg.Pool {
+  return new Pool({ connectionString });
+}

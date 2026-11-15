@@ -1,17 +1,16 @@
-import { Link, NavLink, useNavigate } from "react-router-dom";
-import * as authApi from "../api/auth";
-import { useAuth } from "../lib/auth";
+﻿import { Link, NavLink, useNavigate } from "react-router-dom";
+import { logout } from "../api/auth";
 import { useUiMode } from "../hooks/useUiMode";
-import "../styles/TopMenu.css";
+import { useAuth } from "./useAuth";
 
 export function TopMenu() {
   const { user, setUser } = useAuth();
-  const [mode, toggleMode] = useUiMode();
   const navigate = useNavigate();
+  const { mode, toggle } = useUiMode();
 
   const onLogout = async () => {
     try {
-      await authApi.logout();
+      await logout();
     } finally {
       setUser(null);
       navigate("/");
@@ -25,7 +24,7 @@ export function TopMenu() {
           Darkness Caress II
         </Link>
       </div>
-      <nav className="top-menu-center" aria-label="Primary">
+      <nav className="top-menu-center" aria-label="Main tabs">
         <NavLink
           to="/play"
           data-testid="tab-game"
@@ -53,24 +52,22 @@ export function TopMenu() {
       <div className="top-menu-right">
         <button
           type="button"
-          className="icon-btn"
+          className="icon-button"
           data-testid="ui-mode-toggle"
-          onClick={toggleMode}
+          onClick={toggle}
           aria-label={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
           {mode === "dark" ? "☀" : "☾"}
         </button>
         {user ? (
-          <>
-            <Link to="/profile" className="username-link">
-              {user.username}
-            </Link>
-            <button type="button" className="secondary-btn" data-testid="logout" onClick={onLogout}>
-              Log out
-            </button>
-          </>
+          <Link to="/profile" className="username-link">
+            {user.username}
+          </Link>
         ) : null}
+        <button type="button" data-testid="logout" onClick={onLogout} className="logout-button">
+          Log out
+        </button>
       </div>
     </header>
   );

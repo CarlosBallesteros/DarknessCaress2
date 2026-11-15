@@ -1,34 +1,43 @@
-import rawConfig from "../config/config.json";
-import type { GameEngineConfig } from "./types";
+import type { ClassKey, GameEngineConfig } from "./types.js";
 
 type RawClass = {
-  count: number;
-  hp: number;
-  atk: number;
-  def: number;
-  mov: number;
-  range: number[];
-  healAmount?: number;
-  role?: "attacker" | "supporter";
+  count?: unknown;
+  hp?: unknown;
+  atk?: unknown;
+  def?: unknown;
+  mov?: unknown;
+  range?: unknown;
+  healAmount?: unknown;
+  role?: unknown;
 };
 
-export type RawGameConfig = {
-  boardSize: number;
-  classes: Record<string, RawClass>;
+type RawConfig = {
+  boardSize?: unknown;
+  classes?: Record<string, RawClass>;
 };
 
-export function projectGameEngineConfig(raw: RawGameConfig): GameEngineConfig {
-  return {
-    boardSize: raw.boardSize,
-    classes: {
-      sword: { ...raw.classes.sword },
-      axe: { ...raw.classes.axe },
-      spear: { ...raw.classes.spear },
-      archer: { ...raw.classes.archer },
-      mage: { ...raw.classes.mage },
-      healer: { ...raw.classes.healer },
-    },
-  };
+/**
+ * Pure projection from the canonical config shape to the engine's config.
+ * The engine never reads files; callers load config.json and project it.
+ */
+export function projectEngineConfig(raw: RawConfig): GameEngineConfig {
+  const boardSize = raw.boardSize as number;
+  const classes = raw.classes ?? {};
+  const keys: ClassKey[] = ["sword", "axe", "spear", "archer", "mage", "healer"];
+  const projected = {} as GameEngineConfig["classes"];
+  for (const key of keys) {
+    const c = classes[key] ?? {};
+    const entry: GameEngineConfig["classes"][ClassKey] = {
+      count: c.count as number,
+      hp: c.hp as number,
+      atk: c.atk as number,
+      def: c.def as number,
+      mov: c.mov as number,
+      range: [...((c.range as number[]) ?? [])],
+    };
+    if (c.healAmount !== undefined) entry.healAmount = c.healAmount as number;
+    if (c.role !== undefined) entry.role = c.role as "attacker" | "supporter";
+    projected[key] = entry;
+  }
+  return { boardSize, classes: projected };
 }
-
-export const gameEngineConfig = projectGameEngineConfig(rawConfig as RawGameConfig);
