@@ -108,13 +108,8 @@ Tests: `npm -w server test`, `npm -w client test`, `npm run e2e` (Playwright). P
 
 ## Test players
 
-To test the game, use the already set up players:
+To test the game, use the already set up player:
 
-- **Player 1**
-  - **Email:** test@email.com
-  - **Username:** Player1
-  - **Password:** 12345678
-- **Player 2**
+- **test_player**
   - **Email:** test_player@bigschool.com
-  - **Username:** test_player
   - **Password:** test_player123
