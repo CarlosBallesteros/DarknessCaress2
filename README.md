@@ -106,8 +106,15 @@ npm -w client run dev       # Vite on :5173 (proxies /api)
 
 Tests: `npm -w server test`, `npm -w client test`, `npm run e2e` (Playwright). Production: `docker compose up -d` (serves the SPA + API from one container; Ollama runs beside it).
 
-## Test player
+## Test players
 
-To test the game, use the already set up player:
-- **Email:** test@email.com
-- **Architecture:** 12345678
+To test the game, use the already set up players:
+
+- **Player 1**
+  - **Email:** test@email.com
+  - **Username:** Player1
+  - **Password:** 12345678
+- **Player 2**
+  - **Email:** test_player@bigschool.com
+  - **Username:** test_player
+  - **Password:** test_player123

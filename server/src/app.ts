@@ -94,21 +94,29 @@ export function createServer(options?: ServerOptions) {
 }
 
 async function ensureDefaultUser(pool: pg.Pool): Promise<void> {
-  const existing = await pool.query<{ id: string }>(
-    "SELECT id FROM users WHERE email = $1 OR username = $2 LIMIT 1",
-    ["test@email.com", "Player1"],
-  );
-  if ((existing.rowCount ?? 0) > 0) return;
-  const passwordHash = await bcrypt.hash("12345678", 10);
-  try {
-    await pool.query(
-      "INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3)",
-      ["test@email.com", "Player1", passwordHash],
+  const seeds = [
+    { email: "test@email.com", username: "Player1", password: "12345678" },
+    { email: "test_player@bigschool.com", username: "test_player", password: "test_player123" },
+  ];
+
+  for (const seed of seeds) {
+    const existing = await pool.query<{ id: string }>(
+      "SELECT id FROM users WHERE email = $1 OR username = $2 LIMIT 1",
+      [seed.email, seed.username],
     );
-  } catch (err) {
-    // Skipped safely if a conflicting user already exists (race/idempotency).
-    const code = (err as { code?: string }).code;
-    if (code !== "23505") throw err;
+    if ((existing.rowCount ?? 0) > 0) continue;
+
+    const passwordHash = await bcrypt.hash(seed.password, 10);
+    try {
+      await pool.query(
+        "INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3)",
+        [seed.email, seed.username, passwordHash],
+      );
+    } catch (err) {
+      // Skipped safely if a conflicting user already exists (race/idempotency).
+      const code = (err as { code?: string }).code;
+      if (code !== "23505") throw err;
+    }
   }
 }
 
