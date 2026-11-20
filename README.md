@@ -92,7 +92,6 @@ flowchart LR
 
 ## Player quickstart (requires Docker Desktop installed)
 On Windows 11: run `play.cmd` to install and start the game.
-On linux/Mac: try running `play.sh` to install and start the game (beta).
 
 ## Dev quickstart
 
