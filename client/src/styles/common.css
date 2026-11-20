@@ -307,7 +307,9 @@ button.danger:hover:not(:disabled),
     order: 3;
     flex: 1 1 100%;
     width: 100%;
-    justify-content: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 0.2rem;
   }
   .top-menu-right {
     flex: 0 0 auto;
@@ -326,6 +328,8 @@ button.danger:hover:not(:disabled),
     padding: 0.35rem 0.45rem;
   }
   .tab {
-    padding: 0.35rem 0.2rem;
+    padding: 0.3rem 0.1rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
   }
 }
