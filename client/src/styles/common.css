@@ -70,6 +70,10 @@
   color: var(--text);
   text-decoration: none;
   font-weight: 600;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .username-link:hover {
@@ -281,18 +285,47 @@ button.danger:hover:not(:disabled),
 
 @media (max-width: 480px) {
   .top-menu {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 0.6rem 0.75rem;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    gap: 0.4rem 0.5rem;
   }
-  .top-menu-left,
-  .top-menu-center,
-  .top-menu-right {
+  .top-menu-left {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .wordmark {
+    font-size: clamp(1.25rem, 6vw, 1.6rem);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .top-menu-center {
+    order: 3;
+    flex: 1 1 100%;
     width: 100%;
     justify-content: center;
-    text-align: center;
+  }
+  .top-menu-right {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+  }
+  .username-link {
+    max-width: 4.5rem;
+  }
+  .icon-button {
+    min-width: 2rem;
+    min-height: 2rem;
+    padding: 0.2rem 0.35rem;
+  }
+  .logout-button {
+    padding: 0.35rem 0.45rem;
   }
   .tab {
-    padding: 0.4rem 0.2rem;
+    padding: 0.35rem 0.2rem;
   }
 }
