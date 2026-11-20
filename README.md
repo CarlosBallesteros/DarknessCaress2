@@ -2,9 +2,10 @@
 
 *"The long-awaited sequel to the legendary game."*
 
-A fully deployed website with a **1-vs-1 turn-based strategy game** in the spirit of Fire Emblem (but simpler).
-The battlefield/board layout can be generated from AI calls (via a local LLM, Ollama) and is validated by a deterministic rules engine that guarantees legality, while enemy move turns are decided by server-side deterministic policies.
+An MVP project with a **1-vs-1 turn-based strategy game** in the spirit of Fire Emblem (but simpler).
+The battlefield/board layout is generated from AI calls (via a local LLM, Ollama) and is validated by a rules engine that guarantees legality, while enemy move turns are decided by server-side deterministic policies.
 The game is asynchronous by design — the player takes a turn, the AI thinks in the background, the player keeps up to 5 concurrent games.
+Keep track of your statistics, wins/losses per difficulty.
 
 - **Architecture:** React SPA (Vite) + Express API + PostgreSQL, one VM via docker-compose, AI in Docker via Ollama.
 - **Docs-first architecture:** the `docs/` folder — a complete agent-briefing spec set for implementation and maintenance.
@@ -90,8 +91,20 @@ flowchart LR
     class SPACER1 spacer;
 ```
 
-## Player quickstart (requires Docker Desktop installed)
-On Windows 11: run `play.cmd` to install and start the game.
+## Project presentation
+For a more detailed explanation of the project, check:
+    https://docs.google.com/presentation/d/e/2PACX-1vQj_rewSA0Q7-9nSvabEUm_8PTm5Y847nH3iQ79WBNGvHXH0F9hUg_MhG1J8A3xlfW6H3QS5zcFVyWy/pub?start=false&loop=false&delayms=30000
+
+## Player quickstart
+- **Online:** http://51.170.63.138:3000 to play
+- **Windows 11 (requires Docker Desktop installed):** run `play.cmd` to install and start the game.
+
+## Test player
+To test the game, use the already set up player:
+
+- **test_player**
+  - **Email:** test_player@bigschool.com
+  - **Password:** test_player123
 
 ## Dev quickstart
 
@@ -104,11 +117,3 @@ npm -w client run dev       # Vite on :5173 (proxies /api)
 ```
 
 Tests: `npm -w server test`, `npm -w client test`, `npm run e2e` (Playwright). Production: `docker compose up -d` (serves the SPA + API from one container; Ollama runs beside it).
-
-## Test players
-
-To test the game, use the already set up player:
-
-- **test_player**
-  - **Email:** test_player@bigschool.com
-  - **Password:** test_player123
