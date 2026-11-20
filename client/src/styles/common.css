@@ -70,7 +70,18 @@
   color: var(--text);
   text-decoration: none;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   max-width: 10rem;
+}
+
+.username-icon {
+  display: none;
+  line-height: 1;
+}
+
+.username-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -317,7 +328,14 @@ button.danger:hover:not(:disabled),
     gap: 0.3rem;
   }
   .username-link {
-    max-width: 4.5rem;
+    max-width: none;
+  }
+  .username-icon {
+    display: inline;
+    font-size: 1rem;
+  }
+  .username-text {
+    display: none;
   }
   .icon-button {
     min-width: 2rem;

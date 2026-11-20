@@ -61,8 +61,9 @@ export function TopMenu() {
           {mode === "dark" ? "☀" : "☾"}
         </button>
         {user ? (
-          <Link to="/profile" className="username-link">
-            {user.username}
+          <Link to="/profile" className="username-link" aria-label={`Profile (${user.username})`} title={user.username}>
+            <span className="username-icon" aria-hidden="true">👤</span>
+            <span className="username-text">{user.username}</span>
           </Link>
         ) : null}
         <button type="button" data-testid="logout" onClick={onLogout} className="logout-button">
